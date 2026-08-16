@@ -47,6 +47,8 @@ export interface Translations {
     imageTooLargeError: string;
     imageLoadError: string;
     fileReadError: string;
+    dicomParseError: string;
+    dicomAutoCalibrated: (scale: string) => string;
   };
   viewer: {
     zoomIn: string;

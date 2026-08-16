@@ -26,3 +26,9 @@ Details: Added typed translation dictionaries in `src/locales/` (`types.ts`, `en
 2026-08-17 01:05 | Track 1: Clinical PDF / Print Export Implementation
 Details: Implemented `ClinicalReportModal.tsx` for 1-page clinical standard report preview and client-side `window.print()` PDF generation. Added `@media print` styling rules in `src/styles/index.css`. Added export actions in `AnalysisPage` header and `ResultsPanel`. Added test suite `src/test/reportExport.test.ts`. 300/300 unit tests passing.
 ---
+
+---
+2026-08-17 01:15 | Track 2: Native DICOM (.dcm) Radiograph Support & Auto-Scale
+Details: Integrated `dicom-parser` with typed definitions. Implemented client-side DICOM reader (`src/domain/dicom/dicomReader.ts`), 16-bit/8-bit grayscale VOI windowing, photometric interpretations (MONOCHROME1/MONOCHROME2), metadata extraction (Patient ID, Study Date), and auto-calibration via Pixel Spacing (`0028,0030`) and Imager Pixel Spacing (`0018,1164`). Added DICOM drag-drop upload support in `ImageUploadZone.tsx`. Authored `src/test/dicomParser.test.ts`. 310/310 unit tests passing (100%).
+---
+

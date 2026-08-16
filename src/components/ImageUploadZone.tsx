@@ -1,15 +1,18 @@
 // ── Image Upload Zone ────────────────────────────────────────
 // Drag-drop or file picker for OPG radiograph upload.
+// Supports DICOM (.dcm, .dicom), JPG, PNG, BMP, and TIFF formats.
 
 import { useRef, useState, useCallback } from "react";
 import { useStudyStore } from "../store/studyStore";
 import { getTranslations } from "../locales";
+import { parseDicomFile } from "../domain/dicom/dicomReader";
 
 export function ImageUploadZone() {
   const language = useStudyStore((s) => s.language);
   const createStudy = useStudyStore((s) => s.createStudy);
   const inputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const t = getTranslations(language);
@@ -17,22 +20,58 @@ export function ImageUploadZone() {
   const handleFile = useCallback(
     (file: File) => {
       setError(null);
-      if (!file.type.startsWith("image/")) {
+      const fileNameLower = file.name.toLowerCase();
+      const isDicom =
+        fileNameLower.endsWith(".dcm") ||
+        fileNameLower.endsWith(".dicom") ||
+        file.type === "application/dicom";
+
+      if (!isDicom && !file.type.startsWith("image/")) {
         setError(t.upload.invalidImageError);
         return;
       }
-      if (file.size > 20 * 1024 * 1024) {
+      if (file.size > 50 * 1024 * 1024) {
         setError(t.upload.imageTooLargeError);
         return;
       }
 
+      setIsLoading(true);
+
+      // ── Handle DICOM File ──
+      if (isDicom) {
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            const buffer = reader.result as ArrayBuffer;
+            const result = parseDicomFile(buffer);
+            createStudy(
+              result.metadata.patientId || "",
+              result.imageDataUrl,
+              result.width,
+              result.height,
+              result.autoCalibration
+            );
+          } catch (err) {
+            console.error("DICOM parse error:", err);
+            setError(t.upload.dicomParseError);
+          } finally {
+            setIsLoading(false);
+          }
+        };
+        reader.onerror = () => {
+          setIsLoading(false);
+          setError(t.upload.fileReadError);
+        };
+        reader.readAsArrayBuffer(file);
+        return;
+      }
+
+      // ── Handle Standard Raster Image ──
       const reader = new FileReader();
       reader.onload = () => {
         const dataUrl = reader.result as string;
-        // Load image to get natural dimensions
         const img = new Image();
         img.onload = () => {
-          // Downscale if very large (>2000px max dimension) to keep localStorage manageable
           let finalUrl = dataUrl;
           let finalW = img.naturalWidth;
           let finalH = img.naturalHeight;
@@ -51,13 +90,16 @@ export function ImageUploadZone() {
             }
           }
           createStudy("", finalUrl, finalW, finalH);
+          setIsLoading(false);
         };
         img.onerror = () => {
+          setIsLoading(false);
           setError(t.upload.imageLoadError);
         };
         img.src = dataUrl;
       };
       reader.onerror = () => {
+        setIsLoading(false);
         setError(t.upload.fileReadError);
       };
       reader.readAsDataURL(file);
@@ -72,38 +114,43 @@ export function ImageUploadZone() {
           isDragging
             ? "border-blue-500 bg-blue-50"
             : "border-gray-300 bg-gray-50"
-        }`}
+        } ${isLoading ? "opacity-60 cursor-wait" : "cursor-pointer"}`}
         onDragOver={(e) => {
           e.preventDefault();
-          setIsDragging(true);
+          if (!isLoading) setIsDragging(true);
         }}
         onDragLeave={() => setIsDragging(false)}
         onDrop={(e) => {
           e.preventDefault();
           setIsDragging(false);
+          if (isLoading) return;
           const file = e.dataTransfer.files[0];
           if (file) handleFile(file);
         }}
-        onClick={() => inputRef.current?.click()}
+        onClick={() => {
+          if (!isLoading) inputRef.current?.click();
+        }}
         role="button"
         tabIndex={0}
         onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") inputRef.current?.click();
+          if (!isLoading && (e.key === "Enter" || e.key === " ")) {
+            inputRef.current?.click();
+          }
         }}
       >
         <input
           ref={inputRef}
           type="file"
-          accept="image/*"
+          accept=".dcm,.dicom,image/*"
           className="hidden"
           onChange={(e) => {
             const file = e.target.files?.[0];
             if (file) handleFile(file);
           }}
         />
-        <div className="text-6xl mb-4">📁</div>
+        <div className="text-6xl mb-4">{isLoading ? "⏳" : "🩻"}</div>
         <p className="text-lg font-semibold text-gray-700">
-          {t.upload.dragDropTitle}
+          {isLoading ? t.studyManager.loadingStudy : t.upload.dragDropTitle}
         </p>
         <p className="text-sm text-gray-500 mt-1">{t.upload.dragDropSubtitle}</p>
         <p className="text-xs text-gray-400 mt-4">

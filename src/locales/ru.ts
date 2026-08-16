@@ -33,11 +33,13 @@ export const ru: Translations = {
   upload: {
     dragDropTitle: "Перетащите панорамный рентгеновский снимок (ОПТГ)",
     dragDropSubtitle: "или нажмите для выбора файла на компьютере",
-    supportedFormats: "Поддерживаются JPG, PNG, BMP, TIFF (до 20 МБ)",
-    invalidImageError: "Пожалуйста, выберите файл изображения (JPG, PNG, BMP, TIFF).",
-    imageTooLargeError: "Файл слишком большой. Максимальный размер 20 МБ.",
+    supportedFormats: "Поддерживаются DICOM (.dcm), JPG, PNG, BMP, TIFF (до 50 МБ)",
+    invalidImageError: "Пожалуйста, выберите поддерживаемый снимок (DICOM, JPG, PNG, BMP, TIFF).",
+    imageTooLargeError: "Файл слишком большой. Максимальный размер 50 МБ.",
     imageLoadError: "Не удалось загрузить изображение. Попробуйте другой файл.",
     fileReadError: "Не удалось прочитать файл.",
+    dicomParseError: "Не удалось обработать файл DICOM. Убедитесь, что это корректная панорамная рентгенограмма.",
+    dicomAutoCalibrated: (scale) => `Автокалибровка по Pixel Spacing DICOM (${scale} мм/пкс)`,
   },
   viewer: {
     zoomIn: "Увеличить (+)",

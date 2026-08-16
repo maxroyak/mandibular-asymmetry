@@ -102,7 +102,13 @@ interface StudyActions {
   setLanguage: (lang: Locale) => void;
 
   // Study lifecycle
-  createStudy: (patientId: string, imageDataUrl: string, width: number, height: number) => void;
+  createStudy: (
+    patientId: string,
+    imageDataUrl: string,
+    width: number,
+    height: number,
+    initialCalibration?: Calibration | null
+  ) => void;
   loadStudy: (studyId: string) => Promise<void>;
   /**
    * Auto-load the last active study on app startup.
@@ -344,9 +350,10 @@ export const useStudyStore = create<Store>()(
     },
 
     // ── Study lifecycle ──
-    createStudy: (patientId, imageDataUrl, width, height) => {
+    createStudy: (patientId, imageDataUrl, width, height, initialCalibration) => {
       const studyId = `study-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       const now = new Date().toISOString();
+      const isCalibrated = !!initialCalibration;
       set({
         studyId,
         patientId,
@@ -355,11 +362,11 @@ export const useStudyStore = create<Store>()(
         imageNaturalHeight: height,
         landmarks: {},
         activeLandmark: null,
-        calibration: null,
+        calibration: initialCalibration ?? null,
         calibrationPoints: null,
-        calibrationMode: "A",
-        calibrationRealDistanceMm: 0,
-        calibrationStage: "idle",
+        calibrationMode: isCalibrated ? "B" : "A",
+        calibrationRealDistanceMm: initialCalibration?.realDistanceMm ?? 0,
+        calibrationStage: isCalibrated ? "calibrated" : "idle",
         previousCalibration: null,
         measurements: null,
         interpretation: "",
@@ -371,6 +378,9 @@ export const useStudyStore = create<Store>()(
       });
       studyRepository.setCurrentStudyId(studyId);
       get().refreshStudyList();
+      if (isCalibrated) {
+        get().recalculate();
+      }
     },
 
     loadStudy: async (studyId) => {

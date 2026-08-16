@@ -33,11 +33,13 @@ export const en: Translations = {
   upload: {
     dragDropTitle: "Drag and drop a panoramic radiograph (OPG)",
     dragDropSubtitle: "or click to select a file from your computer",
-    supportedFormats: "Supports JPG, PNG, BMP, TIFF (max 20 MB)",
-    invalidImageError: "Please select an image file (JPG, PNG, BMP, TIFF).",
-    imageTooLargeError: "Image too large. Maximum size is 20 MB.",
+    supportedFormats: "Supports DICOM (.dcm), JPG, PNG, BMP, TIFF (max 50 MB)",
+    invalidImageError: "Please select a supported radiograph file (DICOM, JPG, PNG, BMP, TIFF).",
+    imageTooLargeError: "File too large. Maximum size is 50 MB.",
     imageLoadError: "Failed to load image. Please try a different file.",
     fileReadError: "Failed to read file.",
+    dicomParseError: "Failed to parse DICOM file. Please verify it is a valid panoramic radiograph.",
+    dicomAutoCalibrated: (scale) => `Auto-calibrated via DICOM Pixel Spacing (${scale} mm/px)`,
   },
   viewer: {
     zoomIn: "Zoom in (+)",
