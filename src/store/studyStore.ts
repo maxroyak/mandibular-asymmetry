@@ -10,7 +10,6 @@ import {
   calculateRelativeDifference,
   calculateAsymmetryIndex,
   determineLargerSide,
-  classifyAsymmetry,
   generateClinicalSummary,
   calculateDifferenceMm,
   determineLongerSide,
@@ -88,6 +87,13 @@ interface StudyActions {
   // Study lifecycle
   createStudy: (patientId: string, imageDataUrl: string, width: number, height: number) => void;
   loadStudy: (studyId: string) => Promise<void>;
+  /**
+   * Auto-load the last active study on app startup.
+   * Reads `ma.currentStudyId` from localStorage; if set, loads that study
+   * (metadata from localStorage + image from IndexedDB). No-op if no current
+   * study is set or the study no longer exists. Safe to call multiple times.
+   */
+  loadCurrentStudy: () => Promise<void>;
   saveStudy: () => Promise<void>;
   deleteStudy: (studyId: string) => Promise<void>;
   refreshStudyList: () => void;
@@ -117,6 +123,7 @@ interface StudyActions {
   resetPoint2: () => void;
   confirmCalibration: (knownDistanceMm: number) => void;
   moveCalibrationPoint: (which: 1 | 2, point: Point) => void;
+  goBackCalibration: () => void;
 
   // Viewer transform
   setZoom: (zoom: number) => void;
@@ -156,7 +163,7 @@ function computeSingleMeasurement(
   calibration: Calibration | null,
   imageWidth: number,
   imageHeight: number,
-  isHorizontal: boolean
+  _isHorizontal: boolean
 ): MeasurementResult | null {
   if (!rightA || !rightB || !leftA || !leftB) return null;
 
@@ -166,7 +173,9 @@ function computeSingleMeasurement(
   const habets = calculateAsymmetryIndex(rightNorm, leftNorm);
   const relDiff = calculateRelativeDifference(rightNorm, leftNorm);
   const larger = determineLargerSide(rightNorm, leftNorm);
-  const tier = isHorizontal ? null : classifyAsymmetry(Math.abs(habets));
+  // 3-tier classification system removed per PIBot threshold validation.
+  // Classification is always null for all measurements.
+  const tier = null;
   const diff = calculateSideDifference(rightNorm, leftNorm);
 
   // Calibrated: convert to mm
@@ -367,6 +376,25 @@ export const useStudyStore = create<Store>()(
       });
       studyRepository.setCurrentStudyId(studyId);
       get().recalculate();
+    },
+
+    loadCurrentStudy: async () => {
+      let currentId: string | null;
+      try {
+        currentId = studyRepository.getCurrentStudyId();
+      } catch {
+        // localStorage not available (e.g. test environment during module load)
+        return;
+      }
+      if (!currentId) return;
+      // Verify the study still exists in storage before loading
+      const study = studyRepository.getById(currentId);
+      if (!study) {
+        // Stale currentStudyId — clear it so we don't keep trying
+        studyRepository.setCurrentStudyId(null);
+        return;
+      }
+      await get().loadStudy(currentId);
     },
 
     saveStudy: async () => {
@@ -640,6 +668,21 @@ export const useStudyStore = create<Store>()(
       });
     },
 
+    goBackCalibration: () => {
+      const stage = get().calibrationStage;
+      if (stage === "reviewing-point-1") {
+        get().resetPoint1();
+      } else if (stage === "placing-point-2") {
+        set({ calibrationStage: "reviewing-point-1" });
+      } else if (stage === "reviewing-point-2") {
+        get().resetPoint2();
+      } else if (stage === "entering-distance") {
+        set({ calibrationStage: "reviewing-point-2" });
+      } else if (stage === "placing-point-1") {
+        get().cancelCalibration();
+      }
+    },
+
     confirmCalibration: (knownDistanceMm) => {
       const state = get();
       if (state.calibrationStage !== "entering-distance") return;
@@ -734,3 +777,17 @@ useStudyStore.getState().refreshStudyList();
 // This is async and non-blocking — runs in the background.
 // Safe to call multiple times; no-op if already migrated.
 useStudyStore.getState().migrateLegacyImages();
+
+// ── Auto-load last active study on startup ──────────────────
+// Restores the study the user was working on before page reload.
+// Reads ma.currentStudyId from localStorage, loads metadata (sync)
+// and image from IndexedDB (async). No-op if no current study or
+// the study no longer exists. Must run after refreshStudyList so
+// the study sidebar is populated.
+// Wrapped in try/catch because localStorage may not be available
+// during module load in some test environments (jsdom without mock
+// yet set up). The App component also calls loadCurrentStudy() in a
+// useEffect as a fallback.
+void useStudyStore.getState().loadCurrentStudy().catch(() => {
+  // localStorage or IndexedDB not ready — App.tsx useEffect will retry
+});

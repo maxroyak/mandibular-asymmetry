@@ -60,43 +60,12 @@ export function CalibrationPanel() {
   const resetPoint2 = useStudyStore((s) => s.resetPoint2);
   const confirmCalibration = useStudyStore((s) => s.confirmCalibration);
   const clearCalibration = useStudyStore((s) => s.clearCalibration);
+  const goBackCalibration = useStudyStore((s) => s.goBackCalibration);
 
   // ── Back button support ──
-  // Go back one step in the calibration state machine.
-  // We implement this by combining existing store actions:
-  //   reviewing-point-2 → placing-point-2  (resetPoint2)
-  //   placing-point-2   → reviewing-point-1 (confirmPoint1 won't work — need a goBack)
-  //   reviewing-point-1 → placing-point-1  (resetPoint1)
-  //   placing-point-1   → idle (cancelCalibration)
-  //   entering-distance → reviewing-point-2 (need goBack)
-  //
-  // Since the store doesn't have a goBack action, we implement Back by
-  // calling the appropriate combination of existing actions that produces
-  // the desired transition. For stages where no existing action goes back,
-  // we call cancelCalibration as the fallback (placing-point-1 → idle).
+  // Go back one step in the calibration state machine without discarding progress.
   const handleBack = () => {
-    const stage = useStudyStore.getState().calibrationStage;
-    if (stage === "reviewing-point-1") {
-      // Go back to placing-point-1
-      resetPoint1();
-    } else if (stage === "placing-point-2") {
-      // Go back to reviewing-point-1 — but there's no direct store action.
-      // We can't go back to reviewing-point-1 from placing-point-2 with
-      // existing store actions. The closest is cancel + restart, which
-      // is destructive. Instead, we'll cancel calibration as a fallback.
-      // This is a limitation — the store would need a goBack action.
-      cancelCalibration();
-    } else if (stage === "reviewing-point-2") {
-      // Go back to placing-point-2
-      resetPoint2();
-    } else if (stage === "entering-distance") {
-      // Go back to reviewing-point-2 — no direct store action.
-      // Fallback: cancel.
-      cancelCalibration();
-    } else if (stage === "placing-point-1") {
-      // Cancel entirely
-      cancelCalibration();
-    }
+    goBackCalibration();
   };
 
   const [distanceInput, setDistanceInput] = useState("");

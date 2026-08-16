@@ -7,40 +7,39 @@
 
 import { useStudyStore } from "../store/studyStore";
 import {
-  TIER_LABELS,
-  TIER_GUIDANCE,
   generateRamusComparison,
   generateBodyComparison,
 } from "../domain/mandibularAsymmetry";
 import type {
   MeasurementResult,
-  AsymmetryTier,
   BilateralMeasurement,
   LandmarkSet,
   Point,
 } from "../domain/types";
 
-// ── Threshold Badge ──────────────────────────────────────────
-function tierColor(tier: AsymmetryTier): string {
-  switch (tier) {
-    case "within_typical_range":
-      return "bg-green-100 text-green-800 border-green-300";
-    case "borderline":
-      return "bg-amber-100 text-amber-800 border-amber-300";
-    case "above_technical_error_margin":
-      return "bg-red-100 text-red-800 border-red-300";
-  }
-}
+// ── 6% Reference Annotation (PIBot threshold validation) ────
+// The 3-tier classification system has been removed. Instead, show an
+// informational reference annotation for the 6% vertical magnification
+// error margin and a mandatory disclaimer.
+const REFERENCE_ANNOTATION = (
+  <div className="mt-2 rounded border border-blue-200 bg-blue-50 p-2 text-xs text-blue-800">
+    <strong>Reference value: 6%</strong> — The 6% represents the vertical
+    magnification error margin for panoramic radiography (Habets et al. 1987).
+    Values below this may include positioning/magnification effects; values
+    above are more likely to include a true anatomical component. This is an
+    informational reference, not a validated diagnostic threshold.
+  </div>
+);
 
-function ThresholdBadge({ tier }: { tier: AsymmetryTier }) {
-  return (
-    <span
-      className={`inline-block rounded-full border px-2 py-0.5 text-xs font-medium ${tierColor(tier)}`}
-    >
-      {TIER_LABELS[tier]}
-    </span>
-  );
-}
+const THRESHOLD_DISCLAIMER = (
+  <div className="mt-2 rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800">
+    <strong>No validated classification thresholds exist for this measurement.</strong>{" "}
+    The 3% and 6% thresholds commonly cited were derived from the original
+    Habets tracing method using vertical height measurements with segmental
+    decomposition. This tool uses a simplified Co-Go Euclidean distance.
+    Numerical values are for comparative screening only.
+  </div>
+);
 
 // ── Larger side label helper ────────────────────────────────
 function largerSideLabel(side: string): string {
@@ -68,18 +67,13 @@ function CalibratedMmSection({
   isBody?: boolean;
 }) {
   const setHoveredLine = useStudyStore((s) => s.setHoveredLine);
-  const hasClassification = result.classification !== null;
 
   return (
     <div className="mb-4 rounded-lg border border-gray-200 bg-white p-3">
       {/* Header */}
       <div className="mb-2 flex items-center justify-between">
         <h4 className="text-sm font-semibold text-gray-800">{title}</h4>
-        {hasClassification ? (
-          <ThresholdBadge tier={result.classification!} />
-        ) : (
-          <span className="text-xs text-gray-400 italic">Not classified</span>
-        )}
+        <span className="text-xs text-gray-400 italic">Not classified</span>
       </div>
 
       {/* PRIMARY: mm values */}
@@ -142,22 +136,13 @@ function CalibratedMmSection({
           <span className="font-medium">Larger measured side:</span>{" "}
           {largerSideLabel(result.largerSide)}
         </div>
-
-        {/* Classification guidance — only when classified */}
-        {hasClassification && (
-          <p className="mt-1 text-xs text-gray-600 italic">
-            {TIER_GUIDANCE[result.classification!]}
-          </p>
-        )}
       </div>
 
-      {/* Body length: no classification note */}
-      {isBody && !hasClassification && (
-        <div className="mt-2 rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800">
-          Classification thresholds are based on vertical measurement data and
-          are not applied to horizontal (body length) measurements.
-        </div>
-      )}
+      {/* 6% reference annotation — ramus only (not body length) */}
+      {!isBody && REFERENCE_ANNOTATION}
+
+      {/* Threshold disclaimer — ramus only (not body length) */}
+      {!isBody && THRESHOLD_DISCLAIMER}
 
       {/* Body length reliability warning */}
       {isBody && (
@@ -187,18 +172,13 @@ function UncalibratedSection({
   isBody?: boolean;
 }) {
   const setHoveredLine = useStudyStore((s) => s.setHoveredLine);
-  const hasClassification = result.classification !== null;
 
   return (
     <div className="mb-4 rounded-lg border border-gray-200 bg-white p-3">
       {/* Header */}
       <div className="mb-2 flex items-center justify-between">
         <h4 className="text-sm font-semibold text-gray-800">{title}</h4>
-        {hasClassification ? (
-          <ThresholdBadge tier={result.classification!} />
-        ) : (
-          <span className="text-xs text-gray-400 italic">Not classified</span>
-        )}
+        <span className="text-xs text-gray-400 italic">Not classified</span>
       </div>
 
       {/* Uncalibrated: show "—" for mm, show % values */}
@@ -258,22 +238,13 @@ function UncalibratedSection({
           <span className="font-medium">Larger measured side:</span>{" "}
           {largerSideLabel(result.largerSide)}
         </div>
-
-        {/* Classification guidance — only when classified */}
-        {hasClassification && (
-          <p className="mt-1 text-xs text-gray-600 italic">
-            {TIER_GUIDANCE[result.classification!]}
-          </p>
-        )}
       </div>
 
-      {/* Body length: no classification note */}
-      {isBody && !hasClassification && (
-        <div className="mt-2 rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800">
-          Classification thresholds are based on vertical measurement data and
-          are not applied to horizontal (body length) measurements.
-        </div>
-      )}
+      {/* 6% reference annotation — ramus only (not body length) */}
+      {!isBody && REFERENCE_ANNOTATION}
+
+      {/* Threshold disclaimer — ramus only (not body length) */}
+      {!isBody && THRESHOLD_DISCLAIMER}
 
       {/* Body length reliability warning */}
       {isBody && (
@@ -549,12 +520,13 @@ export function ResultsPanel() {
         clinical examination and additional imaging when indicated.
       </div>
 
-      {/* Threshold caveat */}
+      {/* Threshold caveat (updated per PIBot threshold validation) */}
       <div className="mt-2 mb-4 text-xs text-gray-500 italic">
-        Threshold values are based on published literature and the known
-        technical error margin of panoramic radiography (Habets et al. 1987),
-        not on validated clinical outcomes. They are guidelines for
-        interpretation, not diagnostic criteria.
+        No validated classification thresholds exist for these measurements.
+        The 3% and 6% thresholds commonly cited were derived from the original
+        Habets tracing method using vertical height measurements with segmental
+        decomposition. This tool uses a simplified Co-Go Euclidean distance.
+        Numerical values are for comparative screening only.
       </div>
 
       {/* Clinical Interpretation */}

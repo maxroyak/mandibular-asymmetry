@@ -6,6 +6,7 @@ import { useRef, useCallback, useEffect, useState } from "react";
 import { useStudyStore } from "../store/studyStore";
 import { LANDMARK_DEFINITIONS } from "../domain/types";
 import type { Point, LandmarkName, CalibrationStage } from "../domain/types";
+import { screenToNormalized as transformScreenToNormalized } from "../domain/coordinateTransform";
 
 // ── Interaction mode ────────────────────────────────────────
 // Tracks what the current pointer-down gesture is doing so that
@@ -41,6 +42,9 @@ export function ImageViewer() {
   const draggingCalibrationPoint = useRef<1 | 2 | null>(null);
   const activePointerId = useRef<number | null>(null);
   const isDraggingRef = useRef(false); // Track drag state without re-render
+  // Prevent double-placement: pointerdown places the landmark, and the
+  // subsequent click event on the SVG must not place it again.
+  const placedInPointerDown = useRef(false);
   // isDraggingPlaced is a render-trigger flag so that click-after-drag is suppressed
   const [isDraggingPlaced, setIsDraggingPlaced] = useState(false);
   const [panMode, setPanMode] = useState(false);
@@ -61,6 +65,7 @@ export function ImageViewer() {
 
   const setLandmark = useStudyStore((s) => s.setLandmark);
   const moveLandmark = useStudyStore((s) => s.moveLandmark);
+  const deleteLandmark = useStudyStore((s) => s.deleteLandmark);
   const setActiveLandmark = useStudyStore((s) => s.setActiveLandmark);
   const setZoom = useStudyStore((s) => s.setZoom);
   const setPan = useStudyStore((s) => s.setPan);
@@ -115,79 +120,19 @@ export function ImageViewer() {
   const isCalibrated = calibrationMode === "B" && calibration !== null;
 
   // ── Screen → normalized coordinate conversion ──────────────
-  // Correct flow:
-  //   Pointer (clientX, clientY)
-  //     → Viewer-local (subtract container rect left/top)
-  //     → Undo pan (subtract panX, panY)
-  //     → Undo zoom (divide by zoom)
-  //     → Image-display rect (object-contain fitted space)
-  //     → Normalized (divide by displayed image w/h in that space)
-  //     → Clamp [0, 1]
-  //
-  // The image is rendered with `object-contain` inside a full-container
-  // <img>, then `transform: translate(panX,panY) scale(zoom)` is applied
-  // with `transformOrigin: center`. The SVG overlay receives the same
-  // transform so landmarks track the image exactly.
-  //
-  // `object-contain` centers the image and letterboxes it. We compute the
-  // displayed image rectangle (offset + size) within the container so that
-  // the normalized coordinate maps to actual image pixels, not container
-  // pixels. This is essential for non-square images.
+  // Delegates to the pure domain function in coordinateTransform.ts,
+  // accounting for container offset, pan, zoom about center, and
+  // object-contain letterboxing.
   const screenToNormalized = useCallback(
     (clientX: number, clientY: number): Point => {
       const rect = containerRef.current?.getBoundingClientRect();
       if (!rect || rect.width === 0 || rect.height === 0) return { x: 0, y: 0 };
-
-      // 1. Viewer-local coordinates (CSS pixels relative to container)
-      const localX = clientX - rect.left;
-      const localY = clientY - rect.top;
-
-      // 2. Undo pan — pan is applied in container (pre-zoom) space
-      const pannedX = localX - viewer.panX;
-      const pannedY = localY - viewer.panY;
-
-      // 3. Undo zoom — zoom scales about the container center
-      //    transformOrigin: center → point' = center + (point - center) * zoom
-      //    So to invert: point = center + (point' - center) / zoom
-      const cx = rect.width / 2;
-      const cy = rect.height / 2;
-      const unzoomedX = cx + (pannedX - cx) / viewer.zoom;
-      const unzoomedY = cy + (pannedY - cy) / viewer.zoom;
-
-      // 4. Now we're back in the pre-transform container space.
-      //    The <img> uses object-contain, so the actual displayed image
-      //    rectangle may be smaller than the container (letterboxed).
-      //    Compute the fitted image rect inside the container.
-      const imgW = imageNaturalWidth || rect.width;
-      const imgH = imageNaturalHeight || rect.height;
-      const containerAR = rect.width / rect.height;
-      const imageAR = imgW / imgH;
-
-      let displayedW: number;
-      let displayedH: number;
-      if (imageAR > containerAR) {
-        // Image is wider — fit to width, letterbox top/bottom
-        displayedW = rect.width;
-        displayedH = rect.width / imageAR;
-      } else {
-        // Image is taller — fit to height, letterbox left/right
-        displayedH = rect.height;
-        displayedW = rect.height * imageAR;
-      }
-
-      const offsetX = (rect.width - displayedW) / 2;
-      const offsetY = (rect.height - displayedH) / 2;
-
-      // 5. Map from displayed-image pixel space to normalized [0, 1]
-      const normX = (unzoomedX - offsetX) / displayedW;
-      const normY = (unzoomedY - offsetY) / displayedH;
-
-      return {
-        x: Math.max(0, Math.min(1, normX)),
-        y: Math.max(0, Math.min(1, normY)),
-      };
+      return transformScreenToNormalized(clientX, clientY, rect, viewer, {
+        naturalWidth: imageNaturalWidth,
+        naturalHeight: imageNaturalHeight,
+      });
     },
-    [viewer.panX, viewer.panY, viewer.zoom, imageNaturalWidth, imageNaturalHeight]
+    [viewer, imageNaturalWidth, imageNaturalHeight]
   );
 
   // Mouse wheel zoom
@@ -200,15 +145,35 @@ export function ImageViewer() {
     [viewer.zoom, setZoom]
   );
 
-  // Click on overlay: place landmark only.
+  // Click on overlay: place landmark only (if not already placed in pointerdown).
   // Calibration point placement is handled in handlePointerDown (pointerdown
   // event) to eliminate the pointerdown/click conflict that was causing
   // calibration clicks to be swallowed by pan pointer capture.
+  // Landmark placement is ALSO handled in handlePointerDown so that it works
+  // reliably in real browsers where pointerdown→click may not always fire on
+  // the SVG overlay (e.g. when pointer capture is set on the container).
+  // This click handler is a FALLBACK that only places if pointerdown did not.
   const handleOverlayClick = useCallback(
     (e: React.MouseEvent<SVGSVGElement>) => {
       // Don't place if we were just dragging
       if (isDraggingPlaced) return;
       if (isDraggingRef.current) return;
+      // Don't double-place if pointerdown already handled it
+      if (placedInPointerDown.current) {
+        placedInPointerDown.current = false;
+        return;
+      }
+
+      // Check if delete button was clicked
+      const target = e.target as Element;
+      const deleteTarget = target.closest?.(".delete-btn") || target.closest?.("[data-delete]");
+      if (deleteTarget) {
+        const lmName = deleteTarget.getAttribute("data-delete") as LandmarkName | null;
+        if (lmName) {
+          deleteLandmark(lmName);
+          return;
+        }
+      }
 
       // Calibration placement is handled in pointerdown — not here.
       // If we're in a calibration placing stage, don't place a landmark.
@@ -240,6 +205,7 @@ export function ImageViewer() {
       activeLandmark,
       setLandmark,
       setActiveLandmark,
+      deleteLandmark,
       isDraggingPlaced,
     ]
   );
@@ -247,10 +213,11 @@ export function ImageViewer() {
   // Pointer down on container: decide interaction mode.
   // PRIORITY ORDER (highest first):
   //   1. Calibration point placement (placing-point-1 / placing-point-2)
-  //   2. Calibration point drag (reviewing-point-1 / reviewing-point-2)
-  //   3. Landmark marker drag
-  //   4. Landmark placement (if activeLandmark set)
-  //   5. Pan
+  //   2. Landmark placement (if activeLandmark set AND not calibrating)
+  //   3. Delete button click / pointerdown
+  //   4. Calibration point drag (only when NOT placing a landmark)
+  //   5. Landmark marker drag
+  //   6. Pan
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
       const target = e.target as Element;
@@ -263,51 +230,119 @@ export function ImageViewer() {
         return;
       }
 
-      // ── 2. Calibration point DRAG (during review stages) ──
-      if (target && target.classList?.contains("calibration-marker")) {
-        const which = target.getAttribute("data-calibration-point");
-        if (which === "1" || which === "2") {
-          interactionMode.current = "drag-calibration";
-          draggingCalibrationPoint.current = which === "1" ? 1 : 2;
-          activePointerId.current = e.pointerId;
-          isDraggingRef.current = true;
-          setIsDraggingMarker(true);
-          try {
-            (e.currentTarget as Element).setPointerCapture(e.pointerId);
-          } catch {
-            /* some browsers throw if already captured */
-          }
-          e.preventDefault();
-          return;
+      // ── 2. Landmark PLACEMENT (if a landmark is active for placement) ──
+      // This must come BEFORE the calibration-marker drag check so that
+      // clicking on the image (even on a calibration marker's hit area)
+      // places the landmark. The user explicitly selected a landmark to
+      // place, so that intent takes priority over dragging calibration
+      // points. Calibration drag is only allowed when no landmark is active.
+      if (activeLandmark && !isCalibratingStage(stage)) {
+        const point = screenToNormalized(e.clientX, e.clientY);
+        setLandmark(activeLandmark, point);
+        // Auto-advance to next landmark
+        const idx = LANDMARK_DEFINITIONS.findIndex(
+          (l) => l.name === activeLandmark
+        );
+        if (idx >= 0 && idx < LANDMARK_DEFINITIONS.length - 1) {
+          setActiveLandmark(LANDMARK_DEFINITIONS[idx + 1].name);
+        } else {
+          setActiveLandmark(null);
         }
-      }
-
-      // ── 3. Landmark marker drag ──
-      if (target && target.classList?.contains("landmark-marker")) {
-        const name = target.getAttribute("data-landmark") as LandmarkName;
-        if (name) {
-          interactionMode.current = "drag-landmark";
-          draggingLandmark.current = name;
-          activePointerId.current = e.pointerId;
-          isDraggingRef.current = true;
-          setIsDraggingMarker(true);
-          try {
-            (e.currentTarget as Element).setPointerCapture(e.pointerId);
-          } catch {
-            /* some browsers throw if already captured */
-          }
-          e.preventDefault();
-          return;
-        }
-      }
-
-      // Check if we hit a delete button — let the click handler deal with it
-      if (target && target.classList?.contains("delete-btn")) {
+        // Mark as placed so the subsequent click event doesn't double-place
+        placedInPointerDown.current = true;
+        e.preventDefault();
         return;
       }
 
-      // ── 4. Don't pan if a landmark is active for placement ──
-      if (activeLandmark) return;
+      // ── 3. Delete button check (before programmatic hit-testing) ──
+      // If pointer is down on a delete button, ignore pointerdown for pan/drag
+      if (
+        target &&
+        (target.classList?.contains("delete-btn") ||
+          (target as Element).closest?.(".delete-btn") ||
+          (target as Element).getAttribute?.("data-delete"))
+      ) {
+        return;
+      }
+
+      // ── 4. Programmatic hit-testing for calibration points and landmarks ──
+      // SVG circles with pointerEvents: "all" and near-zero fillOpacity cause
+      // the ENTIRE SVG to be the hit target in Chromium — the last-rendered
+      // circle intercepts ALL pointer events, not just clicks within its
+      // radius. We do hit-testing manually using SVG coordinate math instead.
+      if (!activeLandmark) {
+        const container = containerRef.current;
+        if (container) {
+          const svg = container.querySelector("svg");
+          if (svg) {
+            const pt = svg.createSVGPoint();
+            pt.x = e.clientX;
+            pt.y = e.clientY;
+            const ctm = svg.getScreenCTM();
+            if (ctm) {
+              const svgPt = pt.matrixTransform(ctm.inverse());
+              // svgPt.x and svgPt.y are in viewBox coordinates (0-1)
+
+              // Check calibration points first (higher priority than landmarks)
+              if (!isCalibratingStage(stage)) {
+                const calHitRadius = pxToViewBox(CALIBRATION_HIT_AREA_PX);
+                for (const which of [1, 2] as const) {
+                  const cp =
+                    which === 1 ? calibrationPoints?.point1 : calibrationPoints?.point2;
+                  if (!cp) continue;
+                  const dx = svgPt.x - cp.x;
+                  const dy = svgPt.y - cp.y;
+                  const dist = Math.sqrt(dx * dx + dy * dy);
+                  if (dist < calHitRadius) {
+                    interactionMode.current = "drag-calibration";
+                    draggingCalibrationPoint.current = which;
+                    activePointerId.current = e.pointerId;
+                    isDraggingRef.current = true;
+                    setIsDraggingMarker(true);
+                    try {
+                      (e.currentTarget as Element).setPointerCapture(e.pointerId);
+                    } catch {
+                      /* some browsers throw if already captured */
+                    }
+                    e.preventDefault();
+                    return;
+                  }
+                }
+              }
+
+              // Check landmarks — find closest within hit radius
+              let closest: LandmarkName | null = null;
+              let closestDist = Infinity;
+              const lmHitRadius = pxToViewBox(LANDMARK_HIT_AREA_PX);
+              for (const def of LANDMARK_DEFINITIONS) {
+                const lm = landmarks[def.name];
+                if (!lm) continue;
+                const dx = svgPt.x - lm.x;
+                const dy = svgPt.y - lm.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < lmHitRadius && dist < closestDist) {
+                  closest = def.name;
+                  closestDist = dist;
+                }
+              }
+              if (closest) {
+                interactionMode.current = "drag-landmark";
+                draggingLandmark.current = closest;
+                activePointerId.current = e.pointerId;
+                isDraggingRef.current = true;
+                setIsDraggingMarker(true);
+                try {
+                  (e.currentTarget as Element).setPointerCapture(e.pointerId);
+                } catch {
+                  /* some browsers throw if already captured */
+                }
+                e.preventDefault();
+                return;
+              }
+            }
+          }
+        }
+      }
 
       // ── 5. Don't pan during calibration review or entering-distance stages ──
       if (
@@ -334,7 +369,7 @@ export function ImageViewer() {
       }
       e.preventDefault();
     },
-    [activeLandmark, viewer.panX, viewer.panY, screenToNormalized, placeCalibrationPoint]
+    [activeLandmark, viewer.panX, viewer.panY, screenToNormalized, placeCalibrationPoint, setLandmark, setActiveLandmark, pxToViewBox, calibrationPoints, landmarks]
   );
 
   // Pointer move: pan, drag landmark, or drag calibration point
@@ -752,9 +787,9 @@ export function ImageViewer() {
                 cx={calibrationPoints.point1.x}
                 cy={calibrationPoints.point1.y}
                 r={calHitR}
-                fill="transparent"
+                fill="white" fillOpacity={0.001}
                 style={{
-                  pointerEvents: "all",
+                  pointerEvents: "none",
                   cursor: calibrationStage === "reviewing-point-1"
                     ? (isDraggingMarker ? "grabbing" : "grab")
                     : "default",
@@ -808,9 +843,9 @@ export function ImageViewer() {
                 cx={calibrationPoints.point2.x}
                 cy={calibrationPoints.point2.y}
                 r={calHitR}
-                fill="transparent"
+                fill="white" fillOpacity={0.001}
                 style={{
-                  pointerEvents: "all",
+                  pointerEvents: "none",
                   cursor: calibrationStage === "reviewing-point-2"
                     ? (isDraggingMarker ? "grabbing" : "grab")
                     : "default",
@@ -873,9 +908,9 @@ export function ImageViewer() {
                   cx={lm.x}
                   cy={lm.y}
                   r={lmHitR}
-                  fill="transparent"
+                  fill="white" fillOpacity={0.001}
                   style={{
-                    pointerEvents: "all",
+                    pointerEvents: "none",
                     cursor: isDraggingMarker ? "grabbing" : "grab",
                   }}
                 />
@@ -900,17 +935,41 @@ export function ImageViewer() {
                 >
                   {def.label}
                 </text>
-                {/* Delete button on hover — small circle with × */}
-                <circle
-                  cx={lm.x + lmHitR * 0.7}
-                  cy={lm.y + lmHitR * 0.7}
-                  r={deleteBtnR}
-                  fill="rgba(220,38,38,0.8)"
+                {/* Delete button — small red badge with × */}
+                <g
                   className="delete-btn"
                   data-delete={def.name}
                   style={{ cursor: "pointer", pointerEvents: "all" }}
-                  vectorEffect="non-scaling-stroke"
-                />
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    deleteLandmark(def.name);
+                  }}
+                  onPointerDown={(e) => {
+                    e.stopPropagation();
+                  }}
+                >
+                  <circle
+                    cx={lm.x + lmHitR * 0.7}
+                    cy={lm.y + lmHitR * 0.7}
+                    r={deleteBtnR}
+                    fill="#dc2626"
+                    stroke="white"
+                    strokeWidth={pxToViewBox(1)}
+                    vectorEffect="non-scaling-stroke"
+                  />
+                  <text
+                    x={lm.x + lmHitR * 0.7}
+                    y={lm.y + lmHitR * 0.7}
+                    fill="white"
+                    fontSize={deleteBtnR * 1.4}
+                    textAnchor="middle"
+                    dominantBaseline="central"
+                    className="select-none font-bold"
+                    style={{ pointerEvents: "none" }}
+                  >
+                    ×
+                  </text>
+                </g>
               </g>
             );
           })}

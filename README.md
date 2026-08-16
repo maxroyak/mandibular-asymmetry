@@ -180,11 +180,13 @@ src/
 
 ## Documentation
 
+- `docs/user-manual-landmarks.md` — Landmark & calibration placement user manual
+- `docs/user-manual-calibration.md` — Calibration user manual
 - `docs/clinical-protocol.md` — Clinical analysis protocol
 - `docs/clinical-evidence.md` — Scientific evidence base (40 references)
 - `docs/architecture.md` — Technical architecture
 - `docs/ux-design.md` — UX design specification
-- `docs/user-manual-calibration.md` — Calibration user manual
+- `docs/threshold-validation.md` — Threshold validation decision document
 
 ## CI
 

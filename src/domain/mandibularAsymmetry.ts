@@ -7,7 +7,6 @@ import type {
   Point,
   SideDifference,
   LargerSide,
-  AsymmetryTier,
   FullResults,
 } from "./types";
 
@@ -89,19 +88,23 @@ export function determineLargerSide(right: number, left: number): LargerSide {
   return right > left ? "right" : "left";
 }
 
-/**
- * Classify asymmetry by tier using absolute Habets index.
- * [0, 3) → within_typical_range
- * [3, 6] → borderline
- * (6, ∞) → above_technical_error_margin
- * @param habetsAbsValue - absolute value of Habets index (|AI|)
- * @returns tier classification
- */
-export function classifyAsymmetry(habetsAbsValue: number): AsymmetryTier {
-  if (habetsAbsValue < 3) return "within_typical_range";
-  if (habetsAbsValue <= 6) return "borderline";
-  return "above_technical_error_margin";
-}
+// NOTE: The classifyAsymmetry function and the 3-tier classification system
+// (within_typical_range / borderline / above_technical_error_margin) have been
+// REMOVED per PIBot threshold validation (docs/threshold-validation.md).
+// The 3% threshold was derived from condylar height (Co-Sn), not Co-Go.
+// The 6% threshold is a vertical magnification error margin, not a validated
+// diagnostic boundary. Classification is now always null for all measurements.
+// TIER_LABELS and TIER_GUIDANCE are retained as empty/deprecated stubs for
+// backward compatibility with any code that may still import them.
+
+/** @deprecated The 3-tier classification system has been removed. */
+export const TIER_LABELS: Record<string, string> = {};
+
+/** @deprecated The 3-tier classification system has been removed. */
+export const TIER_GUIDANCE: Record<string, string> = {};
+
+/** Label for unclassified measurements — shown instead of a tier badge */
+export const UNCLASSIFIED_LABEL = "Not classified — no validated threshold";
 
 // ── Calibration Pure Functions ──────────────────────────────
 
@@ -324,25 +327,9 @@ export function generateMandibularAsymmetryConclusion(
   );
 }
 
-// ── Tier Labels and Guidance ────────────────────────────────
-
-export const TIER_LABELS: Record<AsymmetryTier, string> = {
-  within_typical_range: "Within typical range",
-  borderline: "Borderline",
-  above_technical_error_margin: "Above technical error margin",
-};
-
-/** Label for unclassified (horizontal) measurements — shown instead of a tier badge */
-export const UNCLASSIFIED_LABEL = "Not classified — horizontal measurement";
-
-export const TIER_GUIDANCE: Record<AsymmetryTier, string> = {
-  within_typical_range:
-    "The measured difference is within the range commonly observed in asymptomatic individuals.",
-  borderline:
-    "The measured difference is in a borderline range that may include technical/positioning effects. Clinical correlation is recommended.",
-  above_technical_error_margin:
-    "The measured difference exceeds the 6% technical error margin reported for panoramic radiography. Clinical correlation and 3D imaging (CBCT) are recommended when clinically indicated.",
-};
+// ── Tier Labels and Guidance (DEPRECATED) ───────────────────
+// The 3-tier classification system has been removed per PIBot threshold
+// validation. See note above. TIER_LABELS and TIER_GUIDANCE are empty stubs.
 
 // ── Mandatory Limitation Statements ─────────────────────────
 
@@ -414,13 +401,13 @@ export function generateClinicalSummary(results: FullResults): string {
     lines.push("");
     lines.push(`Habets Asymmetry Index: ${habetsStr}% (${rh.largerSide === "equal" ? "equal" : rh.largerSide + " larger"})`);
     lines.push(`Relative Difference: ${relDiffStr}%`);
-    if (rh.classification !== null) {
-      lines.push(`Classification: ${TIER_LABELS[rh.classification]}`);
-      lines.push("");
-      lines.push(TIER_GUIDANCE[rh.classification]);
-    } else {
-      lines.push(`Classification: ${UNCLASSIFIED_LABEL}`);
-    }
+    lines.push(`Classification: ${UNCLASSIFIED_LABEL}`);
+    lines.push("");
+    lines.push("No validated classification thresholds exist for this measurement.");
+    lines.push("The 3% and 6% thresholds commonly cited were derived from the original");
+    lines.push("Habets tracing method using vertical height measurements with segmental");
+    lines.push("decomposition. This tool uses a simplified Co-Go Euclidean distance.");
+    lines.push("Numerical values are for comparative screening only.");
   } else {
     lines.push("Landmarks incomplete — measurement not available.");
   }
@@ -449,8 +436,9 @@ export function generateClinicalSummary(results: FullResults): string {
     lines.push("");
     lines.push(`Habets Asymmetry Index: ${habetsStr}% (${bl.largerSide === "equal" ? "equal" : bl.largerSide + " larger"})`);
     lines.push(`Relative Difference: ${relDiffStr}%`);
-    lines.push("Classification: Not classified — thresholds are based on vertical measurement data");
-    lines.push("and are not applied to horizontal (body length) measurements.");
+    lines.push(`Classification: ${UNCLASSIFIED_LABEL}`);
+    lines.push("Thresholds are based on vertical measurement data and are not applied");
+    lines.push("to horizontal (body length) measurements.");
   } else {
     lines.push("Landmarks incomplete — measurement not available.");
   }

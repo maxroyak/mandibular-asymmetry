@@ -5,10 +5,7 @@ import {
   calculateRelativeDifference,
   calculateAsymmetryIndex,
   determineLargerSide,
-  classifyAsymmetry,
   generateClinicalSummary,
-  TIER_GUIDANCE,
-  TIER_LABELS,
   UNCLASSIFIED_LABEL,
   LIMITATION_HEADER,
   LIMITATION_FOOTER,
@@ -194,35 +191,43 @@ describe("determineLargerSide", () => {
   });
 });
 
-// ── classifyAsymmetry ──────────────────────────────────────
+// ── Classification is always null (PIBot threshold validation) ──
 
-describe("classifyAsymmetry", () => {
-  it("classifies 0 as within_typical_range", () => {
-    expect(classifyAsymmetry(0)).toBe("within_typical_range");
+describe("Classification is always null", () => {
+  it("MeasurementResult.classification is null for ramus measurements", () => {
+    const ramusResult: MeasurementResult = {
+      right: 0.55,
+      left: 0.50,
+      difference: 0.05,
+      absoluteDifference: 0.05,
+      relativeDifferencePercent: 9.1,
+      asymmetryIndexPercent: 4.8,
+      largerSide: "right",
+      classification: null,
+      rightMm: null,
+      leftMm: null,
+    };
+    expect(ramusResult.classification).toBe(null);
   });
 
-  it("classifies 2.99 as within_typical_range", () => {
-    expect(classifyAsymmetry(2.99)).toBe("within_typical_range");
+  it("MeasurementResult.classification is null for body measurements", () => {
+    const bodyLengthResult: MeasurementResult = {
+      right: 0.35,
+      left: 0.37,
+      difference: -0.02,
+      absoluteDifference: 0.02,
+      relativeDifferencePercent: 5.4,
+      asymmetryIndexPercent: 2.8,
+      largerSide: "left",
+      classification: null,
+      rightMm: null,
+      leftMm: null,
+    };
+    expect(bodyLengthResult.classification).toBe(null);
   });
 
-  it("classifies 3.0 as borderline (inclusive lower bound)", () => {
-    expect(classifyAsymmetry(3.0)).toBe("borderline");
-  });
-
-  it("classifies 4.5 as borderline", () => {
-    expect(classifyAsymmetry(4.5)).toBe("borderline");
-  });
-
-  it("classifies 6.0 as borderline (inclusive upper bound)", () => {
-    expect(classifyAsymmetry(6.0)).toBe("borderline");
-  });
-
-  it("classifies 6.01 as above_technical_error_margin", () => {
-    expect(classifyAsymmetry(6.01)).toBe("above_technical_error_margin");
-  });
-
-  it("classifies 15.0 as above_technical_error_margin", () => {
-    expect(classifyAsymmetry(15.0)).toBe("above_technical_error_margin");
+  it("UNCLASSIFIED_LABEL is defined for all measurements", () => {
+    expect(UNCLASSIFIED_LABEL).toContain("Not classified");
   });
 });
 
@@ -241,7 +246,7 @@ describe("generateClinicalSummary", () => {
       relativeDifferencePercent: 9.1,
       asymmetryIndexPercent: 4.8,
       largerSide: "right",
-      classification: "borderline",
+      classification: null,
       rightMm: null,
       leftMm: null,
       ...overrides,
@@ -383,41 +388,19 @@ describe("generateClinicalSummary", () => {
     expect(summary).toContain("0.0800 mm/pixel");
   });
 
-  it("includes tier guidance text for ramus height (classified)", () => {
+  it("does NOT include tier guidance for any measurement (removed per PIBot)", () => {
     const results: FullResults = {
-      ramusHeight: makeResult({ classification: "borderline" }),
+      ramusHeight: makeResult({ classification: null }),
       bodyLength: makeResult({ classification: null }),
       calibration: null,
       calibrationMode: "A",
     };
     const summary = generateClinicalSummary(results);
-    expect(summary).toContain(TIER_GUIDANCE.borderline);
-  });
-
-  it("does NOT include tier guidance for body length (unclassified)", () => {
-    const results: FullResults = {
-      ramusHeight: makeResult({ classification: "within_typical_range" }),
-      bodyLength: makeResult({ classification: "above_technical_error_margin" }),
-      calibration: null,
-      calibrationMode: "A",
-    };
-    const summary = generateClinicalSummary(results);
-    // Body length should NOT show tier guidance even if classification is set,
-    // because the body length section always shows "Not classified" note
+    // All measurements should show "Not classified"
     expect(summary).toContain("Not classified");
-    expect(summary).toContain("thresholds are based on vertical measurement data");
-  });
-
-  it("includes CBCT recommendation for Band 3", () => {
-    const results: FullResults = {
-      ramusHeight: makeResult({ classification: "above_technical_error_margin" }),
-      bodyLength: makeResult(),
-      calibration: null,
-      calibrationMode: "A",
-    };
-    const summary = generateClinicalSummary(results);
-    expect(summary).toContain("3D imaging (CBCT)");
-    expect(summary).toContain("when clinically indicated");
+    // Should not contain old tier guidance text
+    expect(summary).not.toContain("borderline range");
+    expect(summary).not.toContain("within the range commonly observed");
   });
 
   it("handles incomplete landmarks (null measurements)", () => {
@@ -612,26 +595,6 @@ describe("Edge cases — very small differences (floating point precision)", () 
 });
 
 describe("Edge cases — boundary values", () => {
-  it("classifyAsymmetry: exactly 3.0 is borderline (inclusive lower)", () => {
-    expect(classifyAsymmetry(3.0)).toBe("borderline");
-  });
-
-  it("classifyAsymmetry: exactly 6.0 is borderline (inclusive upper)", () => {
-    expect(classifyAsymmetry(6.0)).toBe("borderline");
-  });
-
-  it("classifyAsymmetry: just below 3 (2.9999) is within_typical_range", () => {
-    expect(classifyAsymmetry(2.9999)).toBe("within_typical_range");
-  });
-
-  it("classifyAsymmetry: just above 6 (6.0001) is above_technical_error_margin", () => {
-    expect(classifyAsymmetry(6.0001)).toBe("above_technical_error_margin");
-  });
-
-  it("classifyAsymmetry: exactly 6.01 is above_technical_error_margin", () => {
-    expect(classifyAsymmetry(6.01)).toBe("above_technical_error_margin");
-  });
-
   it("determineLargerSide: relative diff exactly 0.5% → equal (inclusive)", () => {
     // R=50.25, L=50 → |0.25| / max(50.25,50) * 100 = 0.25/50.25*100 = 0.4975... → 0.5
     expect(determineLargerSide(50.25, 50)).toBe("equal");
@@ -703,19 +666,13 @@ describe("Edge cases — NaN and Infinity inputs", () => {
 
 // ── Calibration Tests ──────────────────────────────────────
 
-describe("TIER_LABELS and UNCLASSIFIED_LABEL", () => {
-  it("TIER_LABELS has all three tier labels", () => {
-    expect(TIER_LABELS.within_typical_range).toBe("Within typical range");
-    expect(TIER_LABELS.borderline).toBe("Borderline");
-    expect(TIER_LABELS.above_technical_error_margin).toBe("Above technical error margin");
-  });
-
-  it("UNCLASSIFIED_LABEL is defined for horizontal measurements", () => {
-    expect(UNCLASSIFIED_LABEL).toBe("Not classified — horizontal measurement");
+describe("UNCLASSIFIED_LABEL", () => {
+  it("UNCLASSIFIED_LABEL is defined for all measurements (no tier labels)", () => {
+    expect(UNCLASSIFIED_LABEL).toContain("Not classified");
   });
 });
 
-describe("Body length classification is null (horizontal measurement)", () => {
+describe("Body length and ramus classification are always null", () => {
   it("MeasurementResult with classification=null represents unclassified body length", () => {
     const bodyLengthResult: MeasurementResult = {
       right: 0.35,
@@ -732,7 +689,7 @@ describe("Body length classification is null (horizontal measurement)", () => {
     expect(bodyLengthResult.classification).toBe(null);
   });
 
-  it("MeasurementResult with non-null classification represents classified ramus height", () => {
+  it("MeasurementResult for ramus height also has classification=null", () => {
     const ramusResult: MeasurementResult = {
       right: 0.55,
       left: 0.50,
@@ -741,12 +698,11 @@ describe("Body length classification is null (horizontal measurement)", () => {
       relativeDifferencePercent: 9.1,
       asymmetryIndexPercent: 4.8,
       largerSide: "right",
-      classification: "borderline",
+      classification: null,
       rightMm: null,
       leftMm: null,
     };
-    expect(ramusResult.classification).not.toBe(null);
-    expect(ramusResult.classification).toBe("borderline");
+    expect(ramusResult.classification).toBe(null);
   });
 });
 

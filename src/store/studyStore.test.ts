@@ -235,6 +235,48 @@ describe("studyStore — calibration state machine transitions", () => {
     expect(useStudyStore.getState().calibrationStage).toBe("entering-distance");
   });
 
+  it("goBackCalibration steps back correctly across all stages", () => {
+    // 1. placing-point-1 → idle
+    useStudyStore.getState().startCalibration();
+    expect(useStudyStore.getState().calibrationStage).toBe("placing-point-1");
+    useStudyStore.getState().goBackCalibration();
+    expect(useStudyStore.getState().calibrationStage).toBe("idle");
+
+    // 2. reviewing-point-1 → placing-point-1 (clears point1)
+    useStudyStore.getState().startCalibration();
+    useStudyStore.getState().placeCalibrationPoint({ x: 0.1, y: 0.1 });
+    expect(useStudyStore.getState().calibrationStage).toBe("reviewing-point-1");
+    useStudyStore.getState().goBackCalibration();
+    expect(useStudyStore.getState().calibrationStage).toBe("placing-point-1");
+    expect(useStudyStore.getState().calibrationPoints?.point1).toBeNull();
+
+    // 3. placing-point-2 → reviewing-point-1 (retains point1)
+    useStudyStore.getState().placeCalibrationPoint({ x: 0.1, y: 0.1 });
+    useStudyStore.getState().confirmPoint1();
+    expect(useStudyStore.getState().calibrationStage).toBe("placing-point-2");
+    useStudyStore.getState().goBackCalibration();
+    expect(useStudyStore.getState().calibrationStage).toBe("reviewing-point-1");
+    expect(useStudyStore.getState().calibrationPoints?.point1).toEqual({ x: 0.1, y: 0.1 });
+
+    // 4. reviewing-point-2 → placing-point-2 (clears point2, retains point1)
+    useStudyStore.getState().confirmPoint1();
+    useStudyStore.getState().placeCalibrationPoint({ x: 0.5, y: 0.5 });
+    expect(useStudyStore.getState().calibrationStage).toBe("reviewing-point-2");
+    useStudyStore.getState().goBackCalibration();
+    expect(useStudyStore.getState().calibrationStage).toBe("placing-point-2");
+    expect(useStudyStore.getState().calibrationPoints?.point1).toEqual({ x: 0.1, y: 0.1 });
+    expect(useStudyStore.getState().calibrationPoints?.point2).toBeNull();
+
+    // 5. entering-distance → reviewing-point-2 (retains point1 and point2)
+    useStudyStore.getState().placeCalibrationPoint({ x: 0.5, y: 0.5 });
+    useStudyStore.getState().confirmPoint2();
+    expect(useStudyStore.getState().calibrationStage).toBe("entering-distance");
+    useStudyStore.getState().goBackCalibration();
+    expect(useStudyStore.getState().calibrationStage).toBe("reviewing-point-2");
+    expect(useStudyStore.getState().calibrationPoints?.point1).toEqual({ x: 0.1, y: 0.1 });
+    expect(useStudyStore.getState().calibrationPoints?.point2).toEqual({ x: 0.5, y: 0.5 });
+  });
+
   it("cancelCalibration does NOT clear existing landmarks or measurements", () => {
     // Place a landmark
     useStudyStore.getState().setLandmark("CoR", { x: 0.5, y: 0.3 });

@@ -246,7 +246,7 @@ The Habets index is the most widely used and cited method for vertical mandibula
 
 ### Key References
 - Habets et al. (1988) — J Oral Rehabil 15(5): 465–471 [PMID 3244055]
-- Habets et al. (1987) — J Oral Rehabil 14(5): 465–471 [PMID 3478455] (vertical magnification)
+- Habets et al. (1987) — J Oral Rehabil 14(5): 475–480 [PMID 3478455] (vertical magnification)
 - Türp et al. (1995) — Schweiz Monatsschr Zahnmed 105: 755–760 [PMID 7610365]
 - Alkis & Pekince (2023) — J Orofac Orthop 84(5): 295–303 [PMID 36635560]
 - Pinto-Wong & Arriola-Guillén (2024) — J Clin Exp Dent 16(11): e881 [PMID 39670032]
@@ -362,7 +362,7 @@ Panoramic radiography uses a rotating X-ray source and detector that creates a c
 Multiple well-designed phantom and dry skull studies provide strong evidence on magnification and distortion characteristics of panoramic radiography.
 
 ### Key References
-- Habets et al. (1987) — J Oral Rehabil 14(5): 465–471 [PMID 3478455]
+- Habets et al. (1987) — J Oral Rehabil 14(5): 475–480 [PMID 3478455]
 - Scarfe et al. (1998) — Dentomaxillofac Radiol 27(1): 63–69 [PMID 9482025]
 - Schulze et al. (2000) — Mund Kiefer Gesichtschir 4(3): 164–170 [PMID 10900960]
 - Laster et al. (2005) — Dentomaxillofac Radiol 34(6): 346–350 [PMID 16227476]
@@ -488,8 +488,8 @@ Based on the evidence:
 The 3% threshold is widely used but not clinically validated. The 6% technical error margin is better supported by experimental data. No validated clinical significance threshold exists.
 
 ### Key References
-- Habets et al. (1987) — J Oral Rehabil 14(5): 465–471 [PMID 3478455]
-- Bezuur et al. (1988) — J Oral Rehabil 15(5): 475–480 [PMID 3236126]
+- Habets et al. (1987) — J Oral Rehabil 14(5): 475–480 [PMID 3478455]
+- Bezuur et al. (1988) — J Oral Rehabil 15(6): 549–554 [PMID 3236126]
 - Türp et al. (1995) — Schweiz Monatsschr Zahnmed 105: 755–760 [PMID 7610365]
 - Pinto-Wong & Arriola-Guillén (2024) — J Clin Exp Dent 16(11): e881 [PMID 39670032]
 - Bal et al. (2018) — Folia Morphol 77(3): 455–461 [PMID 29500898]
@@ -638,13 +638,13 @@ The following questions require OrthoBot's clinical expertise to resolve:
 
 ### Primary Sources (Original Method Publications)
 
-1. **Habets LLM, Bezuur JN, van Ooij CP, Hansson TL.** "The orthopantomogram, an aid in diagnosis of temporomandibular joint problems. I. The factor of vertical magnification." *J Oral Rehabil* 1987; 14(5): 465–471. [PMID 3478455]
+1. **Habets LLM, Bezuur JN, van Ooij CP, Hansson TL.** "The orthopantomogram, an aid in diagnosis of temporomandibular joint problems. I. The factor of vertical magnification." *J Oral Rehabil* 1987; 14(5): 475–480. [PMID 3478455]
 
 2. **Habets LLM, Bezuur JN, Naeiji M, Hansson TL.** "The Orthopantomogram, an aid in diagnosis of temporomandibular joint problems. II. The vertical symmetry." *J Oral Rehabil* 1988; 15(5): 465–471. [PMID 3244055]
 
-3. **Bezuur JN, Habets LLM, Hansson TL.** "The recognition of craniomandibular disorders — a comparison between clinical, tomographical, and dental panoramic radiographical findings in thirty-one subjects." *J Oral Rehabil* 1988; 15(5): 475–480. [PMID 3236126]
+3. **Bezuur JN, Habets LLM, Hansson TL.** "The recognition of craniomandibular disorders — a comparison between clinical, tomographical, and dental panoramic radiographical findings in thirty-one subjects." *J Oral Rehabil* 1988; 15(6): 549–554. [PMID 3236126]
 
-4. **Bezuur JN, Habets LLM, Hansson TL.** "The recognition of craniomandibular disorders; condylar symmetry in relation to myogenous and arthrogenous origin of pain." *J Oral Rehabil* 1989; 16(2): 161–166. [PMID 2746413]
+4. **Bezuur JN, Habets LLM, Hansson TL.** "The recognition of craniomandibular disorders; condylar symmetry in relation to myogenous and arthrogenous origin of pain." *J Oral Rehabil* 1989; 16(3): 257–260. [PMID 2746413]
 
 5. **Habets LLM, Bezuur JN, Jimenez Lopez V, Hansson TL.** "The OPG: an aid in TMJ diagnostics. III. A comparison between lateral tomography and dental rotational panoramic radiography (Orthopantomography)." *J Oral Rehabil* 1989; 16(5): 461–468. [PMID 2795316]
 
