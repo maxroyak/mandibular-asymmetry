@@ -47,6 +47,12 @@ Details: Implemented `detectRadiographRoi` filtering out black letterbox/pillarb
 Details: Moved Save Study and New Study buttons into the top header toolbar in `AnalysisPage.tsx` next to the main title. Added unsaved indicator dot and discard confirmations. Streamlined `StudyManager.tsx` sidebar component. 320/320 unit tests passing (100%).
 ---
 
+---
+2026-08-17 01:34 | Calibration Points Drag-to-Adjust Functionality
+Details: Enabled interactive dragging and repositioning of Calibration Points P1 and P2 during review stages (`reviewing-point-1`, `reviewing-point-2`, `entering-distance`, and `calibrated`) with coordinate clamping to `[0.0, 1.0]` and real-time scale updating. Prioritized calibration hit-testing in `ImageViewer.tsx` with grab/grabbing cursors. 323/323 unit tests passing (100%).
+---
+
+
 
 
 

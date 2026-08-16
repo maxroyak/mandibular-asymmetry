@@ -746,3 +746,66 @@ describe("studyStore — language and i18n", () => {
     expect(useStudyStore.getState().interpretation).toContain("CLINICAL MEASUREMENT REPORT");
   });
 });
+
+describe("moveCalibrationPoint — Drag-to-adjust calibration points", () => {
+  beforeEach(() => {
+    storageMap.clear();
+    useStudyStore.getState().newStudy();
+    useStudyStore.getState().createStudy("test-cal-drag", "data:image/png;base64,abc", 1000, 1000);
+    useStudyStore.getState().startCalibration();
+  });
+
+  it("allows dragging point1 during reviewing-point-1 stage with boundary clamping", () => {
+    useStudyStore.getState().placeCalibrationPoint({ x: 0.2, y: 0.2 });
+    expect(useStudyStore.getState().calibrationStage).toBe("reviewing-point-1");
+
+    // Drag point 1 to valid coordinates
+    useStudyStore.getState().moveCalibrationPoint(1, { x: 0.25, y: 0.3 });
+    expect(useStudyStore.getState().calibrationPoints?.point1).toEqual({ x: 0.25, y: 0.3 });
+
+    // Drag point 1 beyond bounds — should clamp to [0, 1]
+    useStudyStore.getState().moveCalibrationPoint(1, { x: -0.1, y: 1.2 });
+    expect(useStudyStore.getState().calibrationPoints?.point1).toEqual({ x: 0, y: 1 });
+  });
+
+  it("allows dragging both point1 and point2 during reviewing-point-2 and entering-distance stages", () => {
+    useStudyStore.getState().placeCalibrationPoint({ x: 0.2, y: 0.2 });
+    useStudyStore.getState().confirmPoint1();
+    useStudyStore.getState().placeCalibrationPoint({ x: 0.8, y: 0.8 });
+    expect(useStudyStore.getState().calibrationStage).toBe("reviewing-point-2");
+
+    // Adjust point 1 during point 2 review
+    useStudyStore.getState().moveCalibrationPoint(1, { x: 0.22, y: 0.22 });
+    expect(useStudyStore.getState().calibrationPoints?.point1).toEqual({ x: 0.22, y: 0.22 });
+
+    // Adjust point 2 during point 2 review
+    useStudyStore.getState().moveCalibrationPoint(2, { x: 0.82, y: 0.82 });
+    expect(useStudyStore.getState().calibrationPoints?.point2).toEqual({ x: 0.82, y: 0.82 });
+
+    // Move to entering-distance
+    useStudyStore.getState().confirmPoint2();
+    expect(useStudyStore.getState().calibrationStage).toBe("entering-distance");
+
+    // Both points remain adjustable during entering-distance
+    useStudyStore.getState().moveCalibrationPoint(1, { x: 0.15, y: 0.15 });
+    useStudyStore.getState().moveCalibrationPoint(2, { x: 0.85, y: 0.85 });
+    expect(useStudyStore.getState().calibrationPoints?.point1).toEqual({ x: 0.15, y: 0.15 });
+    expect(useStudyStore.getState().calibrationPoints?.point2).toEqual({ x: 0.85, y: 0.85 });
+  });
+
+  it("updates calibration scale in real-time when dragging points after calibration is complete", () => {
+    useStudyStore.getState().placeCalibrationPoint({ x: 0.2, y: 0.2 });
+    useStudyStore.getState().confirmPoint1();
+    useStudyStore.getState().placeCalibrationPoint({ x: 0.2, y: 0.4 }); // 200px
+    useStudyStore.getState().confirmPoint2();
+    useStudyStore.getState().confirmCalibration(20); // 20mm for 200px = 0.1 mm/px
+
+    expect(useStudyStore.getState().calibrationStage).toBe("calibrated");
+    expect(useStudyStore.getState().calibration?.mmPerPixel).toBeCloseTo(0.1, 4);
+
+    // Drag point 2 to y = 0.6 (400px distance)
+    useStudyStore.getState().moveCalibrationPoint(2, { x: 0.2, y: 0.6 }); // 400px
+    // 20mm for 400px = 0.05 mm/px
+    expect(useStudyStore.getState().calibration?.mmPerPixel).toBeCloseTo(0.05, 4);
+  });
+});

@@ -806,18 +806,61 @@ export const useStudyStore = create<Store>()(
     moveCalibrationPoint: (which, point) => {
       set((state) => {
         if (!state.calibrationPoints) return {};
-        if (which === 1 && state.calibrationStage === "reviewing-point-1") {
-          return {
-            calibrationPoints: { ...state.calibrationPoints, point1: point },
-          };
+        const clampedPoint: Point = {
+          x: Math.max(0, Math.min(1, point.x)),
+          y: Math.max(0, Math.min(1, point.y)),
+        };
+        const stage = state.calibrationStage;
+        const canMove =
+          (which === 1 &&
+            (stage === "reviewing-point-1" ||
+              stage === "reviewing-point-2" ||
+              stage === "entering-distance" ||
+              stage === "calibrated")) ||
+          (which === 2 &&
+            (stage === "reviewing-point-2" ||
+              stage === "entering-distance" ||
+              stage === "calibrated"));
+
+        if (!canMove) return {};
+
+        const updatedPoints = {
+          ...state.calibrationPoints,
+          [which === 1 ? "point1" : "point2"]: clampedPoint,
+        };
+
+        // If already calibrated, update calibration scale in real-time
+        let calibration = state.calibration;
+        if (
+          stage === "calibrated" &&
+          updatedPoints.point1 &&
+          updatedPoints.point2 &&
+          state.calibrationRealDistanceMm > 0 &&
+          state.imageNaturalWidth > 0 &&
+          state.imageNaturalHeight > 0
+        ) {
+          const dxPx = (updatedPoints.point2.x - updatedPoints.point1.x) * state.imageNaturalWidth;
+          const dyPx = (updatedPoints.point2.y - updatedPoints.point1.y) * state.imageNaturalHeight;
+          const pixelDistance = Math.sqrt(dxPx * dxPx + dyPx * dyPx);
+          if (pixelDistance >= 5) {
+            const mmPerPixel = state.calibrationRealDistanceMm / pixelDistance;
+            calibration = {
+              realDistanceMm: state.calibrationRealDistanceMm,
+              pixelDistance,
+              mmPerPixel,
+            };
+          }
         }
-        if (which === 2 && state.calibrationStage === "reviewing-point-2") {
-          return {
-            calibrationPoints: { ...state.calibrationPoints, point2: point },
-          };
-        }
-        return {};
+
+        return {
+          calibrationPoints: updatedPoints,
+          calibration,
+          isSaved: false,
+          updatedAt: new Date().toISOString(),
+        };
       });
+      get().recalculate();
+      debouncedSave();
     },
 
     confirmPoint1: () => {

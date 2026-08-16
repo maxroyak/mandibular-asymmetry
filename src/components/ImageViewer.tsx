@@ -287,29 +287,42 @@ export function ImageViewer() {
               // svgPt.x and svgPt.y are in viewBox coordinates (0-1)
 
               // Check calibration points first (higher priority than landmarks)
-              if (!isCalibratingStage(stage)) {
-                const calHitRadius = pxToViewBox(CALIBRATION_HIT_AREA_PX);
-                for (const which of [1, 2] as const) {
-                  const cp =
-                    which === 1 ? calibrationPoints?.point1 : calibrationPoints?.point2;
-                  if (!cp) continue;
-                  const dx = svgPt.x - cp.x;
-                  const dy = svgPt.y - cp.y;
-                  const dist = Math.sqrt(dx * dx + dy * dy);
-                  if (dist < calHitRadius) {
-                    interactionMode.current = "drag-calibration";
-                    draggingCalibrationPoint.current = which;
-                    activePointerId.current = e.pointerId;
-                    isDraggingRef.current = true;
-                    setIsDraggingMarker(true);
-                    try {
-                      (e.currentTarget as Element).setPointerCapture(e.pointerId);
-                    } catch {
-                      /* some browsers throw if already captured */
-                    }
-                    e.preventDefault();
-                    return;
+              const calHitRadius = pxToViewBox(CALIBRATION_HIT_AREA_PX);
+              for (const which of [1, 2] as const) {
+                const cp =
+                  which === 1 ? calibrationPoints?.point1 : calibrationPoints?.point2;
+                if (!cp) continue;
+                const canDrag =
+                  (which === 1 &&
+                    (stage === "reviewing-point-1" ||
+                      stage === "reviewing-point-2" ||
+                      stage === "entering-distance" ||
+                      stage === "calibrated" ||
+                      stage === "idle")) ||
+                  (which === 2 &&
+                    (stage === "reviewing-point-2" ||
+                      stage === "entering-distance" ||
+                      stage === "calibrated" ||
+                      stage === "idle"));
+
+                if (!canDrag) continue;
+
+                const dx = svgPt.x - cp.x;
+                const dy = svgPt.y - cp.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < calHitRadius) {
+                  interactionMode.current = "drag-calibration";
+                  draggingCalibrationPoint.current = which;
+                  activePointerId.current = e.pointerId;
+                  isDraggingRef.current = true;
+                  setIsDraggingMarker(true);
+                  try {
+                    (e.currentTarget as Element).setPointerCapture(e.pointerId);
+                  } catch {
+                    /* some browsers throw if already captured */
                   }
+                  e.preventDefault();
+                  return;
                 }
               }
 
@@ -806,7 +819,7 @@ export function ImageViewer() {
                 fill="white" fillOpacity={0.001}
                 style={{
                   pointerEvents: "none",
-                  cursor: calibrationStage === "reviewing-point-1"
+                  cursor: (calibrationStage === "reviewing-point-1" || calibrationStage === "reviewing-point-2" || calibrationStage === "entering-distance" || calibrationStage === "calibrated" || calibrationStage === "idle")
                     ? (isDraggingMarker ? "grabbing" : "grab")
                     : "default",
                 }}
@@ -862,7 +875,7 @@ export function ImageViewer() {
                 fill="white" fillOpacity={0.001}
                 style={{
                   pointerEvents: "none",
-                  cursor: calibrationStage === "reviewing-point-2"
+                  cursor: (calibrationStage === "reviewing-point-2" || calibrationStage === "entering-distance" || calibrationStage === "calibrated" || calibrationStage === "idle")
                     ? (isDraggingMarker ? "grabbing" : "grab")
                     : "default",
                 }}
