@@ -62,9 +62,9 @@ PMBot performing implementation itself is explicitly prohibited.
 
 ## Context Files
 
-- agents/PROJECT_CONTEXT.md — tech stack, architecture, domain model
-- agents/WORKFLOW.md — orchestration model, task states, QA gate
-- agents/<AgentName>.md — role-specific instructions
+- `agents/PROJECT_CONTEXT.md` — tech stack, architecture, domain model
+- `agents/WORKFLOW.md` — project workflow, task states, QA gate
+- Centralized Agent Registry: `../openclaw-ai-dev-team-maxroyak/` (`domain_experts/`, `dev_bot/`, `qa_bot/`, `ux_bot/`, `pm_bot/`)
 
 ## Architecture Rules
 
