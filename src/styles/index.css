@@ -1,0 +1,12 @@
+@import "tailwindcss";
+
+/* Custom theme tokens for clinical UI */
+@theme {
+  --color-ramus: #2563eb;
+  --color-body: #7c3aed;
+  --color-warning: #f59e0b;
+  --color-danger: #dc2626;
+  --color-landmark: #ef4444;
+  --color-landmark-active: #f97316;
+  --color-calibration: #10b981;
+}
