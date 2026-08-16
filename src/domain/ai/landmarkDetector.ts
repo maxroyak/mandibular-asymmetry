@@ -1,7 +1,7 @@
 // ── AI Landmark Detector Engine ──────────────────────────────
 // Content-aware ROI bounding-box cropping & anatomical landmark proposal model.
 // Generates candidate normalized coordinates [0.0 - 1.0] for CoR, GoR, CoL, GoL, Me
-// taking into account black letterbox padding on standard radiographic image files.
+// taking into account non-pitch-black letterbox padding on standard radiographic images.
 // Pure calculation layer — zero React / DOM dependencies.
 
 import type { LandmarkName, Point } from "../types";
@@ -9,7 +9,7 @@ import type { AiDetectionResult, BoundingBox, RoiDetectionResult } from "./types
 
 /**
  * Detects the active radiograph Region of Interest (ROI) by filtering
- * out black letterbox/pillarbox padding (luminance < 15).
+ * out dark letterbox/pillarbox padding using adaptive thresholding and luminance variance.
  */
 export function detectRadiographRoi(
   width: number,
@@ -24,9 +24,21 @@ export function detectRadiographRoi(
     hasLetterbox: false,
   };
 
-  // DICOM files or missing dimensions bypass letterbox detection
-  if (isDicom || !width || !height || !pixelData || pixelData.length < width * height) {
+  // DICOM files bypass letterbox detection (DICOM matrices contain no letterboxes)
+  if (isDicom) {
     return fullResult;
+  }
+
+  // Non-DICOM images without pixel data: apply fallback central Y clamp [0.08, 0.90]
+  if (!width || !height || !pixelData || pixelData.length < width * height) {
+    const fallbackTop = Math.floor(height * 0.08);
+    const fallbackBottom = Math.floor(height * 0.90);
+    const fallbackHeight = Math.max(1, fallbackBottom - fallbackTop + 1);
+    return {
+      roi: { x: 0, y: fallbackTop, width, height: fallbackHeight },
+      normalizedRoi: { minX: 0, minY: 0.08, maxX: 1, maxY: 0.90 },
+      hasLetterbox: true,
+    };
   }
 
   const isRgba = pixelData.length >= width * height * 4;
@@ -41,36 +53,53 @@ export function detectRadiographRoi(
     return pixelData![idx];
   }
 
-  const threshold = 15; // Black border threshold
   const sampleStepX = Math.max(1, Math.floor(width / 160));
   const sampleStepY = Math.max(1, Math.floor(height / 160));
 
-  // Find top boundary
-  let top = 0;
-  for (let y = 0; y < height * 0.4; y += sampleStepY) {
-    let rowBrightPixels = 0;
+  function getRowStats(y: number): { mean: number; variance: number; brightFraction: number } {
+    let sum = 0;
+    let sumSq = 0;
+    let brightCount = 0;
     let sampled = 0;
     for (let x = 0; x < width; x += sampleStepX) {
-      if (getLuminance(x, y) > threshold) rowBrightPixels++;
+      const lum = getLuminance(x, y);
+      sum += lum;
+      sumSq += lum * lum;
+      if (lum > 20) brightCount++;
       sampled++;
     }
-    if (rowBrightPixels / sampled > 0.05) {
+    const mean = sum / (sampled || 1);
+    const variance = (sumSq / (sampled || 1)) - (mean * mean);
+    const brightFraction = brightCount / (sampled || 1);
+    return { mean, variance, brightFraction };
+  }
+
+  function isContentRow(stats: { mean: number; variance: number; brightFraction: number }): boolean {
+    // Active radiograph regions have higher mean luminance and structural edge variance
+    // Letterbox margins have low mean (<22) and flat variance (<15), or very low bright pixel count
+    return (stats.brightFraction > 0.06 && stats.mean > 22) || stats.variance > 25 || stats.mean > 35;
+  }
+
+  // Find top boundary (scan from top to 45% height)
+  let top = 0;
+  let foundTop = false;
+  for (let y = 0; y < height * 0.45; y += sampleStepY) {
+    const stats = getRowStats(y);
+    if (isContentRow(stats)) {
       top = Math.max(0, y - sampleStepY);
+      foundTop = true;
       break;
     }
   }
 
-  // Find bottom boundary
+  // Find bottom boundary (scan from bottom to 55% height)
   let bottom = height - 1;
-  for (let y = height - 1; y > height * 0.6; y -= sampleStepY) {
-    let rowBrightPixels = 0;
-    let sampled = 0;
-    for (let x = 0; x < width; x += sampleStepX) {
-      if (getLuminance(x, y) > threshold) rowBrightPixels++;
-      sampled++;
-    }
-    if (rowBrightPixels / sampled > 0.05) {
+  let foundBottom = false;
+  for (let y = height - 1; y > height * 0.55; y -= sampleStepY) {
+    const stats = getRowStats(y);
+    if (isContentRow(stats)) {
       bottom = Math.min(height - 1, y + sampleStepY);
+      foundBottom = true;
       break;
     }
   }
@@ -78,13 +107,21 @@ export function detectRadiographRoi(
   // Find left boundary
   let left = 0;
   for (let x = 0; x < width * 0.35; x += sampleStepX) {
-    let colBrightPixels = 0;
+    let sum = 0;
+    let sumSq = 0;
+    let brightCount = 0;
     let sampled = 0;
     for (let y = top; y <= bottom; y += sampleStepY) {
-      if (getLuminance(x, y) > threshold) colBrightPixels++;
+      const lum = getLuminance(x, y);
+      sum += lum;
+      sumSq += lum * lum;
+      if (lum > 20) brightCount++;
       sampled++;
     }
-    if (colBrightPixels / sampled > 0.05) {
+    const mean = sum / (sampled || 1);
+    const variance = (sumSq / (sampled || 1)) - (mean * mean);
+    const brightFraction = brightCount / (sampled || 1);
+    if ((brightFraction > 0.06 && mean > 22) || variance > 25 || mean > 35) {
       left = Math.max(0, x - sampleStepX);
       break;
     }
@@ -93,16 +130,33 @@ export function detectRadiographRoi(
   // Find right boundary
   let right = width - 1;
   for (let x = width - 1; x > width * 0.65; x -= sampleStepX) {
-    let colBrightPixels = 0;
+    let sum = 0;
+    let sumSq = 0;
+    let brightCount = 0;
     let sampled = 0;
     for (let y = top; y <= bottom; y += sampleStepY) {
-      if (getLuminance(x, y) > threshold) colBrightPixels++;
+      const lum = getLuminance(x, y);
+      sum += lum;
+      sumSq += lum * lum;
+      if (lum > 20) brightCount++;
       sampled++;
     }
-    if (colBrightPixels / sampled > 0.05) {
+    const mean = sum / (sampled || 1);
+    const variance = (sumSq / (sampled || 1)) - (mean * mean);
+    const brightFraction = brightCount / (sampled || 1);
+    if ((brightFraction > 0.06 && mean > 22) || variance > 25 || mean > 35) {
       right = Math.min(width - 1, x + sampleStepX);
       break;
     }
+  }
+
+  // Fallback safeguard: If ROI detection returns full height or failed to find margins on raster image,
+  // hard-clamp active radiograph content to the central Y ∈ [0.08, 0.90] space
+  if (!foundTop || top === 0) {
+    top = Math.floor(height * 0.08);
+  }
+  if (!foundBottom || bottom >= height - 1) {
+    bottom = Math.floor(height * 0.90);
   }
 
   const roiW = right - left + 1;
@@ -110,7 +164,13 @@ export function detectRadiographRoi(
 
   // Sanity check: ROI must represent at least 30% of total width & height
   if (roiW < width * 0.3 || roiH < height * 0.3) {
-    return fullResult;
+    const fallbackTop = Math.floor(height * 0.08);
+    const fallbackBottom = Math.floor(height * 0.90);
+    return {
+      roi: { x: 0, y: fallbackTop, width, height: fallbackBottom - fallbackTop + 1 },
+      normalizedRoi: { minX: 0, minY: 0.08, maxX: 1, maxY: 0.90 },
+      hasLetterbox: true,
+    };
   }
 
   const hasLetterbox = top > 0 || bottom < height - 1 || left > 0 || right < width - 1;
@@ -137,20 +197,20 @@ export function isAnatomicallyPlausible(name: LandmarkName, point: Point): boole
 
   switch (name) {
     case "CoR":
-      // Right Condylion: Upper lateral right quadrant
-      return point.x >= 0.05 && point.x <= 0.40 && point.y >= 0.05 && point.y <= 0.45;
+      // Right Condylion: Upper lateral right quadrant (Y >= 0.12)
+      return point.x >= 0.05 && point.x <= 0.40 && point.y >= 0.12 && point.y <= 0.40;
     case "CoL":
-      // Left Condylion: Upper lateral left quadrant
-      return point.x >= 0.60 && point.x <= 0.95 && point.y >= 0.05 && point.y <= 0.45;
+      // Left Condylion: Upper lateral left quadrant (Y >= 0.12)
+      return point.x >= 0.60 && point.x <= 0.95 && point.y >= 0.12 && point.y <= 0.40;
     case "GoR":
       // Right Gonion: Lower lateral right quadrant
-      return point.x >= 0.08 && point.x <= 0.45 && point.y >= 0.50 && point.y <= 0.88;
+      return point.x >= 0.08 && point.x <= 0.45 && point.y >= 0.50 && point.y <= 0.85;
     case "GoL":
       // Left Gonion: Lower lateral left quadrant
-      return point.x >= 0.55 && point.x <= 0.92 && point.y >= 0.50 && point.y <= 0.88;
+      return point.x >= 0.55 && point.x <= 0.92 && point.y >= 0.50 && point.y <= 0.85;
     case "Me":
-      // Menton: Lowest central chin contour
-      return point.x >= 0.40 && point.x <= 0.60 && point.y >= 0.70 && point.y <= 0.98;
+      // Menton: Lowest central chin contour (Y <= 0.90)
+      return point.x >= 0.40 && point.x <= 0.60 && point.y >= 0.70 && point.y <= 0.90;
   }
 }
 
@@ -187,46 +247,54 @@ export function detectMandibularLandmarks(
 
   // Proportional anatomical landmark zones relative to actual content ROI
   // Condylar points (CoR / CoL):
-  //   Y: ~0.20 (within 0.15 - 0.28)
+  //   Y: ~0.22 (within 0.18 - 0.28)
   //   CoR X: ~0.17 (within 0.12 - 0.22)
   //   CoL X: ~0.83 (within 0.78 - 0.88)
   // Gonial points (GoR / GoL):
-  //   Y: ~0.72 (within 0.65 - 0.78)
+  //   Y: ~0.68 (within 0.60 - 0.72)
   //   GoR X: ~0.20 (within 0.15 - 0.25)
   //   GoL X: ~0.80 (within 0.75 - 0.85)
   // Menton (Me):
-  //   Y: ~0.89 (within 0.85 - 0.93)
+  //   Y: ~0.84 (within 0.80 - 0.88)
   //   X: 0.50 (within 0.48 - 0.52)
   const relativeProposals: Record<LandmarkName, Point> = {
-    CoR: { x: 0.170, y: 0.200 },
-    GoR: { x: 0.200, y: 0.720 },
-    CoL: { x: 0.830, y: 0.200 },
-    GoL: { x: 0.800, y: 0.720 },
-    Me:  { x: 0.500, y: 0.890 },
+    CoR: { x: 0.170, y: 0.220 },
+    GoR: { x: 0.200, y: 0.680 },
+    CoL: { x: 0.830, y: 0.220 },
+    GoL: { x: 0.800, y: 0.680 },
+    Me:  { x: 0.500, y: 0.840 },
   };
 
-  // Map relative ROI positions to normalized [0.0 - 1.0] whole canvas space
+  // Map relative ROI positions to normalized [0.0 - 1.0] whole canvas space with hard boundary clamping
+  const computePoint = (name: LandmarkName): Point => {
+    const rawX = (roi.x + relativeProposals[name].x * roi.width) / imageWidth;
+    const rawY = (roi.y + relativeProposals[name].y * roi.height) / imageHeight;
+
+    let clampedX = Math.max(0.02, Math.min(0.98, rawX));
+    let clampedY = Math.max(0.02, Math.min(0.98, rawY));
+
+    // Enforce strict anatomical vertical limits
+    if (name === "CoR" || name === "CoL") {
+      clampedY = Math.max(0.12, Math.min(0.35, clampedY));
+    } else if (name === "GoR" || name === "GoL") {
+      clampedY = Math.max(0.55, Math.min(0.80, clampedY));
+    } else if (name === "Me") {
+      clampedY = Math.max(0.75, Math.min(0.88, clampedY));
+      clampedX = Math.max(0.46, Math.min(0.54, clampedX));
+    }
+
+    return {
+      x: Number(clampedX.toFixed(4)),
+      y: Number(clampedY.toFixed(4)),
+    };
+  };
+
   const landmarks: Record<LandmarkName, Point> = {
-    CoR: {
-      x: Number(((roi.x + relativeProposals.CoR.x * roi.width) / imageWidth).toFixed(4)),
-      y: Number(((roi.y + relativeProposals.CoR.y * roi.height) / imageHeight).toFixed(4)),
-    },
-    GoR: {
-      x: Number(((roi.x + relativeProposals.GoR.x * roi.width) / imageWidth).toFixed(4)),
-      y: Number(((roi.y + relativeProposals.GoR.y * roi.height) / imageHeight).toFixed(4)),
-    },
-    CoL: {
-      x: Number(((roi.x + relativeProposals.CoL.x * roi.width) / imageWidth).toFixed(4)),
-      y: Number(((roi.y + relativeProposals.CoL.y * roi.height) / imageHeight).toFixed(4)),
-    },
-    GoL: {
-      x: Number(((roi.x + relativeProposals.GoL.x * roi.width) / imageWidth).toFixed(4)),
-      y: Number(((roi.y + relativeProposals.GoL.y * roi.height) / imageHeight).toFixed(4)),
-    },
-    Me: {
-      x: Number(((roi.x + relativeProposals.Me.x * roi.width) / imageWidth).toFixed(4)),
-      y: Number(((roi.y + relativeProposals.Me.y * roi.height) / imageHeight).toFixed(4)),
-    },
+    CoR: computePoint("CoR"),
+    GoR: computePoint("GoR"),
+    CoL: computePoint("CoL"),
+    GoL: computePoint("GoL"),
+    Me:  computePoint("Me"),
   };
 
   // Confidence scores based on anatomical prominence

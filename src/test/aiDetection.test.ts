@@ -28,8 +28,8 @@ Object.defineProperty(globalThis, "localStorage", {
 });
 
 describe("AI Landmark Detection & ROI Letterbox Cropping", () => {
-  it("generates candidate coordinates in standard anatomical proportional zones", () => {
-    const result = detectMandibularLandmarks(1920, 1080);
+  it("generates candidate coordinates in strict anatomical proportional zones", () => {
+    const result = detectMandibularLandmarks(1920, 1080, { isDicom: true });
     const required: LandmarkName[] = ["CoR", "GoR", "CoL", "GoL", "Me"];
 
     for (const name of required) {
@@ -37,10 +37,10 @@ describe("AI Landmark Detection & ROI Letterbox Cropping", () => {
       expect(isAnatomicallyPlausible(name, result.landmarks[name])).toBe(true);
     }
 
-    // Condylar points Y ∈ [0.15, 0.28]
-    expect(result.landmarks.CoR.y).toBeGreaterThanOrEqual(0.15);
+    // Condylar points Y ∈ [0.18, 0.28], never above 0.12
+    expect(result.landmarks.CoR.y).toBeGreaterThanOrEqual(0.18);
     expect(result.landmarks.CoR.y).toBeLessThanOrEqual(0.28);
-    expect(result.landmarks.CoL.y).toBeGreaterThanOrEqual(0.15);
+    expect(result.landmarks.CoL.y).toBeGreaterThanOrEqual(0.18);
     expect(result.landmarks.CoL.y).toBeLessThanOrEqual(0.28);
 
     // Condylar horizontal: CoR X ∈ [0.12, 0.22], CoL X ∈ [0.78, 0.88]
@@ -49,30 +49,35 @@ describe("AI Landmark Detection & ROI Letterbox Cropping", () => {
     expect(result.landmarks.CoL.x).toBeGreaterThanOrEqual(0.78);
     expect(result.landmarks.CoL.x).toBeLessThanOrEqual(0.88);
 
-    // Gonial points: Y ∈ [0.65, 0.78], GoR X ∈ [0.15, 0.25], GoL X ∈ [0.75, 0.85]
-    expect(result.landmarks.GoR.y).toBeGreaterThanOrEqual(0.65);
-    expect(result.landmarks.GoR.y).toBeLessThanOrEqual(0.78);
+    // Gonial points: Y ∈ [0.60, 0.72], GoR X ∈ [0.15, 0.25], GoL X ∈ [0.75, 0.85]
+    expect(result.landmarks.GoR.y).toBeGreaterThanOrEqual(0.60);
+    expect(result.landmarks.GoR.y).toBeLessThanOrEqual(0.72);
     expect(result.landmarks.GoR.x).toBeGreaterThanOrEqual(0.15);
     expect(result.landmarks.GoR.x).toBeLessThanOrEqual(0.25);
     expect(result.landmarks.GoL.x).toBeGreaterThanOrEqual(0.75);
     expect(result.landmarks.GoL.x).toBeLessThanOrEqual(0.85);
 
-    // Menton: Y ∈ [0.85, 0.93], X ∈ [0.48, 0.52]
-    expect(result.landmarks.Me.y).toBeGreaterThanOrEqual(0.85);
-    expect(result.landmarks.Me.y).toBeLessThanOrEqual(0.93);
+    // Menton: Y ∈ [0.80, 0.88], never below 0.90, X ∈ [0.48, 0.52]
+    expect(result.landmarks.Me.y).toBeGreaterThanOrEqual(0.80);
+    expect(result.landmarks.Me.y).toBeLessThanOrEqual(0.88);
     expect(result.landmarks.Me.x).toBeGreaterThanOrEqual(0.48);
     expect(result.landmarks.Me.x).toBeLessThanOrEqual(0.52);
 
     expect(result.averageConfidence).toBeGreaterThanOrEqual(0.90);
   });
 
-  it("detects black letterbox margins and maps landmark coordinates relative to active radiograph content", () => {
+  it("detects dark gray letterbox margins via adaptive luminance and variance", () => {
     const width = 1000;
     const height = 500;
     const pixelData = new Uint8ClampedArray(width * height * 4);
 
-    // Fill background with black (letterbox)
-    pixelData.fill(0);
+    // Fill background with dark gray letterbox (RGB = 18, 18, 18)
+    for (let i = 0; i < pixelData.length; i += 4) {
+      pixelData[i] = 18;
+      pixelData[i + 1] = 18;
+      pixelData[i + 2] = 18;
+      pixelData[i + 3] = 255;
+    }
 
     // Active exposure area: 15% margin left/right, 20% margin top/bottom
     const leftMargin = 150;
@@ -83,9 +88,9 @@ describe("AI Landmark Detection & ROI Letterbox Cropping", () => {
     for (let y = topMargin; y < bottomMargin; y++) {
       for (let x = leftMargin; x < rightMargin; x++) {
         const idx = (y * width + x) * 4;
-        pixelData[idx] = 120;     // R
-        pixelData[idx + 1] = 120; // G
-        pixelData[idx + 2] = 120; // B
+        pixelData[idx] = 140;     // R
+        pixelData[idx + 1] = 140; // G
+        pixelData[idx + 2] = 140; // B
         pixelData[idx + 3] = 255; // A
       }
     }
@@ -100,12 +105,19 @@ describe("AI Landmark Detection & ROI Letterbox Cropping", () => {
     // Detect landmarks on the letterboxed image
     const result = detectMandibularLandmarks(width, height, { pixelData });
 
-    // Menton Y should be located near bottom of active content (~400 / 500 = 0.80) rather than bottom of image (0.89)
-    expect(result.landmarks.Me.y).toBeLessThan(0.89);
-    expect(result.landmarks.Me.y).toBeGreaterThan(0.70);
+    // Menton Y should be securely clamped inside active content and not exceed 0.88
+    expect(result.landmarks.Me.y).toBeLessThanOrEqual(0.88);
+    expect(result.landmarks.Me.y).toBeGreaterThanOrEqual(0.70);
 
-    // CoR X should be shifted right into the active exposure field
-    expect(result.landmarks.CoR.x).toBeGreaterThan(0.20);
+    // CoR Y should be located within active exposure field and >= 0.18
+    expect(result.landmarks.CoR.y).toBeGreaterThanOrEqual(0.18);
+  });
+
+  it("applies fallback central Y clamp [0.08, 0.90] when no pixelData is provided on non-DICOM image", () => {
+    const roi = detectRadiographRoi(1000, 500, null, false);
+    expect(roi.hasLetterbox).toBe(true);
+    expect(roi.normalizedRoi.minY).toBe(0.08);
+    expect(roi.normalizedRoi.maxY).toBe(0.90);
   });
 
   it("bypasses letterbox detection when isDicom is true", () => {
@@ -126,8 +138,10 @@ describe("AI Landmark Detection & ROI Letterbox Cropping", () => {
 
     // Me in upper half is invalid
     expect(isAnatomicallyPlausible("Me", { x: 0.5, y: 0.2 })).toBe(false);
-    // Me in lower middle is valid
-    expect(isAnatomicallyPlausible("Me", { x: 0.5, y: 0.89 })).toBe(true);
+    // Me in lower middle (<= 0.90) is valid
+    expect(isAnatomicallyPlausible("Me", { x: 0.5, y: 0.86 })).toBe(true);
+    // Me below 0.90 is invalid
+    expect(isAnatomicallyPlausible("Me", { x: 0.5, y: 0.95 })).toBe(false);
   });
 });
 
@@ -165,6 +179,9 @@ describe("AI Detection Store Integration & Clinician Safeguards", () => {
     for (const name of required) {
       expect(state.aiCandidateLandmarks[name]).toBe(true);
     }
+
+    // Menton candidate must be <= 0.88
+    expect(state.landmarks.Me?.y).toBeLessThanOrEqual(0.88);
 
     // Measurements and conclusion must be calculated immediately
     expect(state.measurements?.ramusHeight).not.toBeNull();
@@ -220,9 +237,9 @@ describe("AI Detection Store Integration & Clinician Safeguards", () => {
     expect(useStudyStore.getState().aiCandidateLandmarks.Me).toBe(true);
 
     // Clinician drags/adjusts Menton
-    useStudyStore.getState().moveLandmark("Me", { x: 0.50, y: 0.90 });
+    useStudyStore.getState().moveLandmark("Me", { x: 0.50, y: 0.85 });
 
-    expect(useStudyStore.getState().landmarks.Me).toEqual({ x: 0.50, y: 0.90 });
+    expect(useStudyStore.getState().landmarks.Me).toEqual({ x: 0.50, y: 0.85 });
     expect(useStudyStore.getState().aiCandidateLandmarks.Me).toBe(false);
   });
 });

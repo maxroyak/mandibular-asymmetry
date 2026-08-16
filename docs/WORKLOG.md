@@ -52,6 +52,12 @@ Details: Moved Save Study and New Study buttons into the top header toolbar in `
 Details: Enabled interactive dragging and repositioning of Calibration Points P1 and P2 during review stages (`reviewing-point-1`, `reviewing-point-2`, `entering-distance`, and `calibrated`) with coordinate clamping to `[0.0, 1.0]` and real-time scale updating. Prioritized calibration hit-testing in `ImageViewer.tsx` with grab/grabbing cursors. 323/323 unit tests passing (100%).
 ---
 
+---
+2026-08-17 01:36 | AI Landmark Vertical Misalignment & ROI Cropping Fix
+Details: Enhanced `detectRadiographRoi` with adaptive luminance variance thresholding and central Y clamp fallback (`[0.08, 0.90]`). Constrained candidate anatomical zones: `CoR`/`CoL` Y ∈ [0.18, 0.28], `GoR`/`GoL` Y ∈ [0.60, 0.72], `Me` Y ∈ [0.80, 0.88] (strictly <= 0.88). 324/324 unit tests passing (100%).
+---
+
+
 
 
 
