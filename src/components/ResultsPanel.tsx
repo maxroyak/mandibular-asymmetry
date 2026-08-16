@@ -342,7 +342,7 @@ function LandmarkWarnings({ t }: { t: Translations }) {
 }
 
 // ── Main Results Panel ──────────────────────────────────────
-export function ResultsPanel() {
+export function ResultsPanel({ onOpenReport }: { onOpenReport?: () => void } = {}) {
   const language = useStudyStore((s) => s.language);
   const measurements = useStudyStore((s) => s.measurements);
   const interpretation = useStudyStore((s) => s.interpretation);
@@ -369,7 +369,19 @@ export function ResultsPanel() {
 
   return (
     <div className="p-4">
-      <h3 className="mb-3 text-sm font-semibold text-gray-700">{t.results.title}</h3>
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-gray-700">{t.results.title}</h3>
+        {onOpenReport && (
+          <button
+            onClick={onOpenReport}
+            type="button"
+            className="inline-flex items-center gap-1 rounded bg-blue-50 border border-blue-200 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 transition-colors"
+          >
+            <span>📄</span>
+            <span>{t.report.exportButton}</span>
+          </button>
+        )}
+      </div>
 
       {/* Calibration status banner */}
       <div className="mb-3">
@@ -501,6 +513,20 @@ export function ResultsPanel() {
               {interpretation}
             </pre>
           </div>
+        </div>
+      )}
+
+      {/* Export / Print Report Call-to-action */}
+      {onOpenReport && (
+        <div className="mt-4 pt-3 border-t border-gray-200">
+          <button
+            onClick={onOpenReport}
+            type="button"
+            className="w-full flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-xs font-semibold text-white shadow-xs hover:bg-blue-700 active:bg-blue-800 transition-colors"
+          >
+            <span>📄</span>
+            <span>{t.report.exportButton}</span>
+          </button>
         </div>
       )}
     </div>

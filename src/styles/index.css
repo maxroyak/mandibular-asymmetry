@@ -10,3 +10,43 @@
   --color-landmark-active: #f97316;
   --color-calibration: #10b981;
 }
+
+/* Print Styles for Clinical PDF / Print Export */
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #111827 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hide screen-only interactive UI */
+  .no-print,
+  header,
+  aside,
+  button,
+  .print-hide {
+    display: none !important;
+  }
+
+  /* Make clinical report root fill page cleanly */
+  #clinical-print-root {
+    position: static !important;
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 4mm !important;
+    box-shadow: none !important;
+    border: none !important;
+    background: #ffffff !important;
+    page-break-inside: avoid;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 8mm;
+  }
+}

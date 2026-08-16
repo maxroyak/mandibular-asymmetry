@@ -2,6 +2,7 @@
 // Main single-page view: upload → analyze → results.
 // Two-column layout: radiograph viewer (left) + workflow panel (right).
 
+import { useState } from "react";
 import { useStudyStore } from "../store/studyStore";
 import { ImageUploadZone } from "../components/ImageUploadZone";
 import { ImageViewer } from "../components/ImageViewer";
@@ -10,6 +11,7 @@ import { CalibrationPanel } from "../components/CalibrationPanel";
 import { ResultsPanel } from "../components/ResultsPanel";
 import { StudyManager } from "../components/StudyManager";
 import { LanguageSwitcher } from "../components/LanguageSwitcher";
+import { ClinicalReportModal } from "../components/ClinicalReportModal";
 import { getTranslations } from "../locales";
 
 export function AnalysisPage() {
@@ -18,12 +20,13 @@ export function AnalysisPage() {
   const imageNaturalWidth = useStudyStore((s) => s.imageNaturalWidth);
   const imageNaturalHeight = useStudyStore((s) => s.imageNaturalHeight);
 
+  const [isReportOpen, setIsReportOpen] = useState(false);
   const t = getTranslations(language);
 
   return (
     <div className="flex h-screen flex-col bg-white">
       {/* Header */}
-      <header className="flex items-center justify-between border-b border-gray-200 bg-white px-6 py-3">
+      <header className="flex items-center justify-between border-b border-gray-200 bg-white px-6 py-3 no-print">
         <div>
           <h1 className="text-lg font-bold text-gray-800">
             {t.common.appName}
@@ -32,7 +35,20 @@ export function AnalysisPage() {
             {t.common.appSubtitle}
           </p>
         </div>
-        <LanguageSwitcher />
+        <div className="flex items-center gap-3">
+          {imageDataUrl && (
+            <button
+              onClick={() => setIsReportOpen(true)}
+              type="button"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-2xs hover:bg-gray-50 active:bg-gray-100 transition-colors"
+              title={t.report.exportButton}
+            >
+              <span>📄</span>
+              <span>{t.report.exportButton}</span>
+            </button>
+          )}
+          <LanguageSwitcher />
+        </div>
       </header>
 
       {/* Main content: two-column layout */}
@@ -47,7 +63,7 @@ export function AnalysisPage() {
         </div>
 
         {/* Right Panel — Workflow */}
-        <aside className="w-96 overflow-y-auto border-l border-gray-200 bg-white flex flex-col">
+        <aside className="w-96 overflow-y-auto border-l border-gray-200 bg-white flex flex-col no-print">
           {imageDataUrl ? (
             <>
               {/* Image Quality status */}
@@ -81,7 +97,7 @@ export function AnalysisPage() {
 
               {/* Results (shown when landmarks placed) */}
               <div className="flex-1">
-                <ResultsPanel />
+                <ResultsPanel onOpenReport={() => setIsReportOpen(true)} />
               </div>
 
               {/* Study Management */}
@@ -94,6 +110,12 @@ export function AnalysisPage() {
           )}
         </aside>
       </div>
+
+      {/* Clinical PDF / Print Export Modal */}
+      <ClinicalReportModal
+        isOpen={isReportOpen}
+        onClose={() => setIsReportOpen(false)}
+      />
     </div>
   );
 }

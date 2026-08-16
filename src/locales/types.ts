@@ -161,4 +161,28 @@ export interface Translations {
     loadFailedError: string;
     loadingStudy: string;
   };
+  report: {
+    exportButton: string;
+    printButton: string;
+    modalTitle: string;
+    reportTitle: string;
+    reportSubtitle: string;
+    patientId: string;
+    studyDate: string;
+    calibrationStatus: string;
+    calibratedValue: (scale: string) => string;
+    uncalibratedValue: string;
+    overlayTitle: string;
+    tableTitle: string;
+    colMeasurement: string;
+    colRight: string;
+    colLeft: string;
+    colAbsDiff: string;
+    colRelDiff: string;
+    colHabetsIndex: string;
+    conclusionTitle: string;
+    disclaimerTitle: string;
+    disclaimerBody: string;
+    pageIndicator: string;
+  };
 }
