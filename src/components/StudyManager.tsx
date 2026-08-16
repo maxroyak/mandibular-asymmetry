@@ -12,10 +12,8 @@ export function StudyManager() {
   const studyId = useStudyStore((s) => s.studyId);
   const isSaved = useStudyStore((s) => s.isSaved);
   const studyList = useStudyStore((s) => s.studyList);
-  const saveStudy = useStudyStore((s) => s.saveStudy);
   const loadStudy = useStudyStore((s) => s.loadStudy);
   const deleteStudy = useStudyStore((s) => s.deleteStudy);
-  const newStudy = useStudyStore((s) => s.newStudy);
   const patientId = useStudyStore((s) => s.patientId);
   const refreshStudyList = useStudyStore((s) => s.refreshStudyList);
   const getPersistenceError = useStudyStore((s) => s.getPersistenceError);
@@ -38,16 +36,6 @@ export function StudyManager() {
     }
   }, [isSaved, getPersistenceError, clearPersistenceError]);
 
-  const handleSave = async () => {
-    await saveStudy();
-    // Check for errors after save
-    const err = getPersistenceError();
-    if (err) {
-      setPersistenceError(err);
-      clearPersistenceError();
-    }
-  };
-
   const handleLoad = async (id: string) => {
     setIsLoading(true);
     try {
@@ -63,16 +51,6 @@ export function StudyManager() {
     if (confirm(t.studyManager.deleteStudyConfirm)) {
       await deleteStudy(id);
     }
-  };
-
-  const handleNew = () => {
-    if (!isSaved && studyId) {
-      if (!confirm(t.studyManager.discardStudyConfirm)) {
-        return;
-      }
-    }
-    newStudy();
-    setShowList(false);
   };
 
   return (
@@ -98,30 +76,15 @@ export function StudyManager() {
         <div className="mb-2 text-xs text-blue-600">{t.studyManager.loadingStudy}</div>
       )}
 
-      <div className="mb-3 flex gap-2">
-        <button
-          onClick={handleSave}
-          disabled={!studyId}
-          className="flex-1 rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-40"
-        >
-          {t.studyManager.saveStudy}
-        </button>
-        <button
-          onClick={handleNew}
-          className="flex-1 rounded border border-gray-300 px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50"
-        >
-          {t.studyManager.newStudy}
-        </button>
-      </div>
-
-      {/* Save status */}
-      <div className="mb-2 text-xs text-gray-500">
+      {/* Save status badge */}
+      <div className="mb-3 flex items-center justify-between rounded-lg bg-gray-50 border border-gray-200 px-3 py-2 text-xs">
+        <span className="text-gray-500 font-medium">{t.studyManager.title ?? "Study Status"}</span>
         {isSaved ? (
-          <span className="text-green-600">{t.studyManager.saved}</span>
+          <span className="font-semibold text-green-600">✓ {t.studyManager.saved}</span>
         ) : studyId ? (
-          <span className="text-amber-600">{t.studyManager.unsavedChanges}</span>
+          <span className="font-semibold text-amber-600">● {t.studyManager.unsavedChanges}</span>
         ) : (
-          <span>{t.studyManager.noStudy}</span>
+          <span className="text-gray-400">{t.studyManager.noStudy}</span>
         )}
       </div>
 

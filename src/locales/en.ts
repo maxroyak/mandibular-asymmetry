@@ -165,6 +165,7 @@ export const en: Translations = {
     outsideBounds: (name) => `${name} is outside the image bounds (coordinates should be 0–1).`,
   },
   studyManager: {
+    title: "Study Status",
     saveStudy: "Save Study",
     newStudy: "New Study",
     saved: "✓ Saved",

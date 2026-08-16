@@ -16,18 +16,38 @@ import { getTranslations } from "../locales";
 
 export function AnalysisPage() {
   const language = useStudyStore((s) => s.language);
+  const studyId = useStudyStore((s) => s.studyId);
+  const isSaved = useStudyStore((s) => s.isSaved);
   const imageDataUrl = useStudyStore((s) => s.imageDataUrl);
   const imageNaturalWidth = useStudyStore((s) => s.imageNaturalWidth);
   const imageNaturalHeight = useStudyStore((s) => s.imageNaturalHeight);
 
+  const saveStudy = useStudyStore((s) => s.saveStudy);
+  const newStudy = useStudyStore((s) => s.newStudy);
+
   const [isReportOpen, setIsReportOpen] = useState(false);
   const t = getTranslations(language);
+
+  const handleSaveStudy = async () => {
+    if (!studyId) return;
+    await saveStudy();
+  };
+
+  const handleNewStudy = () => {
+    if (!isSaved && studyId) {
+      if (!confirm(t.studyManager.discardStudyConfirm)) {
+        return;
+      }
+    }
+    newStudy();
+  };
 
   return (
     <div className="flex h-screen flex-col bg-white">
       {/* Header */}
-      <header className="flex items-center justify-between border-b border-gray-200 bg-white px-6 py-3 no-print">
-        <div>
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 bg-white px-6 py-3 no-print">
+        {/* Title */}
+        <div className="min-w-[200px]">
           <h1 className="text-lg font-bold text-gray-800">
             {t.common.appName}
           </h1>
@@ -35,6 +55,41 @@ export function AnalysisPage() {
             {t.common.appSubtitle}
           </p>
         </div>
+
+        {/* Central Study Actions */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleSaveStudy}
+            disabled={!studyId}
+            type="button"
+            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold shadow-2xs transition-colors ${
+              !studyId
+                ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                : isSaved
+                ? "bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800"
+                : "bg-blue-600 text-white hover:bg-blue-700 ring-2 ring-blue-300 ring-offset-1"
+            }`}
+            title={t.studyManager.saveStudy}
+          >
+            <span>💾</span>
+            <span>{t.studyManager.saveStudy}</span>
+            {!isSaved && studyId && (
+              <span className="ml-1 h-1.5 w-1.5 rounded-full bg-amber-300 animate-pulse" />
+            )}
+          </button>
+
+          <button
+            onClick={handleNewStudy}
+            type="button"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 shadow-2xs hover:bg-gray-50 active:bg-gray-100 transition-colors"
+            title={t.studyManager.newStudy}
+          >
+            <span>➕</span>
+            <span>{t.studyManager.newStudy}</span>
+          </button>
+        </div>
+
+        {/* Right-hand Utilities */}
         <div className="flex items-center gap-3">
           {imageDataUrl && (
             <button
@@ -100,18 +155,18 @@ export function AnalysisPage() {
                 <ResultsPanel onOpenReport={() => setIsReportOpen(true)} />
               </div>
 
-              {/* Study Management */}
+              {/* Study Persistence Manager */}
               <StudyManager />
             </>
           ) : (
-            <div className="p-4 text-sm text-gray-400">
-              {t.common.uploadToBegin}
+            <div className="p-4 text-xs text-gray-400">
+              <StudyManager />
             </div>
           )}
         </aside>
       </div>
 
-      {/* Clinical PDF / Print Export Modal */}
+      {/* 1-Page Clinical Standard PDF Report Preview Modal */}
       <ClinicalReportModal
         isOpen={isReportOpen}
         onClose={() => setIsReportOpen(false)}

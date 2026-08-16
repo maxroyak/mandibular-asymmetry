@@ -165,6 +165,7 @@ export const ru: Translations = {
     outsideBounds: (name) => `Точка ${name} находится за пределами изображения (координаты должны быть от 0 до 1).`,
   },
   studyManager: {
+    title: "Статус исследования",
     saveStudy: "Сохранить исследование",
     newStudy: "Новое исследование",
     saved: "✓ Сохранено",

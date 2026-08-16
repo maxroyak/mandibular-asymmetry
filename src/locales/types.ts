@@ -148,6 +148,7 @@ export interface Translations {
     outsideBounds: (name: string) => string;
   };
   studyManager: {
+    title: string;
     saveStudy: string;
     newStudy: string;
     saved: string;
