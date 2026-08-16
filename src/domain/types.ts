@@ -23,19 +23,39 @@ export interface Calibration {
  *
  * `point1` and `point2` are stored as INDEPENDENT nullable fields so that a
  * single click can never accidentally populate both slots. Placement logic
- * is strictly sequential:
+ * is strictly sequential and driven by the CalibrationStage state machine:
  *
- *   if (!point1) set point1
- *   else if (!point2) set point2
- *
- * This replaces the old `[Point, Point] | null` tuple where `setCalibrationPoint`
- * used `?? point` fallbacks that could fill both tuple slots with the same
- * coordinate from a single click (Bug 1).
+ *   placing-point-1  → first click places point1, transitions to reviewing-point-1
+ *   reviewing-point-1 → user confirms, transitions to placing-point-2
+ *   placing-point-2  → next click places point2, transitions to reviewing-point-2
+ *   reviewing-point-2 → user confirms, transitions to entering-distance
+ *   entering-distance → user enters known mm, confirms → calibrated
  */
 export interface CalibrationDraft {
   point1: Point | null;
   point2: Point | null;
 }
+
+/**
+ * Explicit state machine for the calibration workflow.
+ * No stage may be skipped — each transition requires a specific user action.
+ *
+ *   idle             → (click "Calibrate image") → placing-point-1
+ *   placing-point-1  → (image click places Point 1) → reviewing-point-1
+ *   reviewing-point-1 → (click Confirm Point 1) → placing-point-2
+ *   placing-point-2  → (image click places Point 2) → reviewing-point-2
+ *   reviewing-point-2 → (click Confirm Point 2) → entering-distance
+ *   entering-distance → (enter distance, click Confirm) → calibrated
+ *   calibrated       → (click Recalibrate) → placing-point-1 (saves previous)
+ */
+export type CalibrationStage =
+  | "idle"
+  | "placing-point-1"
+  | "reviewing-point-1"
+  | "placing-point-2"
+  | "reviewing-point-2"
+  | "entering-distance"
+  | "calibrated";
 
 /** Dominant side determination */
 export type DominantSide = "right" | "left" | "equal";

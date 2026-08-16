@@ -23,6 +23,7 @@ import type {
   LandmarkSet,
   Calibration,
   CalibrationDraft,
+  CalibrationStage,
   StudyMeasurements,
   MeasurementResult,
   BilateralMeasurement,
@@ -64,7 +65,8 @@ interface StudyState {
   calibrationPoints: CalibrationDraft | null;
   calibrationMode: "A" | "B";
   calibrationRealDistanceMm: number;
-  isCalibrating: boolean; // shared UI state — true when calibration workflow is active
+  calibrationStage: CalibrationStage; // explicit state machine for calibration workflow
+  previousCalibration: { calibration: Calibration | null; calibrationMode: "A" | "B"; calibrationRealDistanceMm: number } | null;
 
   // Computed measurements
   measurements: StudyMeasurements | null;
@@ -98,13 +100,18 @@ interface StudyActions {
   setActiveLandmark: (name: LandmarkName | null) => void;
   clearActiveLandmark: () => void;
 
-  // Calibration
-  setCalibrationPoint: (index: 0 | 1, point: Point) => void;
+  // Calibration (state machine driven)
   setCalibrationRealDistance: (mm: number) => void;
   clearCalibration: () => void;
-  computeCalibration: () => void;
   startCalibration: () => void;
   cancelCalibration: () => void;
+  placeCalibrationPoint: (point: Point) => void;
+  confirmPoint1: () => void;
+  confirmPoint2: () => void;
+  resetPoint1: () => void;
+  resetPoint2: () => void;
+  confirmCalibration: (knownDistanceMm: number) => void;
+  moveCalibrationPoint: (which: 1 | 2, point: Point) => void;
 
   // Viewer transform
   setZoom: (zoom: number) => void;
@@ -278,7 +285,8 @@ export const useStudyStore = create<Store>()(
     calibrationPoints: null,
     calibrationMode: "A",
     calibrationRealDistanceMm: 0,
-    isCalibrating: false,
+    calibrationStage: "idle",
+    previousCalibration: null,
     measurements: null,
     interpretation: "",
     mandibularResult: null,
@@ -303,7 +311,8 @@ export const useStudyStore = create<Store>()(
         calibrationPoints: null,
         calibrationMode: "A",
         calibrationRealDistanceMm: 0,
-        isCalibrating: false,
+        calibrationStage: "idle",
+        previousCalibration: null,
         measurements: null,
         interpretation: "",
         mandibularResult: null,
@@ -331,7 +340,8 @@ export const useStudyStore = create<Store>()(
         calibrationPoints: study.calibrationPoints,
         calibrationMode: study.calibration ? "B" : "A",
         calibrationRealDistanceMm: study.calibration?.realDistanceMm ?? 0,
-        isCalibrating: false,
+        calibrationStage: study.calibration ? "calibrated" : "idle",
+        previousCalibration: null,
         measurements: study.measurements,
         interpretation: study.interpretation,
         mandibularResult: null, // recomputed in recalculate() below
@@ -394,7 +404,8 @@ export const useStudyStore = create<Store>()(
         calibrationPoints: null,
         calibrationMode: "A",
         calibrationRealDistanceMm: 0,
-        isCalibrating: false,
+        calibrationStage: "idle",
+        previousCalibration: null,
         measurements: null,
         interpretation: "",
         mandibularResult: null,
@@ -477,49 +488,154 @@ export const useStudyStore = create<Store>()(
     setActiveLandmark: (name) => set({ activeLandmark: name }),
     clearActiveLandmark: () => set({ activeLandmark: null }),
 
-    // ── Calibration ──
-    // Bug 1 fix: calibration points are stored as independent nullable fields
-    // (CalibrationDraft) rather than a `[Point, Point]` tuple. The old tuple
-    // implementation used `?? point` fallbacks that filled BOTH slots with the
-    // same coordinate when the tuple was null, causing a single click to place
-    // two points. Now each slot is set independently and the other stays null.
-    setCalibrationPoint: (index, point) => {
-      set((state) => {
-        const current = state.calibrationPoints ?? { point1: null, point2: null };
-        if (index === 0) {
-          return {
-            calibrationPoints: { point1: point, point2: current.point2 },
-          };
-        } else {
-          return {
-            calibrationPoints: { point1: current.point1, point2: point },
-          };
-        }
-      });
-    },
+    // ── Calibration (state machine) ──
+    // The calibration workflow follows an explicit state machine:
+    //   idle → placing-point-1 → reviewing-point-1 → placing-point-2
+    //   → reviewing-point-2 → entering-distance → calibrated
+    // No stage may be skipped. Each action guards on the current stage.
 
     setCalibrationRealDistance: (mm) => {
       set({ calibrationRealDistanceMm: mm });
     },
 
-    computeCalibration: () => {
+    startCalibration: () => {
+      set((state) => ({
+        calibrationStage: "placing-point-1",
+        calibrationPoints: { point1: null, point2: null },
+        // Save previous calibration for cancel/restore
+        previousCalibration: state.calibration
+          ? {
+              calibration: state.calibration,
+              calibrationMode: state.calibrationMode,
+              calibrationRealDistanceMm: state.calibrationRealDistanceMm,
+            }
+          : null,
+        // Don't clear existing calibration yet — only clear on confirm or cancel
+        calibrationRealDistanceMm: 0,
+      }));
+    },
+
+    cancelCalibration: () => {
+      set((state) => {
+        // Restore previous calibration if it existed
+        if (state.previousCalibration) {
+          return {
+            calibrationStage: state.previousCalibration.calibration ? "calibrated" : "idle",
+            calibrationPoints: null,
+            calibration: state.previousCalibration.calibration,
+            calibrationMode: state.previousCalibration.calibrationMode,
+            calibrationRealDistanceMm: state.previousCalibration.calibrationRealDistanceMm,
+            previousCalibration: null,
+          };
+        }
+        return {
+          calibrationStage: "idle",
+          calibrationPoints: null,
+          previousCalibration: null,
+        };
+      });
+      get().recalculate();
+    },
+
+    placeCalibrationPoint: (point) => {
+      set((state) => {
+        if (state.calibrationStage === "placing-point-1") {
+          return {
+            calibrationPoints: { point1: point, point2: null },
+            calibrationStage: "reviewing-point-1" as CalibrationStage,
+          };
+        }
+        if (state.calibrationStage === "placing-point-2") {
+          return {
+            calibrationPoints: {
+              point1: state.calibrationPoints?.point1 ?? null,
+              point2: point,
+            },
+            calibrationStage: "reviewing-point-2" as CalibrationStage,
+          };
+        }
+        // Not in a placing stage — ignore
+        return {};
+      });
+    },
+
+    moveCalibrationPoint: (which, point) => {
+      set((state) => {
+        if (!state.calibrationPoints) return {};
+        if (which === 1 && state.calibrationStage === "reviewing-point-1") {
+          return {
+            calibrationPoints: { ...state.calibrationPoints, point1: point },
+          };
+        }
+        if (which === 2 && state.calibrationStage === "reviewing-point-2") {
+          return {
+            calibrationPoints: { ...state.calibrationPoints, point2: point },
+          };
+        }
+        return {};
+      });
+    },
+
+    confirmPoint1: () => {
+      set((state) => {
+        if (state.calibrationStage !== "reviewing-point-1") return {};
+        return { calibrationStage: "placing-point-2" as CalibrationStage };
+      });
+    },
+
+    confirmPoint2: () => {
+      set((state) => {
+        if (state.calibrationStage !== "reviewing-point-2") return {};
+        return { calibrationStage: "entering-distance" as CalibrationStage };
+      });
+    },
+
+    resetPoint1: () => {
+      set((state) => {
+        if (state.calibrationStage !== "reviewing-point-1") return {};
+        return {
+          calibrationPoints: { point1: null, point2: null },
+          calibrationStage: "placing-point-1" as CalibrationStage,
+        };
+      });
+    },
+
+    resetPoint2: () => {
+      set((state) => {
+        if (state.calibrationStage !== "reviewing-point-2") return {};
+        return {
+          calibrationPoints: {
+            point1: state.calibrationPoints?.point1 ?? null,
+            point2: null,
+          },
+          calibrationStage: "placing-point-2" as CalibrationStage,
+        };
+      });
+    },
+
+    confirmCalibration: (knownDistanceMm) => {
       const state = get();
+      if (state.calibrationStage !== "entering-distance") return;
       if (!state.calibrationPoints) return;
       const p0 = state.calibrationPoints.point1;
       const p1 = state.calibrationPoints.point2;
       if (!p0 || !p1) return;
+      if (knownDistanceMm <= 0) return;
       const normDist = calculateDistance(p0, p1);
       const pixelDist =
         normDist * Math.max(state.imageNaturalWidth, state.imageNaturalHeight);
       if (pixelDist === 0) return;
-      const mmPerPixel = state.calibrationRealDistanceMm / pixelDist;
+      const mmPerPixel = knownDistanceMm / pixelDist;
       set({
         calibration: {
           pixelDistance: pixelDist,
-          realDistanceMm: state.calibrationRealDistanceMm,
+          realDistanceMm: knownDistanceMm,
           mmPerPixel,
         },
         calibrationMode: "B",
+        calibrationRealDistanceMm: knownDistanceMm,
+        calibrationStage: "calibrated",
+        previousCalibration: null,
       });
       get().recalculate();
       debouncedSave();
@@ -531,18 +647,11 @@ export const useStudyStore = create<Store>()(
         calibrationPoints: null,
         calibrationMode: "A",
         calibrationRealDistanceMm: 0,
-        isCalibrating: false,
+        calibrationStage: "idle",
+        previousCalibration: null,
       });
       get().recalculate();
       debouncedSave();
-    },
-
-    startCalibration: () => {
-      set({ isCalibrating: true, calibrationPoints: null, calibration: null });
-    },
-
-    cancelCalibration: () => {
-      set({ isCalibrating: false, calibrationPoints: null });
     },
 
     // ── Viewer transform ──

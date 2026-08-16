@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { useStudyStore } from "./studyStore";
-import type { Point } from "../domain/types";
+import type { Point, LandmarkName } from "../domain/types";
 
 // ── localStorage mock for jsdom environment ──
 // The studyStore calls studyRepository which uses localStorage.
@@ -20,163 +20,295 @@ Object.defineProperty(globalThis, "localStorage", {
   writable: true,
 });
 
-// ── Store: isCalibrating state & startCalibration/cancelCalibration ──
-// These tests cover the new store actions added in the calibration UX redesign.
-// The store is a Zustand store — we can call actions directly and assert state.
+// ── Store: calibrationStage state machine tests ──
+// These tests cover the calibration state machine redesign.
+// The old isCalibrating boolean is replaced by calibrationStage.
+// The old setCalibrationPoint(index, point) is replaced by
+// placeCalibrationPoint(point) which uses the stage to decide which point to set.
 
-describe("studyStore — isCalibrating state", () => {
+describe("studyStore — calibrationStage state machine", () => {
   beforeEach(() => {
-    // Reset to a known state before each test
     useStudyStore.getState().newStudy();
-    // newStudy resets isCalibrating to false
   });
 
-  it("isCalibrating defaults to false", () => {
-    expect(useStudyStore.getState().isCalibrating).toBe(false);
+  it("calibrationStage defaults to idle", () => {
+    expect(useStudyStore.getState().calibrationStage).toBe("idle");
   });
 
-  it("startCalibration sets isCalibrating to true", () => {
+  it("startCalibration sets stage to placing-point-1", () => {
     useStudyStore.getState().startCalibration();
-    expect(useStudyStore.getState().isCalibrating).toBe(true);
+    expect(useStudyStore.getState().calibrationStage).toBe("placing-point-1");
   });
 
   it("startCalibration clears calibrationPoints", () => {
-    // Set up some calibration points first
-    const p1: Point = { x: 0.1, y: 0.1 };
-    const p2: Point = { x: 0.5, y: 0.5 };
-    useStudyStore.getState().setCalibrationPoint(0, p1);
-    useStudyStore.getState().setCalibrationPoint(1, p2);
+    useStudyStore.getState().startCalibration();
+    useStudyStore.getState().placeCalibrationPoint({ x: 0.3, y: 0.3 });
     expect(useStudyStore.getState().calibrationPoints).not.toBeNull();
 
-    // startCalibration should clear them
     useStudyStore.getState().startCalibration();
-    expect(useStudyStore.getState().calibrationPoints).toBeNull();
+    expect(useStudyStore.getState().calibrationPoints).not.toBeNull();
+    expect(useStudyStore.getState().calibrationPoints?.point1).toBeNull();
+    expect(useStudyStore.getState().calibrationPoints?.point2).toBeNull();
   });
 
-  it("startCalibration clears existing calibration", () => {
-    // We can't easily set calibration without going through the full flow,
-    // but startCalibration should set calibration to null
+  it("cancelCalibration sets stage to idle", () => {
     useStudyStore.getState().startCalibration();
-    expect(useStudyStore.getState().calibration).toBeNull();
-  });
+    expect(useStudyStore.getState().calibrationStage).toBe("placing-point-1");
 
-  it("cancelCalibration sets isCalibrating to false", () => {
-    // First start calibration
-    useStudyStore.getState().startCalibration();
-    expect(useStudyStore.getState().isCalibrating).toBe(true);
-
-    // Then cancel
     useStudyStore.getState().cancelCalibration();
-    expect(useStudyStore.getState().isCalibrating).toBe(false);
+    expect(useStudyStore.getState().calibrationStage).toBe("idle");
   });
 
   it("cancelCalibration clears calibrationPoints", () => {
-    // Start calibration and set some points
     useStudyStore.getState().startCalibration();
-    const p: Point = { x: 0.3, y: 0.3 };
-    useStudyStore.getState().setCalibrationPoint(0, p);
-    expect(useStudyStore.getState().calibrationPoints).not.toBeNull();
+    useStudyStore.getState().placeCalibrationPoint({ x: 0.3, y: 0.3 });
+    expect(useStudyStore.getState().calibrationPoints?.point1).not.toBeNull();
 
-    // Cancel should clear points
     useStudyStore.getState().cancelCalibration();
     expect(useStudyStore.getState().calibrationPoints).toBeNull();
   });
 
-  it("cancelCalibration does NOT clear existing calibration object", () => {
-    // cancelCalibration should only clear the in-progress calibration state,
-    // not a previously completed calibration. We verify by checking that
-    // cancelCalibration only touches isCalibrating and calibrationPoints.
-    // (If calibration was already null, it stays null.)
+  it("calibrationStage is reset to idle by newStudy", () => {
     useStudyStore.getState().startCalibration();
-    useStudyStore.getState().cancelCalibration();
-    // calibration was null before start (newStudy), startCalibration set it null,
-    // cancel doesn't restore it — that's correct behavior (cancel aborts the flow)
-    expect(useStudyStore.getState().calibration).toBeNull();
-  });
-
-  it("isCalibrating is reset to false by newStudy", () => {
-    useStudyStore.getState().startCalibration();
-    expect(useStudyStore.getState().isCalibrating).toBe(true);
+    expect(useStudyStore.getState().calibrationStage).toBe("placing-point-1");
 
     useStudyStore.getState().newStudy();
-    expect(useStudyStore.getState().isCalibrating).toBe(false);
+    expect(useStudyStore.getState().calibrationStage).toBe("idle");
   });
 
-  it("isCalibrating is reset to false by createStudy", () => {
+  it("calibrationStage is reset to idle by createStudy", () => {
     useStudyStore.getState().startCalibration();
-    expect(useStudyStore.getState().isCalibrating).toBe(true);
+    expect(useStudyStore.getState().calibrationStage).toBe("placing-point-1");
 
     useStudyStore.getState().createStudy("test-patient", "data:image/png;base64,abc", 800, 600);
-    expect(useStudyStore.getState().isCalibrating).toBe(false);
+    expect(useStudyStore.getState().calibrationStage).toBe("idle");
   });
 
-  it("isCalibrating is reset to false by clearCalibration", () => {
+  it("calibrationStage is reset to idle by clearCalibration", () => {
     useStudyStore.getState().startCalibration();
-    expect(useStudyStore.getState().isCalibrating).toBe(true);
+    expect(useStudyStore.getState().calibrationStage).toBe("placing-point-1");
 
     useStudyStore.getState().clearCalibration();
-    expect(useStudyStore.getState().isCalibrating).toBe(false);
+    expect(useStudyStore.getState().calibrationStage).toBe("idle");
   });
 });
 
-describe("studyStore — startCalibration / cancelCalibration interaction with computeCalibration", () => {
+// ── State machine transition tests ──
+// Each transition must be explicit — no stage may be skipped.
+
+describe("studyStore — calibration state machine transitions", () => {
   beforeEach(() => {
     useStudyStore.getState().newStudy();
+    useStudyStore.getState().createStudy("test", "data:image/png;base64,abc", 1000, 800);
   });
 
-  it("full calibration flow: start → set points → set distance → compute → isCalibrating stays false (computeCalibration does not set it)", () => {
-    // Create a study so we have image dimensions
-    useStudyStore.getState().createStudy("test", "data:image/png;base64,abc", 1000, 800);
-
-    // Start calibration
+  it("full flow: start → place P1 → confirm P1 → place P2 → confirm P2 → enter distance → confirm → calibrated", () => {
+    // Start
     useStudyStore.getState().startCalibration();
-    expect(useStudyStore.getState().isCalibrating).toBe(true);
+    expect(useStudyStore.getState().calibrationStage).toBe("placing-point-1");
 
-    // Set calibration points
-    useStudyStore.getState().setCalibrationPoint(0, { x: 0.1, y: 0.1 } as Point);
-    useStudyStore.getState().setCalibrationPoint(1, { x: 0.5, y: 0.1 } as Point);
+    // Place Point 1
+    useStudyStore.getState().placeCalibrationPoint({ x: 0.1, y: 0.1 });
+    expect(useStudyStore.getState().calibrationStage).toBe("reviewing-point-1");
+    expect(useStudyStore.getState().calibrationPoints?.point1).toEqual({ x: 0.1, y: 0.1 });
+    expect(useStudyStore.getState().calibrationPoints?.point2).toBeNull();
 
-    // Set real distance
-    useStudyStore.getState().setCalibrationRealDistance(40);
+    // Confirm Point 1
+    useStudyStore.getState().confirmPoint1();
+    expect(useStudyStore.getState().calibrationStage).toBe("placing-point-2");
 
-    // Compute calibration
-    useStudyStore.getState().computeCalibration();
+    // Place Point 2
+    useStudyStore.getState().placeCalibrationPoint({ x: 0.5, y: 0.1 });
+    expect(useStudyStore.getState().calibrationStage).toBe("reviewing-point-2");
+    expect(useStudyStore.getState().calibrationPoints?.point1).toEqual({ x: 0.1, y: 0.1 });
+    expect(useStudyStore.getState().calibrationPoints?.point2).toEqual({ x: 0.5, y: 0.1 });
 
-    // After computeCalibration, calibration should be set
-    const cal = useStudyStore.getState().calibration;
-    expect(cal).not.toBeNull();
-    expect(cal!.mmPerPixel).toBeGreaterThan(0);
-    expect(cal!.realDistanceMm).toBe(40);
-    // calibrationMode should be "B" (calibrated)
+    // Confirm Point 2
+    useStudyStore.getState().confirmPoint2();
+    expect(useStudyStore.getState().calibrationStage).toBe("entering-distance");
+
+    // Confirm calibration with known distance
+    useStudyStore.getState().confirmCalibration(40);
+    expect(useStudyStore.getState().calibrationStage).toBe("calibrated");
+    expect(useStudyStore.getState().calibration).not.toBeNull();
+    expect(useStudyStore.getState().calibration!.realDistanceMm).toBe(40);
+    expect(useStudyStore.getState().calibration!.mmPerPixel).toBeGreaterThan(0);
     expect(useStudyStore.getState().calibrationMode).toBe("B");
   });
 
-  it("cancel during calibration aborts without setting calibration", () => {
-    useStudyStore.getState().createStudy("test", "data:image/png;base64,abc", 1000, 800);
-
+  it("placeCalibrationPoint in placing-point-1 places only point1 and transitions to reviewing-point-1", () => {
     useStudyStore.getState().startCalibration();
-    useStudyStore.getState().setCalibrationPoint(0, { x: 0.2, y: 0.2 } as Point);
-    useStudyStore.getState().setCalibrationPoint(1, { x: 0.8, y: 0.2 } as Point);
-    useStudyStore.getState().setCalibrationRealDistance(50);
+    useStudyStore.getState().placeCalibrationPoint({ x: 0.25, y: 0.25 });
 
-    // Cancel before computing
+    const cp = useStudyStore.getState().calibrationPoints;
+    expect(cp).not.toBeNull();
+    expect(cp!.point1).toEqual({ x: 0.25, y: 0.25 });
+    expect(cp!.point2).toBeNull();
+    expect(useStudyStore.getState().calibrationStage).toBe("reviewing-point-1");
+  });
+
+  it("placeCalibrationPoint in placing-point-2 places only point2 and transitions to reviewing-point-2", () => {
+    useStudyStore.getState().startCalibration();
+    useStudyStore.getState().placeCalibrationPoint({ x: 0.25, y: 0.25 });
+    useStudyStore.getState().confirmPoint1();
+    useStudyStore.getState().placeCalibrationPoint({ x: 0.75, y: 0.75 });
+
+    const cp = useStudyStore.getState().calibrationPoints;
+    expect(cp!.point1).toEqual({ x: 0.25, y: 0.25 });
+    expect(cp!.point2).toEqual({ x: 0.75, y: 0.75 });
+    expect(useStudyStore.getState().calibrationStage).toBe("reviewing-point-2");
+  });
+
+  it("placeCalibrationPoint does nothing when not in a placing stage", () => {
+    useStudyStore.getState().startCalibration();
+    useStudyStore.getState().placeCalibrationPoint({ x: 0.1, y: 0.1 });
+    // Now in reviewing-point-1 — placing should be ignored
+    useStudyStore.getState().placeCalibrationPoint({ x: 0.9, y: 0.9 });
+    expect(useStudyStore.getState().calibrationStage).toBe("reviewing-point-1");
+    expect(useStudyStore.getState().calibrationPoints?.point2).toBeNull();
+  });
+
+  it("confirmPoint1 only works from reviewing-point-1", () => {
+    useStudyStore.getState().startCalibration();
+    // Not yet in reviewing-point-1 — confirm should be no-op
+    useStudyStore.getState().confirmPoint1();
+    expect(useStudyStore.getState().calibrationStage).toBe("placing-point-1");
+
+    // Place point 1 → now in reviewing-point-1
+    useStudyStore.getState().placeCalibrationPoint({ x: 0.1, y: 0.1 });
+    useStudyStore.getState().confirmPoint1();
+    expect(useStudyStore.getState().calibrationStage).toBe("placing-point-2");
+  });
+
+  it("confirmPoint2 only works from reviewing-point-2", () => {
+    useStudyStore.getState().startCalibration();
+    useStudyStore.getState().confirmPoint2();
+    expect(useStudyStore.getState().calibrationStage).toBe("placing-point-1");
+  });
+
+  it("resetPoint1 clears point1 and goes back to placing-point-1", () => {
+    useStudyStore.getState().startCalibration();
+    useStudyStore.getState().placeCalibrationPoint({ x: 0.1, y: 0.1 });
+    expect(useStudyStore.getState().calibrationStage).toBe("reviewing-point-1");
+
+    useStudyStore.getState().resetPoint1();
+    expect(useStudyStore.getState().calibrationStage).toBe("placing-point-1");
+    expect(useStudyStore.getState().calibrationPoints?.point1).toBeNull();
+    expect(useStudyStore.getState().calibrationPoints?.point2).toBeNull();
+  });
+
+  it("resetPoint2 clears point2 and goes back to placing-point-2 (keeps point1)", () => {
+    useStudyStore.getState().startCalibration();
+    useStudyStore.getState().placeCalibrationPoint({ x: 0.1, y: 0.1 });
+    useStudyStore.getState().confirmPoint1();
+    useStudyStore.getState().placeCalibrationPoint({ x: 0.5, y: 0.5 });
+    expect(useStudyStore.getState().calibrationStage).toBe("reviewing-point-2");
+
+    useStudyStore.getState().resetPoint2();
+    expect(useStudyStore.getState().calibrationStage).toBe("placing-point-2");
+    expect(useStudyStore.getState().calibrationPoints?.point1).toEqual({ x: 0.1, y: 0.1 });
+    expect(useStudyStore.getState().calibrationPoints?.point2).toBeNull();
+  });
+
+  it("confirmCalibration only works from entering-distance stage", () => {
+    useStudyStore.getState().startCalibration();
+    // Not in entering-distance — should be no-op
+    useStudyStore.getState().confirmCalibration(40);
+    expect(useStudyStore.getState().calibration).toBeNull();
+    expect(useStudyStore.getState().calibrationStage).toBe("placing-point-1");
+  });
+
+  it("confirmCalibration rejects non-positive distance", () => {
+    useStudyStore.getState().startCalibration();
+    useStudyStore.getState().placeCalibrationPoint({ x: 0.1, y: 0.1 });
+    useStudyStore.getState().confirmPoint1();
+    useStudyStore.getState().placeCalibrationPoint({ x: 0.5, y: 0.1 });
+    useStudyStore.getState().confirmPoint2();
+    expect(useStudyStore.getState().calibrationStage).toBe("entering-distance");
+
+    useStudyStore.getState().confirmCalibration(0);
+    expect(useStudyStore.getState().calibration).toBeNull();
+    expect(useStudyStore.getState().calibrationStage).toBe("entering-distance");
+
+    useStudyStore.getState().confirmCalibration(-5);
+    expect(useStudyStore.getState().calibration).toBeNull();
+    expect(useStudyStore.getState().calibrationStage).toBe("entering-distance");
+  });
+
+  it("cancelCalibration does NOT clear existing landmarks or measurements", () => {
+    // Place a landmark
+    useStudyStore.getState().setLandmark("CoR", { x: 0.5, y: 0.3 });
+    expect(Object.keys(useStudyStore.getState().landmarks)).toContain("CoR");
+
+    // Start calibration and cancel
+    useStudyStore.getState().startCalibration();
     useStudyStore.getState().cancelCalibration();
 
-    expect(useStudyStore.getState().isCalibrating).toBe(false);
-    expect(useStudyStore.getState().calibrationPoints).toBeNull();
+    // Landmarks should still be there
+    expect(Object.keys(useStudyStore.getState().landmarks)).toContain("CoR");
+    expect(useStudyStore.getState().landmarks.CoR).toEqual({ x: 0.5, y: 0.3 });
+  });
+});
+
+// ── Cancel/restore tests ──
+
+describe("studyStore — calibration cancel/restore", () => {
+  beforeEach(() => {
+    useStudyStore.getState().newStudy();
+    useStudyStore.getState().createStudy("test", "data:image/png;base64,abc", 1000, 800);
+  });
+
+  it("startCalibration saves previousCalibration for restore", () => {
+    // First, complete a calibration
+    useStudyStore.getState().startCalibration();
+    useStudyStore.getState().placeCalibrationPoint({ x: 0.1, y: 0.1 });
+    useStudyStore.getState().confirmPoint1();
+    useStudyStore.getState().placeCalibrationPoint({ x: 0.5, y: 0.1 });
+    useStudyStore.getState().confirmPoint2();
+    useStudyStore.getState().confirmCalibration(40);
+    expect(useStudyStore.getState().calibration).not.toBeNull();
+    expect(useStudyStore.getState().calibrationStage).toBe("calibrated");
+
+    // Start a new calibration (recalibrate)
+    useStudyStore.getState().startCalibration();
+    expect(useStudyStore.getState().previousCalibration).not.toBeNull();
+    expect(useStudyStore.getState().previousCalibration?.calibration).not.toBeNull();
+  });
+
+  it("cancelCalibration restores previous calibration when recalibrating", () => {
+    // Complete a calibration first
+    useStudyStore.getState().startCalibration();
+    useStudyStore.getState().placeCalibrationPoint({ x: 0.1, y: 0.1 });
+    useStudyStore.getState().confirmPoint1();
+    useStudyStore.getState().placeCalibrationPoint({ x: 0.5, y: 0.1 });
+    useStudyStore.getState().confirmPoint2();
+    useStudyStore.getState().confirmCalibration(40);
+    const originalMmPerPixel = useStudyStore.getState().calibration!.mmPerPixel;
+
+    // Start recalibration
+    useStudyStore.getState().startCalibration();
+    expect(useStudyStore.getState().calibrationStage).toBe("placing-point-1");
+
+    // Cancel — should restore the previous calibration
+    useStudyStore.getState().cancelCalibration();
+    expect(useStudyStore.getState().calibrationStage).toBe("calibrated");
+    expect(useStudyStore.getState().calibration).not.toBeNull();
+    expect(useStudyStore.getState().calibration!.mmPerPixel).toBe(originalMmPerPixel);
+  });
+
+  it("cancelCalibration goes to idle when no previous calibration existed", () => {
+    // Start fresh calibration (no previous)
+    useStudyStore.getState().startCalibration();
+    useStudyStore.getState().cancelCalibration();
+    expect(useStudyStore.getState().calibrationStage).toBe("idle");
     expect(useStudyStore.getState().calibration).toBeNull();
-    // calibrationMode should still be "A" (uncalibrated) since we never computed
-    expect(useStudyStore.getState().calibrationMode).toBe("A");
   });
 });
 
 // ── Bug 1 regression tests: one click must never place two calibration points ──
-// The old setCalibrationPoint used `?? point` fallbacks in a [Point, Point]
-// tuple. When calibrationPoints was null, `setCalibrationPoint(0, point)` would
-// fill BOTH tuple slots with the same point because `current[1] ?? point`
-// resolved `undefined ?? point` → point. The fix uses independent nullable
-// fields (CalibrationDraft: { point1, point2 }) so each slot is set
-// independently and the other stays null.
+// The placeCalibrationPoint function uses the stage to decide which point to set.
+// In placing-point-1, it sets ONLY point1. In placing-point-2, it sets ONLY point2.
+// A single call can never set both points.
 
 describe("Bug 1 — one click must not place two calibration points", () => {
   beforeEach(() => {
@@ -185,41 +317,33 @@ describe("Bug 1 — one click must not place two calibration points", () => {
     useStudyStore.getState().startCalibration();
   });
 
-  it("setting calibration point 0 does NOT also set point 2", () => {
-    const p: Point = { x: 0.3, y: 0.3 };
-    useStudyStore.getState().setCalibrationPoint(0, p);
+  it("placing point1 does NOT also set point2", () => {
+    useStudyStore.getState().placeCalibrationPoint({ x: 0.3, y: 0.3 });
 
     const cp = useStudyStore.getState().calibrationPoints;
     expect(cp).not.toBeNull();
-    expect(cp!.point1).toEqual(p);
-    // Bug 1: point2 must still be null — it must NOT have been filled with the
-    // same coordinate from the `?? point` fallback.
+    expect(cp!.point1).toEqual({ x: 0.3, y: 0.3 });
     expect(cp!.point2).toBeNull();
   });
 
-  it("setting calibration point 1 does NOT also set point 1", () => {
-    const p1: Point = { x: 0.3, y: 0.3 };
-    const p2: Point = { x: 0.7, y: 0.5 };
-    useStudyStore.getState().setCalibrationPoint(0, p1);
-    useStudyStore.getState().setCalibrationPoint(1, p2);
+  it("after placing point1 and confirming, placing point2 does NOT change point1", () => {
+    useStudyStore.getState().placeCalibrationPoint({ x: 0.3, y: 0.3 });
+    useStudyStore.getState().confirmPoint1();
+    useStudyStore.getState().placeCalibrationPoint({ x: 0.7, y: 0.5 });
 
     const cp = useStudyStore.getState().calibrationPoints;
-    expect(cp).not.toBeNull();
-    expect(cp!.point1).toEqual(p1);
-    expect(cp!.point2).toEqual(p2);
+    expect(cp!.point1).toEqual({ x: 0.3, y: 0.3 });
+    expect(cp!.point2).toEqual({ x: 0.7, y: 0.5 });
   });
 
-  it("after startCalibration, calibrationPoints is null", () => {
-    // startCalibration sets calibrationPoints to null
-    expect(useStudyStore.getState().calibrationPoints).toBeNull();
+  it("after startCalibration, calibrationPoints has null point1 and point2", () => {
+    expect(useStudyStore.getState().calibrationPoints).not.toBeNull();
+    expect(useStudyStore.getState().calibrationPoints?.point1).toBeNull();
+    expect(useStudyStore.getState().calibrationPoints?.point2).toBeNull();
   });
 
-  it("first click places ONLY point1 — point2 remains null", () => {
-    // Simulate what handleOverlayClick does on first click
-    const cp = useStudyStore.getState().calibrationPoints;
-    if (!cp || !cp.point1) {
-      useStudyStore.getState().setCalibrationPoint(0, { x: 0.25, y: 0.25 } as Point);
-    }
+  it("first placement places ONLY point1 — point2 remains null", () => {
+    useStudyStore.getState().placeCalibrationPoint({ x: 0.25, y: 0.25 });
 
     const after = useStudyStore.getState().calibrationPoints;
     expect(after).not.toBeNull();
@@ -227,42 +351,18 @@ describe("Bug 1 — one click must not place two calibration points", () => {
     expect(after!.point2).toBeNull();
   });
 
-  it("second click places ONLY point2 — point1 stays unchanged", () => {
-    // First click
-    useStudyStore.getState().setCalibrationPoint(0, { x: 0.25, y: 0.25 } as Point);
-
-    // Simulate what handleOverlayClick does on second click
-    const cp = useStudyStore.getState().calibrationPoints;
-    if (cp && cp.point1 && !cp.point2) {
-      useStudyStore.getState().setCalibrationPoint(1, { x: 0.75, y: 0.75 } as Point);
-    }
+  it("second placement places ONLY point2 — point1 stays unchanged", () => {
+    useStudyStore.getState().placeCalibrationPoint({ x: 0.25, y: 0.25 });
+    useStudyStore.getState().confirmPoint1();
+    useStudyStore.getState().placeCalibrationPoint({ x: 0.75, y: 0.75 });
 
     const after = useStudyStore.getState().calibrationPoints;
-    expect(after).not.toBeNull();
     expect(after!.point1).toEqual({ x: 0.25, y: 0.25 });
     expect(after!.point2).toEqual({ x: 0.75, y: 0.75 });
-  });
-
-  it("replacing point1 does not lose point2", () => {
-    useStudyStore.getState().setCalibrationPoint(0, { x: 0.1, y: 0.1 } as Point);
-    useStudyStore.getState().setCalibrationPoint(1, { x: 0.9, y: 0.9 } as Point);
-
-    // Re-set point1
-    useStudyStore.getState().setCalibrationPoint(0, { x: 0.5, y: 0.5 } as Point);
-
-    const after = useStudyStore.getState().calibrationPoints;
-    expect(after!.point1).toEqual({ x: 0.5, y: 0.5 });
-    expect(after!.point2).toEqual({ x: 0.9, y: 0.9 });
   });
 });
 
 // ── Required spec tests: sequential calibration placement ──
-// These tests implement the 5 user-specified tests for sequential calibration.
-// Tests 1, 2, and 4 are already covered by the Bug 1 regression tests above:
-//   Test 1 → "first click places ONLY point1 — point2 remains null"
-//   Test 2 → "second click places ONLY point2 — point1 stays unchanged"
-//   Test 4 → "setting calibration point 0 does NOT also set point 2"
-// Tests 3 and 5 are added below.
 
 describe("Sequential calibration — required spec tests", () => {
   beforeEach(() => {
@@ -275,69 +375,58 @@ describe("Sequential calibration — required spec tests", () => {
     const click1: Point = { x: 0.2, y: 0.3 };
     const click2: Point = { x: 0.8, y: 0.7 };
 
-    useStudyStore.getState().setCalibrationPoint(0, click1);
-    useStudyStore.getState().setCalibrationPoint(1, click2);
+    useStudyStore.getState().placeCalibrationPoint(click1);
+    useStudyStore.getState().confirmPoint1();
+    useStudyStore.getState().placeCalibrationPoint(click2);
 
     const cp = useStudyStore.getState().calibrationPoints;
     expect(cp).not.toBeNull();
-    // The two points must be different objects (not the same reference)
     expect(cp!.point1).not.toBe(cp!.point2);
-    // The coordinates must be different — not the same coordinate
-    expect(cp!.point1).not.toEqual(cp!.point2);
-    // Verify they correspond to the two separate user clicks
     expect(cp!.point1).toEqual(click1);
     expect(cp!.point2).toEqual(click2);
-    // Explicitly verify at least one coordinate differs
     const coordsDiffer =
       cp!.point1!.x !== cp!.point2!.x || cp!.point1!.y !== cp!.point2!.y;
     expect(coordsDiffer).toBe(true);
   });
 
-  it("Test 5 — after reset (startCalibration), next click places only point1", () => {
+  it("Test 5 — after reset (startCalibration), next placement places only point1", () => {
     // Place both points first
-    useStudyStore.getState().setCalibrationPoint(0, { x: 0.1, y: 0.1 } as Point);
-    useStudyStore.getState().setCalibrationPoint(1, { x: 0.9, y: 0.9 } as Point);
-    const cpBefore = useStudyStore.getState().calibrationPoints;
-    expect(cpBefore!.point1).not.toBeNull();
-    expect(cpBefore!.point2).not.toBeNull();
+    useStudyStore.getState().placeCalibrationPoint({ x: 0.1, y: 0.1 });
+    useStudyStore.getState().confirmPoint1();
+    useStudyStore.getState().placeCalibrationPoint({ x: 0.9, y: 0.9 });
+    expect(useStudyStore.getState().calibrationPoints?.point2).not.toBeNull();
 
     // Reset via startCalibration
     useStudyStore.getState().startCalibration();
-    expect(useStudyStore.getState().calibrationPoints).toBeNull();
+    expect(useStudyStore.getState().calibrationPoints?.point1).toBeNull();
+    expect(useStudyStore.getState().calibrationPoints?.point2).toBeNull();
 
-    // Next click must place only point1 — point2 must remain null
-    useStudyStore.getState().setCalibrationPoint(0, { x: 0.4, y: 0.4 } as Point);
-    const cpAfter = useStudyStore.getState().calibrationPoints;
-    expect(cpAfter).not.toBeNull();
-    expect(cpAfter!.point1).toEqual({ x: 0.4, y: 0.4 });
-    expect(cpAfter!.point2).toBeNull();
+    // Next placement must place only point1
+    useStudyStore.getState().placeCalibrationPoint({ x: 0.4, y: 0.4 });
+    const cp = useStudyStore.getState().calibrationPoints;
+    expect(cp!.point1).toEqual({ x: 0.4, y: 0.4 });
+    expect(cp!.point2).toBeNull();
   });
 
-  it("Test 5 variant — after cancelCalibration, next click places only point1", () => {
-    // Place both points first
-    useStudyStore.getState().setCalibrationPoint(0, { x: 0.15, y: 0.15 } as Point);
-    useStudyStore.getState().setCalibrationPoint(1, { x: 0.85, y: 0.85 } as Point);
-    expect(useStudyStore.getState().calibrationPoints!.point2).not.toBeNull();
-
-    // Cancel calibration
+  it("Test 5 variant — after cancelCalibration, restart and next placement places only point1", () => {
+    useStudyStore.getState().placeCalibrationPoint({ x: 0.15, y: 0.15 });
     useStudyStore.getState().cancelCalibration();
     expect(useStudyStore.getState().calibrationPoints).toBeNull();
 
-    // Restart calibration and click — should place only point1
     useStudyStore.getState().startCalibration();
-    useStudyStore.getState().setCalibrationPoint(0, { x: 0.5, y: 0.5 } as Point);
+    useStudyStore.getState().placeCalibrationPoint({ x: 0.5, y: 0.5 });
     const cp = useStudyStore.getState().calibrationPoints;
-    expect(cp).not.toBeNull();
     expect(cp!.point1).toEqual({ x: 0.5, y: 0.5 });
     expect(cp!.point2).toBeNull();
   });
 
-  it("Test 5 variant — after clearCalibration, next click places only point1", () => {
-    // Place both points and compute calibration
-    useStudyStore.getState().setCalibrationPoint(0, { x: 0.1, y: 0.1 } as Point);
-    useStudyStore.getState().setCalibrationPoint(1, { x: 0.9, y: 0.1 } as Point);
-    useStudyStore.getState().setCalibrationRealDistance(40);
-    useStudyStore.getState().computeCalibration();
+  it("Test 5 variant — after clearCalibration, restart and next placement places only point1", () => {
+    // Complete calibration
+    useStudyStore.getState().placeCalibrationPoint({ x: 0.1, y: 0.1 });
+    useStudyStore.getState().confirmPoint1();
+    useStudyStore.getState().placeCalibrationPoint({ x: 0.9, y: 0.1 });
+    useStudyStore.getState().confirmPoint2();
+    useStudyStore.getState().confirmCalibration(40);
     expect(useStudyStore.getState().calibration).not.toBeNull();
 
     // Clear calibration
@@ -345,12 +434,228 @@ describe("Sequential calibration — required spec tests", () => {
     expect(useStudyStore.getState().calibrationPoints).toBeNull();
     expect(useStudyStore.getState().calibration).toBeNull();
 
-    // Restart and click — should place only point1
+    // Restart and place — should place only point1
     useStudyStore.getState().startCalibration();
-    useStudyStore.getState().setCalibrationPoint(0, { x: 0.3, y: 0.6 } as Point);
+    useStudyStore.getState().placeCalibrationPoint({ x: 0.3, y: 0.6 });
     const cp = useStudyStore.getState().calibrationPoints;
-    expect(cp).not.toBeNull();
     expect(cp!.point1).toEqual({ x: 0.3, y: 0.6 });
     expect(cp!.point2).toBeNull();
   });
 });
+
+// ── moveCalibrationPoint tests ──
+
+describe("studyStore — moveCalibrationPoint", () => {
+  beforeEach(() => {
+    useStudyStore.getState().newStudy();
+    useStudyStore.getState().createStudy("test", "data:image/png;base64,abc", 1000, 800);
+    useStudyStore.getState().startCalibration();
+  });
+
+  it("moveCalibrationPoint moves point1 during reviewing-point-1", () => {
+    useStudyStore.getState().placeCalibrationPoint({ x: 0.1, y: 0.1 });
+    expect(useStudyStore.getState().calibrationStage).toBe("reviewing-point-1");
+
+    useStudyStore.getState().moveCalibrationPoint(1, { x: 0.2, y: 0.2 });
+    expect(useStudyStore.getState().calibrationPoints?.point1).toEqual({ x: 0.2, y: 0.2 });
+  });
+
+  it("moveCalibrationPoint moves point2 during reviewing-point-2", () => {
+    useStudyStore.getState().placeCalibrationPoint({ x: 0.1, y: 0.1 });
+    useStudyStore.getState().confirmPoint1();
+    useStudyStore.getState().placeCalibrationPoint({ x: 0.5, y: 0.5 });
+    expect(useStudyStore.getState().calibrationStage).toBe("reviewing-point-2");
+
+    useStudyStore.getState().moveCalibrationPoint(2, { x: 0.6, y: 0.6 });
+    expect(useStudyStore.getState().calibrationPoints?.point2).toEqual({ x: 0.6, y: 0.6 });
+  });
+
+  it("moveCalibrationPoint does nothing outside review stages", () => {
+    // In placing-point-1 — move should be no-op
+    useStudyStore.getState().moveCalibrationPoint(1, { x: 0.5, y: 0.5 });
+    expect(useStudyStore.getState().calibrationPoints?.point1).toBeNull();
+  });
+});
+
+// ── Required spec tests: 9 calibration state machine tests ──
+// These tests implement the user's explicit 9-test spec for the calibration
+// state machine. Some are already covered by DevBot's tests above; those are
+// noted in the summary. The ones here are the ones that were missing or that
+// the spec requires as standalone assertions (not bundled into a full-flow
+// test).
+
+describe("Required spec — 9 calibration state machine tests", () => {
+  beforeEach(() => {
+    useStudyStore.getState().newStudy();
+    useStudyStore.getState().createStudy("test", "data:image/png;base64,abc", 1000, 800);
+  });
+
+  // Test 1 — Start calibration
+  // Spec: after startCalibration(): stage="placing-point-1", point1=null, point2=null
+  // (DevBot split this across two tests; this is the standalone spec version.)
+  it("Test 1 — startCalibration sets stage and nulls both points", () => {
+    useStudyStore.getState().startCalibration();
+    expect(useStudyStore.getState().calibrationStage).toBe("placing-point-1");
+    expect(useStudyStore.getState().calibrationPoints).not.toBeNull();
+    expect(useStudyStore.getState().calibrationPoints?.point1).toBeNull();
+    expect(useStudyStore.getState().calibrationPoints?.point2).toBeNull();
+  });
+
+  // Test 3 — Confirm Point 1
+  // Spec: after confirmPoint1(): point1 != null, point2 == null, stage="placing-point-2"
+  // (DevBot only checks this inside the full-flow test; this is standalone.)
+  it("Test 3 — confirmPoint1 transitions to placing-point-2 keeping point1", () => {
+    useStudyStore.getState().startCalibration();
+    useStudyStore.getState().placeCalibrationPoint({ x: 0.2, y: 0.2 });
+    expect(useStudyStore.getState().calibrationStage).toBe("reviewing-point-1");
+
+    useStudyStore.getState().confirmPoint1();
+    expect(useStudyStore.getState().calibrationStage).toBe("placing-point-2");
+    expect(useStudyStore.getState().calibrationPoints?.point1).toEqual({ x: 0.2, y: 0.2 });
+    expect(useStudyStore.getState().calibrationPoints?.point2).toBeNull();
+  });
+
+  // Test 5 — Confirm Point 2
+  // Spec: after confirmPoint2(): stage="entering-distance"
+  // (DevBot only checks this inside the full-flow test; this is standalone.)
+  it("Test 5 — confirmPoint2 transitions to entering-distance", () => {
+    useStudyStore.getState().startCalibration();
+    useStudyStore.getState().placeCalibrationPoint({ x: 0.1, y: 0.1 });
+    useStudyStore.getState().confirmPoint1();
+    useStudyStore.getState().placeCalibrationPoint({ x: 0.6, y: 0.1 });
+    expect(useStudyStore.getState().calibrationStage).toBe("reviewing-point-2");
+
+    useStudyStore.getState().confirmPoint2();
+    expect(useStudyStore.getState().calibrationStage).toBe("entering-distance");
+  });
+
+  // Test 6 — Enter distance and confirm
+  // Spec: pixelDistance=100px, knownDistance=20mm → mmPerPixel=0.2, stage="calibrated"
+  // Setup: image is 1000x800, max dimension=1000, so normalized distance of 0.1
+  // gives exactly 100px: 0.1 * 1000 = 100. mmPerPixel = 20 / 100 = 0.2.
+  it("Test 6 — confirmCalibration with 100px distance and 20mm gives mmPerPixel=0.2", () => {
+    useStudyStore.getState().startCalibration();
+    // Horizontal line of normalized length 0.1 → 100px with 1000px max dimension
+    useStudyStore.getState().placeCalibrationPoint({ x: 0.0, y: 0.5 });
+    useStudyStore.getState().confirmPoint1();
+    useStudyStore.getState().placeCalibrationPoint({ x: 0.1, y: 0.5 });
+    useStudyStore.getState().confirmPoint2();
+    expect(useStudyStore.getState().calibrationStage).toBe("entering-distance");
+
+    useStudyStore.getState().confirmCalibration(20);
+    expect(useStudyStore.getState().calibrationStage).toBe("calibrated");
+    expect(useStudyStore.getState().calibration).not.toBeNull();
+    expect(useStudyStore.getState().calibration!.pixelDistance).toBeCloseTo(100, 10);
+    expect(useStudyStore.getState().calibration!.realDistanceMm).toBe(20);
+    expect(useStudyStore.getState().calibration!.mmPerPixel).toBeCloseTo(0.2, 10);
+  });
+
+  // Test 8 — Pan conflict (store-level)
+  // Spec: while in placing-point-1 or placing-point-2, placeCalibrationPoint
+  // must place a calibration point and NOT trigger pan or landmark changes.
+  // Verify landmarks (CoR, CoL, GoR, GoL, Me) are unchanged after placement.
+  it("Test 8 — calibration placement does not change pan or landmarks (placing-point-1)", () => {
+    // Pre-populate all 5 landmarks
+    const landmarks: Record<LandmarkName, Point> = {
+      CoR: { x: 0.1, y: 0.1 },
+      CoL: { x: 0.9, y: 0.1 },
+      GoR: { x: 0.1, y: 0.9 },
+      GoL: { x: 0.9, y: 0.9 },
+      Me: { x: 0.5, y: 0.5 },
+    };
+    for (const [name, pt] of Object.entries(landmarks)) {
+      useStudyStore.getState().setLandmark(name as LandmarkName, pt);
+    }
+    // Set a non-default pan
+    useStudyStore.getState().setPan(123, 456);
+    const panBefore = { ...useStudyStore.getState().viewer };
+    const landmarksBefore = { ...useStudyStore.getState().landmarks };
+
+    // Start calibration and place point1
+    useStudyStore.getState().startCalibration();
+    useStudyStore.getState().placeCalibrationPoint({ x: 0.3, y: 0.3 });
+
+    // Pan must be unchanged
+    expect(useStudyStore.getState().viewer).toEqual(panBefore);
+
+    // All 5 landmarks must be unchanged
+    expect(useStudyStore.getState().landmarks).toEqual(landmarksBefore);
+    expect(useStudyStore.getState().landmarks.CoR).toEqual(landmarks.CoR);
+    expect(useStudyStore.getState().landmarks.CoL).toEqual(landmarks.CoL);
+    expect(useStudyStore.getState().landmarks.GoR).toEqual(landmarks.GoR);
+    expect(useStudyStore.getState().landmarks.GoL).toEqual(landmarks.GoL);
+    expect(useStudyStore.getState().landmarks.Me).toEqual(landmarks.Me);
+
+    // And the calibration point was actually placed
+    expect(useStudyStore.getState().calibrationPoints?.point1).toEqual({ x: 0.3, y: 0.3 });
+  });
+
+  // Test 8 variant — placing-point-2
+  it("Test 8 — calibration placement does not change pan or landmarks (placing-point-2)", () => {
+    const landmarks: Record<LandmarkName, Point> = {
+      CoR: { x: 0.11, y: 0.12 },
+      CoL: { x: 0.88, y: 0.13 },
+      GoR: { x: 0.14, y: 0.87 },
+      GoL: { x: 0.86, y: 0.89 },
+      Me: { x: 0.5, y: 0.52 },
+    };
+    for (const [name, pt] of Object.entries(landmarks)) {
+      useStudyStore.getState().setLandmark(name as LandmarkName, pt);
+    }
+    useStudyStore.getState().setPan(200, 300);
+    const panBefore = { ...useStudyStore.getState().viewer };
+    const landmarksBefore = { ...useStudyStore.getState().landmarks };
+
+    useStudyStore.getState().startCalibration();
+    useStudyStore.getState().placeCalibrationPoint({ x: 0.2, y: 0.2 });
+    useStudyStore.getState().confirmPoint1();
+    useStudyStore.getState().placeCalibrationPoint({ x: 0.7, y: 0.7 });
+
+    expect(useStudyStore.getState().viewer).toEqual(panBefore);
+    expect(useStudyStore.getState().landmarks).toEqual(landmarksBefore);
+    expect(useStudyStore.getState().calibrationPoints?.point2).toEqual({ x: 0.7, y: 0.7 });
+  });
+
+  // Test 9 — Landmark conflict
+  // Spec: calibration placement must not modify any anatomical landmark.
+  // After placing calibration points, verify all 5 landmarks have the same
+  // coordinates as before. This is the pure landmark-focused assertion.
+  it("Test 9 — calibration placement preserves all 5 landmark coordinates", () => {
+    const original: Record<LandmarkName, Point> = {
+      CoR: { x: 0.15, y: 0.2 },
+      CoL: { x: 0.85, y: 0.2 },
+      GoR: { x: 0.15, y: 0.8 },
+      GoL: { x: 0.85, y: 0.8 },
+      Me: { x: 0.5, y: 0.55 },
+    };
+    for (const [name, pt] of Object.entries(original)) {
+      useStudyStore.getState().setLandmark(name as LandmarkName, pt);
+    }
+
+    const before = { ...useStudyStore.getState().landmarks };
+
+    // Place both calibration points through the full flow
+    useStudyStore.getState().startCalibration();
+    useStudyStore.getState().placeCalibrationPoint({ x: 0.3, y: 0.4 });
+    useStudyStore.getState().confirmPoint1();
+    useStudyStore.getState().placeCalibrationPoint({ x: 0.7, y: 0.4 });
+    useStudyStore.getState().confirmPoint2();
+
+    const after = useStudyStore.getState().landmarks;
+    expect(after).toEqual(before);
+    expect(after.CoR).toEqual(original.CoR);
+    expect(after.CoL).toEqual(original.CoL);
+    expect(after.GoR).toEqual(original.GoR);
+    expect(after.GoL).toEqual(original.GoL);
+    expect(after.Me).toEqual(original.Me);
+  });
+});
+
+// Tests 2, 4, and 7 are ALREADY COVERED by DevBot's existing tests:
+// - Test 2 (Place Point 1): "placeCalibrationPoint in placing-point-1 places
+//   only point1 and transitions to reviewing-point-1"
+// - Test 4 (Place Point 2): "placeCalibrationPoint in placing-point-2 places
+//   only point2 and transitions to reviewing-point-2"
+// - Test 7 (No accidental double placement): "placing point1 does NOT also set
+//   point2" + "placeCalibrationPoint in placing-point-1..." checks stage stays
+//   reviewing-point-1 (not placing-point-2 or reviewing-point-2)

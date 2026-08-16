@@ -5,18 +5,31 @@
 import { useRef, useCallback, useEffect, useState } from "react";
 import { useStudyStore } from "../store/studyStore";
 import { LANDMARK_DEFINITIONS } from "../domain/types";
-import type { Point, LandmarkName } from "../domain/types";
+import type { Point, LandmarkName, CalibrationStage } from "../domain/types";
 
 // ── Interaction mode ────────────────────────────────────────
 // Tracks what the current pointer-down gesture is doing so that
-// landmark dragging and image panning never interfere with each other.
-type InteractionMode = "none" | "pan" | "drag-landmark";
+// landmark dragging, calibration point dragging, and image panning
+// never interfere with each other.
+type InteractionMode = "none" | "pan" | "drag-landmark" | "drag-calibration";
+
+/** Returns true if the calibration state machine is in any active (non-idle, non-calibrated) stage. */
+function isCalibratingStage(stage: CalibrationStage): boolean {
+  return (
+    stage === "placing-point-1" ||
+    stage === "reviewing-point-1" ||
+    stage === "placing-point-2" ||
+    stage === "reviewing-point-2" ||
+    stage === "entering-distance"
+  );
+}
 
 export function ImageViewer() {
   const containerRef = useRef<HTMLDivElement>(null);
   const interactionMode = useRef<InteractionMode>("none");
   const dragStart = useRef({ x: 0, y: 0, panX: 0, panY: 0 });
   const draggingLandmark = useRef<LandmarkName | null>(null);
+  const draggingCalibrationPoint = useRef<1 | 2 | null>(null);
   const activePointerId = useRef<number | null>(null);
   // isDraggingPlaced is a render-trigger flag so that click-after-drag is suppressed
   const [isDraggingPlaced, setIsDraggingPlaced] = useState(false);
@@ -30,7 +43,7 @@ export function ImageViewer() {
   const activeLandmark = useStudyStore((s) => s.activeLandmark);
   const calibrationPoints = useStudyStore((s) => s.calibrationPoints);
   const calibrationMode = useStudyStore((s) => s.calibrationMode);
-  const isCalibrating = useStudyStore((s) => s.isCalibrating);
+  const calibrationStage = useStudyStore((s) => s.calibrationStage);
   const hoveredLine = useStudyStore((s) => s.hoveredLine);
 
   const setLandmark = useStudyStore((s) => s.setLandmark);
@@ -42,7 +55,8 @@ export function ImageViewer() {
   const setContrast = useStudyStore((s) => s.setContrast);
   const resetViewer = useStudyStore((s) => s.resetViewer);
   const fitToScreen = useStudyStore((s) => s.fitToScreen);
-  const setCalibrationPoint = useStudyStore((s) => s.setCalibrationPoint);
+  const placeCalibrationPoint = useStudyStore((s) => s.placeCalibrationPoint);
+  const moveCalibrationPoint = useStudyStore((s) => s.moveCalibrationPoint);
 
   // ── One source of truth: mm values from the store ──────────
   // The overlay reads mandibularResult from the same store state that
@@ -137,28 +151,25 @@ export function ImageViewer() {
     [viewer.zoom, setZoom]
   );
 
-  // Click on overlay: place landmark or calibration point
+  // Click on overlay: place landmark only.
+  // Calibration point placement is handled in handlePointerDown (pointerdown
+  // event) to eliminate the pointerdown/click conflict that was causing
+  // calibration clicks to be swallowed by pan pointer capture.
   const handleOverlayClick = useCallback(
     (e: React.MouseEvent<SVGSVGElement>) => {
       // Don't place if we were just dragging
       if (isDraggingPlaced) return;
-      const point = screenToNormalized(e.clientX, e.clientY);
 
-      // Calibration mode: place calibration points
-      // isCalibrating is set true by startCalibration(); calibrationMode only
-      // becomes "B" after computeCalibration() completes, so we must check
-      // isCalibrating here — not calibrationMode — during point placement.
-      if (isCalibrating) {
-        const cp = useStudyStore.getState().calibrationPoints;
-        if (!cp || !cp.point1) {
-          setCalibrationPoint(0, point);
-          return;
-        }
-        if (cp.point1 && !cp.point2) {
-          setCalibrationPoint(1, point);
-          return;
-        }
+      // Calibration placement is handled in pointerdown — not here.
+      // If we're in a calibration placing stage, don't place a landmark.
+      const stage = useStudyStore.getState().calibrationStage;
+      if (stage === "placing-point-1" || stage === "placing-point-2" ||
+          stage === "reviewing-point-1" || stage === "reviewing-point-2" ||
+          stage === "entering-distance") {
+        return;
       }
+
+      const point = screenToNormalized(e.clientX, e.clientY);
 
       // Landmark placement
       if (activeLandmark) {
@@ -179,29 +190,66 @@ export function ImageViewer() {
       activeLandmark,
       setLandmark,
       setActiveLandmark,
-      calibrationMode,
-      isCalibrating,
-      setCalibrationPoint,
       isDraggingPlaced,
     ]
   );
 
-  // Pointer down on container: decide interaction mode
-  //   - landmark marker hit  → drag-landmark (with pointer capture)
-  //   - empty area           → pan (unless a landmark is active for placement)
+  // Pointer down on container: decide interaction mode.
+  // PRIORITY ORDER (highest first):
+  //   1. Calibration point placement (placing-point-1 / placing-point-2)
+  //   2. Calibration point drag (reviewing-point-1 / reviewing-point-2)
+  //   3. Landmark marker drag
+  //   4. Landmark placement (if activeLandmark set)
+  //   5. Pan
+  //
+  // ROOT CAUSE FIX: The old code handled calibration in onClick (separate
+  // from pointerdown). When pointerdown started a pan gesture it called
+  // setPointerCapture() on the container div, which captured the pointer
+  // and prevented the subsequent click event from reaching the SVG's
+  // onClick handler. Now calibration placement happens directly in
+  // pointerdown — no pan starts, no pointer capture, no click conflict.
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
       const target = e.target as Element;
+      const stage = useStudyStore.getState().calibrationStage;
 
-      // Check if we hit a landmark marker — start landmark drag
+      // ── 1. Calibration point PLACEMENT (highest priority) ──
+      // When in placing-point-1 or placing-point-2, the next pointerdown
+      // on the image places a calibration point. We handle this here in
+      // pointerdown — NOT in onClick — to avoid the pan/click conflict.
+      if (stage === "placing-point-1" || stage === "placing-point-2") {
+        const point = screenToNormalized(e.clientX, e.clientY);
+        placeCalibrationPoint(point);
+        // Do NOT start pan, do NOT capture pointer, do NOT preventDefault
+        // — just place the point and we're done.
+        return;
+      }
+
+      // ── 2. Calibration point DRAG (during review stages) ──
+      // Check if we hit a calibration point marker — start calibration drag
+      if (target && target.classList?.contains("calibration-marker")) {
+        const which = target.getAttribute("data-calibration-point");
+        if (which === "1" || which === "2") {
+          interactionMode.current = "drag-calibration";
+          draggingCalibrationPoint.current = which === "1" ? 1 : 2;
+          activePointerId.current = e.pointerId;
+          try {
+            (e.currentTarget as Element).setPointerCapture(e.pointerId);
+          } catch {
+            /* some browsers throw if already captured */
+          }
+          e.preventDefault();
+          return;
+        }
+      }
+
+      // ── 3. Landmark marker drag ──
       if (target && target.classList?.contains("landmark-marker")) {
         const name = target.getAttribute("data-landmark") as LandmarkName;
         if (name) {
           interactionMode.current = "drag-landmark";
           draggingLandmark.current = name;
           activePointerId.current = e.pointerId;
-          // Capture pointer so we keep receiving move events even if the
-          // cursor leaves the landmark element
           try {
             (e.currentTarget as Element).setPointerCapture(e.pointerId);
           } catch {
@@ -214,19 +262,22 @@ export function ImageViewer() {
 
       // Check if we hit a delete button — let the click handler deal with it
       if (target && target.classList?.contains("delete-btn")) {
-        return; // Don't start panning; the click event will handle deletion
+        return;
       }
 
-      // If a landmark is active, don't pan — the click will place a landmark
+      // ── 4. Don't pan if a landmark is active for placement ──
       if (activeLandmark) return;
 
-      // If calibration point placement is pending, don't pan
-      if (isCalibrating) {
-        const cp = useStudyStore.getState().calibrationPoints;
-        if (!cp || !cp.point1 || !cp.point2) return;
+      // ── 5. Don't pan during calibration review or entering-distance stages ──
+      if (
+        stage === "reviewing-point-1" ||
+        stage === "reviewing-point-2" ||
+        stage === "entering-distance"
+      ) {
+        return;
       }
 
-      // Start panning
+      // ── 6. Start panning ──
       interactionMode.current = "pan";
       activePointerId.current = e.pointerId;
       dragStart.current = {
@@ -242,12 +293,18 @@ export function ImageViewer() {
       }
       e.preventDefault();
     },
-    [activeLandmark, viewer.panX, viewer.panY, isCalibrating]
+    [activeLandmark, viewer.panX, viewer.panY, screenToNormalized, placeCalibrationPoint]
   );
 
-  // Pointer move: pan or drag landmark depending on interaction mode
+  // Pointer move: pan, drag landmark, or drag calibration point
   const handlePointerMove = useCallback(
     (e: React.PointerEvent) => {
+      if (interactionMode.current === "drag-calibration" && draggingCalibrationPoint.current) {
+        const point = screenToNormalized(e.clientX, e.clientY);
+        moveCalibrationPoint(draggingCalibrationPoint.current, point);
+        return;
+      }
+
       if (interactionMode.current === "drag-landmark" && draggingLandmark.current) {
         // Calculate landmark position DIRECTLY from current pointer position
         // on every move — no delta accumulation
@@ -262,10 +319,10 @@ export function ImageViewer() {
         setPan(dragStart.current.panX + dx, dragStart.current.panY + dy);
       }
     },
-    [screenToNormalized, moveLandmark, setPan]
+    [screenToNormalized, moveLandmark, setPan, moveCalibrationPoint]
   );
 
-  // Pointer up / cancel: end drag or pan
+  // Pointer up / cancel: end drag, pan, or calibration drag
   const handlePointerUp = useCallback(
     (e: React.PointerEvent) => {
       // Release pointer capture
@@ -286,6 +343,7 @@ export function ImageViewer() {
 
       interactionMode.current = "none";
       draggingLandmark.current = null;
+      draggingCalibrationPoint.current = null;
     },
     []
   );
@@ -458,7 +516,7 @@ export function ImageViewer() {
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
         onWheel={handleWheel}
-        style={{ cursor: panMode || (!activeLandmark && !isCalibrating && interactionMode.current === "pan") ? "grab" : (activeLandmark || isCalibrating) ? "crosshair" : "default" }}
+        style={{ cursor: panMode || (!activeLandmark && !isCalibratingStage(calibrationStage) && interactionMode.current === "pan") ? "grab" : (activeLandmark || isCalibratingStage(calibrationStage)) ? "crosshair" : "default" }}
       >
         {/* Image Layer */}
         {imageDataUrl && (
@@ -546,7 +604,7 @@ export function ImageViewer() {
             );
           })}
 
-          {/* Calibration line */}
+          {/* Calibration line — show when both points exist, with distance label when calibrated */}
           {calibrationPoints?.point1 && calibrationPoints?.point2 && (
             <g>
               <line
@@ -559,21 +617,39 @@ export function ImageViewer() {
                 strokeDasharray="0.02 0.01"
                 vectorEffect="non-scaling-stroke"
               />
+              {calibrationStage === "calibrated" && calibration && (
+                <text
+                  x={(calibrationPoints.point1.x + calibrationPoints.point2.x) / 2}
+                  y={(calibrationPoints.point1.y + calibrationPoints.point2.y) / 2}
+                  fill="#10b981"
+                  fontSize={0.012}
+                  textAnchor="middle"
+                  className="select-none"
+                  style={{ pointerEvents: "none", textShadow: "0 0 2px black" }}
+                >
+                  {calibration.realDistanceMm.toFixed(1)} mm
+                </text>
+              )}
             </g>
           )}
 
-          {/* Calibration points — small visible marker + large transparent hit area */}
+          {/* Calibration points — small visible marker + large transparent hit area.
+              The hit-area circle has the "calibration-marker" class and
+              data-calibration-point attribute so handlePointerDown can detect
+              drag gestures during the review stages. */}
           {calibrationPoints?.point1 && (
             <g>
-              {/* Large transparent interaction circle (Bug 4) */}
+              {/* Large transparent interaction circle (drag hit area) */}
               <circle
+                className="calibration-marker"
+                data-calibration-point="1"
                 cx={calibrationPoints.point1.x}
                 cy={calibrationPoints.point1.y}
                 r={0.014}
                 fill="transparent"
-                style={{ pointerEvents: "all", cursor: "pointer" }}
+                style={{ pointerEvents: "all", cursor: calibrationStage === "reviewing-point-1" ? "grab" : "default" }}
               />
-              {/* Small visible marker (Bug 3) */}
+              {/* Small visible marker */}
               <circle
                 cx={calibrationPoints.point1.x}
                 cy={calibrationPoints.point1.y}
@@ -584,7 +660,7 @@ export function ImageViewer() {
                 vectorEffect="non-scaling-stroke"
                 style={{ pointerEvents: "none" }}
               />
-              {/* Small label offset from marker (Bug 7) */}
+              {/* Small label offset from marker */}
               <text
                 x={calibrationPoints.point1.x + 0.012}
                 y={calibrationPoints.point1.y - 0.008}
@@ -599,15 +675,17 @@ export function ImageViewer() {
           )}
           {calibrationPoints?.point2 && (
             <g>
-              {/* Large transparent interaction circle (Bug 4) */}
+              {/* Large transparent interaction circle (drag hit area) */}
               <circle
+                className="calibration-marker"
+                data-calibration-point="2"
                 cx={calibrationPoints.point2.x}
                 cy={calibrationPoints.point2.y}
                 r={0.014}
                 fill="transparent"
-                style={{ pointerEvents: "all", cursor: "pointer" }}
+                style={{ pointerEvents: "all", cursor: calibrationStage === "reviewing-point-2" ? "grab" : "default" }}
               />
-              {/* Small visible marker (Bug 3) */}
+              {/* Small visible marker */}
               <circle
                 cx={calibrationPoints.point2.x}
                 cy={calibrationPoints.point2.y}
@@ -618,7 +696,7 @@ export function ImageViewer() {
                 vectorEffect="non-scaling-stroke"
                 style={{ pointerEvents: "none" }}
               />
-              {/* Small label offset from marker (Bug 7) */}
+              {/* Small label offset from marker */}
               <text
                 x={calibrationPoints.point2.x + 0.012}
                 y={calibrationPoints.point2.y - 0.008}
