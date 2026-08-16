@@ -539,9 +539,53 @@ export const useStudyStore = create<Store>()(
       // Small async yield for realistic UI progress indicator
       await new Promise((resolve) => setTimeout(resolve, 200));
 
+      let pixelData: Uint8ClampedArray | null = null;
+      if (
+        typeof window !== "undefined" &&
+        typeof document !== "undefined" &&
+        state.imageDataUrl &&
+        !state.imageDataUrl.startsWith("data:image/svg+xml")
+      ) {
+        try {
+          const img = new Image();
+          img.crossOrigin = "anonymous";
+          img.src = state.imageDataUrl;
+          await new Promise<void>((resolve) => {
+            if (img.complete && img.naturalWidth > 0) {
+              resolve();
+              return;
+            }
+            const timer = setTimeout(() => resolve(), 30);
+            img.onload = () => {
+              clearTimeout(timer);
+              resolve();
+            };
+            img.onerror = () => {
+              clearTimeout(timer);
+              resolve();
+            };
+          });
+          if (img.naturalWidth > 0) {
+            const canvas = document.createElement("canvas");
+            const w = state.imageNaturalWidth || img.naturalWidth || 1000;
+            const h = state.imageNaturalHeight || img.naturalHeight || 500;
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext("2d");
+            if (ctx) {
+              ctx.drawImage(img, 0, 0, w, h);
+              pixelData = ctx.getImageData(0, 0, w, h).data;
+            }
+          }
+        } catch {
+          // Gracefully fallback without pixel data
+        }
+      }
+
       const detection = detectMandibularLandmarks(
         state.imageNaturalWidth,
-        state.imageNaturalHeight
+        state.imageNaturalHeight,
+        { pixelData, isDicom: false }
       );
 
       const newLandmarks = { ...get().landmarks, ...detection.landmarks };

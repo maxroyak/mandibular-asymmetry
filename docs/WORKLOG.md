@@ -37,4 +37,10 @@ Details: Integrated `dicom-parser` with typed definitions. Implemented client-si
 Details: Implemented pure domain heuristic landmark regressor (`src/domain/ai/landmarkDetector.ts`) generating candidate points and confidence scores for CoR, GoR, CoL, GoL, and Me. Added manual trigger `[✨ Auto-Detect Landmarks (AI)]` in `LandmarkPalette.tsx` and `ImageViewer.tsx` toolbar. Added candidate review workflow (`aiCandidateLandmarks`), dashed candidate halo markers, `[Accept All AI Proposals]` / `[Clear AI Proposals]` actions, and manual edit verification. Authored `src/test/aiDetection.test.ts`. 318/318 unit tests passing (100%).
 ---
 
+---
+2026-08-17 01:29 | AI Landmark Detection Accuracy & ROI Cropping Fix
+Details: Implemented `detectRadiographRoi` filtering out black letterbox/pillarbox padding (luminance < 15) to normalize candidate coordinates relative to active radiograph content. Refined anatomical proportional zones: Condylar (Y ∈ [0.15, 0.28], CoR X ∈ [0.12, 0.22], CoL X ∈ [0.78, 0.88]), Gonial (Y ∈ [0.65, 0.78], GoR X ∈ [0.15, 0.25], GoL X ∈ [0.75, 0.85]), Menton (Y ∈ [0.85, 0.93], X ∈ [0.48, 0.52]). Added DICOM bypass and updated test suite `src/test/aiDetection.test.ts`. 320/320 unit tests passing (100%).
+---
+
+
 
