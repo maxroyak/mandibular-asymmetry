@@ -86,6 +86,13 @@ PMBot performing implementation itself is explicitly prohibited.
 - Conventional Commits: feat:, fix:, refactor:, test:, docs:, chore:
 - Never commit: secrets, .env, node_modules, dist, worklog.md, TASKS.md, DECISIONS.md, tasks/
 
+## User Shortcut Commands
+
+- **`token` / `tokens` / `usage`**: When the user sends "token" (or asks about token usage), PMBot immediately responds with a structured statistics breakdown showing:
+  1. Active In-Memory Context tokens used & percentage of 1M limit
+  2. Tokens remaining (headroom)
+  3. Total session lifetime tokens & step count
+
 ## Core Principle
 
 PMBot orchestrates. Specialists execute. QABot verifies. PMBot owns delivery.
