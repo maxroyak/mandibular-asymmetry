@@ -6,7 +6,7 @@
 import type {
   Point,
   SideDifference,
-  DominantSide,
+  LargerSide,
   AsymmetryTier,
   FullResults,
 } from "./types";
@@ -51,28 +51,30 @@ export function calculateSideDifference(
 }
 
 /**
- * Relative difference: |R−L| / ((R+L)/2) × 100
+ * Relative difference: |R−L| / max(R,L) × 100
  * Always positive. Rounded to 1 decimal place.
- * Mathematically equivalent to 2 × |Habets AI|.
- * @returns percentage (0% to 200%)
+ * Represents the percentage by which the smaller side differs from the larger side.
+ * @returns percentage (0% to 100%)
  */
 export function calculateRelativeDifference(right: number, left: number): number {
-  const sum = right + left;
-  if (sum === 0) return 0;
-  const result = (Math.abs(right - left) / (sum / 2)) * 100;
+  if (!Number.isFinite(right) || !Number.isFinite(left)) return 0;
+  const maxVal = Math.max(right, left);
+  if (maxVal === 0) return 0;
+  const result = (Math.abs(right - left) / maxVal) * 100;
   return round(result, 1);
 }
 
 /**
- * Habets Asymmetry Index: (R−L) / (R+L) × 100
- * Signed (positive = right greater, negative = left greater).
+ * Habets Asymmetry Index: |R−L| / (R+L) × 100
+ * Absolute (unsigned) asymmetry percentage. Range: 0% to +100%.
  * Rounded to 1 decimal place.
- * @returns percentage (−100% to +100%)
+ * @returns percentage (0% to +100%)
  */
 export function calculateAsymmetryIndex(right: number, left: number): number {
+  if (!Number.isFinite(right) || !Number.isFinite(left)) return 0;
   const sum = right + left;
   if (sum === 0) return 0;
-  const result = ((right - left) / sum) * 100;
+  const result = (Math.abs(right - left) / sum) * 100;
   return round(result, 1);
 }
 
@@ -81,7 +83,7 @@ export function calculateAsymmetryIndex(right: number, left: number): number {
  * "equal" if relative difference ≤ 0.5%.
  * @returns "right" | "left" | "equal"
  */
-export function determineDominantSide(right: number, left: number): DominantSide {
+export function determineLargerSide(right: number, left: number): LargerSide {
   const relDiff = calculateRelativeDifference(right, left);
   if (relDiff <= 0.5) return "equal";
   return right > left ? "right" : "left";
@@ -330,6 +332,9 @@ export const TIER_LABELS: Record<AsymmetryTier, string> = {
   above_technical_error_margin: "Above technical error margin",
 };
 
+/** Label for unclassified (horizontal) measurements — shown instead of a tier badge */
+export const UNCLASSIFIED_LABEL = "Not classified — horizontal measurement";
+
 export const TIER_GUIDANCE: Record<AsymmetryTier, string> = {
   within_typical_range:
     "The measured difference is within the range commonly observed in asymptomatic individuals.",
@@ -345,7 +350,10 @@ export const LIMITATION_HEADER =
   "CLINICAL MEASUREMENT REPORT — MANDIBULAR ASYMMETRY ANALYSIS\n\n" +
   "⚠ This is a measurement and comparative analysis tool, not a diagnostic system.\n" +
   "Results are derived from a 2D projection of 3D anatomy and must be interpreted\n" +
-  "in the context of clinical examination and adjunct imaging.";
+  "in the context of clinical examination and adjunct imaging.\n\n" +
+  "This MVP performs a simplified landmark-based mandibular asymmetry analysis and\n" +
+  "uses the Habets normalization formula. It does not reproduce the complete\n" +
+  "original Habets tracing protocol.";
 
 export const LIMITATION_FOOTER =
   "LIMITATIONS\n\n" +
@@ -386,38 +394,41 @@ export function generateClinicalSummary(results: FullResults): string {
   lines.push(LIMITATION_HEADER);
   lines.push("");
 
-  // ── Ramus Height Analysis ──
-  lines.push("RAMUS HEIGHT ANALYSIS (Primary Measurement)");
+  // ── Ramus Length Proxy Analysis ──
+  lines.push("RAMUS LENGTH PROXY ANALYSIS (Primary Measurement)");
   lines.push("");
 
   if (ramusHeight) {
     const rh = ramusHeight;
     const relDiffStr = rh.relativeDifferencePercent.toFixed(1);
     const habetsStr = rh.asymmetryIndexPercent.toFixed(1);
-    const habetsDir = rh.asymmetryIndexPercent > 0 ? "right greater" : rh.asymmetryIndexPercent < 0 ? "left greater" : "equal";
 
-    if (rh.dominantSide === "equal") {
+    if (rh.largerSide === "equal") {
       lines.push("On this panoramic radiograph, the right and left ramus heights are approximately equal.");
-    } else if (rh.dominantSide === "right") {
+    } else if (rh.largerSide === "right") {
       lines.push(`On this panoramic radiograph, the right ramus height is ${relDiffStr}% greater than the left.`);
     } else {
       lines.push(`On this panoramic radiograph, the left ramus height is ${relDiffStr}% greater than the right.`);
     }
 
     lines.push("");
-    lines.push(`Habets Asymmetry Index: ${habetsStr}% (${habetsDir})`);
+    lines.push(`Habets Asymmetry Index: ${habetsStr}% (${rh.largerSide === "equal" ? "equal" : rh.largerSide + " larger"})`);
     lines.push(`Relative Difference: ${relDiffStr}%`);
-    lines.push(`Classification: ${TIER_LABELS[rh.classification]}`);
-    lines.push("");
-    lines.push(TIER_GUIDANCE[rh.classification]);
+    if (rh.classification !== null) {
+      lines.push(`Classification: ${TIER_LABELS[rh.classification]}`);
+      lines.push("");
+      lines.push(TIER_GUIDANCE[rh.classification]);
+    } else {
+      lines.push(`Classification: ${UNCLASSIFIED_LABEL}`);
+    }
   } else {
     lines.push("Landmarks incomplete — measurement not available.");
   }
 
   lines.push("");
 
-  // ── Body Length Analysis ──
-  lines.push("MANDIBULAR BODY LENGTH ANALYSIS (Secondary Measurement — Lower Reliability)");
+  // ── Body Length Proxy Analysis ──
+  lines.push("MANDIBULAR BODY LENGTH PROXY ANALYSIS (Secondary Measurement — Lower Reliability)");
   lines.push("⚠ Horizontal measurements on panoramic radiographs are less reliable than vertical");
   lines.push("measurements due to variable horizontal magnification. Interpret with caution.");
   lines.push("");
@@ -426,22 +437,20 @@ export function generateClinicalSummary(results: FullResults): string {
     const bl = bodyLength;
     const relDiffStr = bl.relativeDifferencePercent.toFixed(1);
     const habetsStr = bl.asymmetryIndexPercent.toFixed(1);
-    const habetsDir = bl.asymmetryIndexPercent > 0 ? "right greater" : bl.asymmetryIndexPercent < 0 ? "left greater" : "equal";
 
-    if (bl.dominantSide === "equal") {
+    if (bl.largerSide === "equal") {
       lines.push("The right and left mandibular body lengths are approximately equal.");
-    } else if (bl.dominantSide === "right") {
+    } else if (bl.largerSide === "right") {
       lines.push(`The right mandibular body length is ${relDiffStr}% greater than the left.`);
     } else {
       lines.push(`The left mandibular body length is ${relDiffStr}% greater than the right.`);
     }
 
     lines.push("");
-    lines.push(`Habets Asymmetry Index: ${habetsStr}% (${habetsDir})`);
+    lines.push(`Habets Asymmetry Index: ${habetsStr}% (${bl.largerSide === "equal" ? "equal" : bl.largerSide + " larger"})`);
     lines.push(`Relative Difference: ${relDiffStr}%`);
-    lines.push(`Classification: ${TIER_LABELS[bl.classification]}`);
-    lines.push("");
-    lines.push(TIER_GUIDANCE[bl.classification]);
+    lines.push("Classification: Not classified — thresholds are based on vertical measurement data");
+    lines.push("and are not applied to horizontal (body length) measurements.");
   } else {
     lines.push("Landmarks incomplete — measurement not available.");
   }

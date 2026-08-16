@@ -9,7 +9,7 @@ import {
   calculateSideDifference,
   calculateRelativeDifference,
   calculateAsymmetryIndex,
-  determineDominantSide,
+  determineLargerSide,
   classifyAsymmetry,
   generateClinicalSummary,
   calculateDifferenceMm,
@@ -87,11 +87,16 @@ interface StudyState {
 interface StudyActions {
   // Study lifecycle
   createStudy: (patientId: string, imageDataUrl: string, width: number, height: number) => void;
-  loadStudy: (studyId: string) => void;
-  saveStudy: () => void;
-  deleteStudy: (studyId: string) => void;
+  loadStudy: (studyId: string) => Promise<void>;
+  saveStudy: () => Promise<void>;
+  deleteStudy: (studyId: string) => Promise<void>;
   refreshStudyList: () => void;
   newStudy: () => void;
+  /** Migrate legacy localStorage records with embedded images to IndexedDB */
+  migrateLegacyImages: () => Promise<void>;
+  /** Get last persistence error (for UI display) */
+  getPersistenceError: () => string | null;
+  clearPersistenceError: () => void;
 
   // Landmark operations
   setLandmark: (name: LandmarkName, point: Point) => void;
@@ -150,7 +155,8 @@ function computeSingleMeasurement(
   leftB: Point | undefined,
   calibration: Calibration | null,
   imageWidth: number,
-  imageHeight: number
+  imageHeight: number,
+  isHorizontal: boolean
 ): MeasurementResult | null {
   if (!rightA || !rightB || !leftA || !leftB) return null;
 
@@ -159,8 +165,8 @@ function computeSingleMeasurement(
 
   const habets = calculateAsymmetryIndex(rightNorm, leftNorm);
   const relDiff = calculateRelativeDifference(rightNorm, leftNorm);
-  const dominant = determineDominantSide(rightNorm, leftNorm);
-  const tier = classifyAsymmetry(Math.abs(habets));
+  const larger = determineLargerSide(rightNorm, leftNorm);
+  const tier = isHorizontal ? null : classifyAsymmetry(Math.abs(habets));
   const diff = calculateSideDifference(rightNorm, leftNorm);
 
   // Calibrated: convert to mm
@@ -183,7 +189,7 @@ function computeSingleMeasurement(
     absoluteDifference: diff.absoluteDifference,
     relativeDifferencePercent: relDiff,
     asymmetryIndexPercent: habets,
-    dominantSide: dominant,
+    largerSide: larger,
     classification: tier,
     rightMm,
     leftMm,
@@ -196,7 +202,7 @@ function computeMeasurements(
   imageWidth: number,
   imageHeight: number
 ): StudyMeasurements {
-  // Ramus height: CoR→GoR (right), CoL→GoL (left)
+  // Ramus height: CoR→GoR (right), CoL→GoL (left) — vertical measurement
   const ramusHeight = computeSingleMeasurement(
     landmarks.CoR,
     landmarks.GoR,
@@ -204,10 +210,11 @@ function computeMeasurements(
     landmarks.GoL,
     calibration,
     imageWidth,
-    imageHeight
+    imageHeight,
+    false // isHorizontal = false — vertical measurement, apply classification
   );
 
-  // Body length: GoR→Me (right), GoL→Me (left)
+  // Body length: GoR→Me (right), GoL→Me (left) — horizontal measurement
   const bodyLength = computeSingleMeasurement(
     landmarks.GoR,
     landmarks.Me,
@@ -215,7 +222,8 @@ function computeMeasurements(
     landmarks.Me,
     calibration,
     imageWidth,
-    imageHeight
+    imageHeight,
+    true // isHorizontal = true — horizontal measurement, no classification
   );
 
   return { ramusHeight, bodyLength };
@@ -325,13 +333,20 @@ export const useStudyStore = create<Store>()(
       get().refreshStudyList();
     },
 
-    loadStudy: (studyId) => {
+    loadStudy: async (studyId) => {
       const study = studyRepository.getById(studyId);
       if (!study) return;
+      // Load image from IndexedDB (or legacy localStorage fallback)
+      let imageDataUrl: string | null = null;
+      try {
+        imageDataUrl = await studyRepository.getImage(studyId);
+      } catch {
+        imageDataUrl = study.imageDataUrl ?? null;
+      }
       set({
         studyId: study.studyId,
         patientId: study.patientId,
-        imageDataUrl: study.imageDataUrl,
+        imageDataUrl: imageDataUrl,
         imageNaturalWidth: study.imageNaturalWidth,
         imageNaturalHeight: study.imageNaturalHeight,
         landmarks: study.landmarks,
@@ -354,13 +369,12 @@ export const useStudyStore = create<Store>()(
       get().recalculate();
     },
 
-    saveStudy: () => {
+    saveStudy: async () => {
       const state = get();
       if (!state.studyId || !state.imageDataUrl) return;
       const study: StoredStudy = {
         studyId: state.studyId,
         patientId: state.patientId,
-        imageDataUrl: state.imageDataUrl,
         imageNaturalWidth: state.imageNaturalWidth,
         imageNaturalHeight: state.imageNaturalHeight,
         landmarks: state.landmarks,
@@ -371,13 +385,13 @@ export const useStudyStore = create<Store>()(
         createdAt: state.createdAt,
         updatedAt: new Date().toISOString(),
       };
-      studyRepository.save(study);
+      await studyRepository.save(study, state.imageDataUrl);
       set({ isSaved: true });
       get().refreshStudyList();
     },
 
-    deleteStudy: (studyId) => {
-      studyRepository.remove(studyId);
+    deleteStudy: async (studyId) => {
+      await studyRepository.remove(studyId);
       if (studyRepository.getCurrentStudyId() === studyId) {
         studyRepository.setCurrentStudyId(null);
       }
@@ -415,6 +429,19 @@ export const useStudyStore = create<Store>()(
         updatedAt: "",
       });
     },
+
+    // ── Persistence migration & error handling ──
+    migrateLegacyImages: async () => {
+      try {
+        await studyRepository.migrateLegacyImages();
+      } catch {
+        // Non-fatal — migration can be retried on next load
+      }
+    },
+
+    getPersistenceError: () => studyRepository.getLastError(),
+
+    clearPersistenceError: () => studyRepository.clearLastError(),
 
     // ── Landmark operations ──
     setLandmark: (name, point) => {
@@ -702,3 +729,8 @@ export const useStudyStore = create<Store>()(
 
 // ── Initialize study list on module load ────────────────────
 useStudyStore.getState().refreshStudyList();
+
+// ── Migrate legacy localStorage images to IndexedDB on load ──
+// This is async and non-blocking — runs in the background.
+// Safe to call multiple times; no-op if already migrated.
+useStudyStore.getState().migrateLegacyImages();

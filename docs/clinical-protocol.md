@@ -33,16 +33,16 @@
 
 | Item | Decision |
 |------|----------|
-| **Primary measurement** | Ramus height (Co–Go), bilateral |
-| **Secondary measurement** | Mandibular body length (Go–Me), bilateral — with reliability caveat |
-| **Primary asymmetry metric** | Habets Asymmetry Index: (R−L)/(R+L) × 100 |
-| **Secondary metric (display)** | Relative Difference: \|R−L\|/((R+L)/2) × 100 (= 2 × \|Habets\|) |
+|| **Primary measurement** | Ramus length proxy (Co–Go), bilateral |
+|| **Secondary measurement** | Mandibular body length proxy (Go–Me), bilateral — with reliability caveat |
+|| **Primary asymmetry metric** | Habets Asymmetry Index: \|R−L\|/(R+L) × 100 |
+|| **Secondary metric (display)** | Relative Difference: \|R−L\|/max(R,L) × 100 |
 | **Habets decomposition** | NOT used — total height (Co–Go) only; sigmoid notch excluded |
 | **Kjellberg index** | NOT included |
 | **Threshold system** | Tiered: <3% / 3–6% / >6% (Habets index), presented as guidelines not diagnoses |
 | **Calibration** | Optional (Mode B). Absolute mm displayed only when calibrated. Relative % always available. |
 | **Midline landmark for body length** | Menton (Me) |
-| **Dominant side wording** | Comparative: "right ramus height is X% greater/smaller than left" |
+| **Larger measured side wording** | Comparative: "right ramus length proxy is X% greater/smaller than left" |
 
 ### Design principle
 
@@ -315,7 +315,7 @@ Condylion (Co) is the least reproducible landmark in this set (ResearchBot §7).
 
 | Property | Value |
 |----------|-------|
-| **Name** | Ramus Height (Posterior Mandibular Height) |
+| **Name** | Ramus length proxy (Co–Go) |
 | **Landmarks** | Co → Go (bilateral: CoR→GoR, CoL→GoL) |
 | **Type** | Vertical linear distance |
 | **Reliability** | Moderate — comparable to lateral cephalogram (Ongkosuwito 2009, Faryal & Shaikh 2022, Stăncioiu 2025) |
@@ -326,7 +326,7 @@ Condylion (Co) is the least reproducible landmark in this set (ResearchBot §7).
 
 | Property | Value |
 |----------|-------|
-| **Name** | Mandibular Body Length |
+| **Name** | Mandibular body length proxy (Go–Me) |
 | **Landmarks** | Go → Me (bilateral: GoR→Me, GoL→Me) |
 | **Type** | Horizontal linear distance |
 | **Reliability** | Low–Moderate — significant OPG vs cephalogram discrepancy (Faryal & Shaikh 2022, p=0.000; Stăncioiu 2025) |
@@ -366,39 +366,36 @@ Where `mmPerPixel` is derived from calibration.
 ### 5.2 Habets Asymmetry Index
 
 ```
-Habets AI = (R − L) / (R + L) × 100
+Habets AI = |R − L| / (R + L) × 100
 ```
 
 - **R** = right side measurement (CoR→GoR for ramus, GoR→Me for body)
 - **L** = left side measurement (CoL→GoL for ramus, GoL→Me for body)
-- **Signed value:** positive = right side greater, negative = left side greater
-- **Range:** −100% to +100% (practically much smaller)
+- **Absolute (unsigned) value:** always non-negative
+- **Range:** 0% to +100% (practically much smaller)
+- **Larger measured side** is determined separately by `determineLargerSide()`
 
 ### 5.3 Relative Difference
 
 ```
-Relative Difference = |R − L| / ((R + L) / 2) × 100
-```
-
-Which simplifies to:
-
-```
-Relative Difference = 2 × |R − L| / (R + L) × 100 = 2 × |Habets AI|
+Relative Difference = |R − L| / max(R, L) × 100
 ```
 
 - **Always positive** (absolute value)
-- **Range:** 0% to +200% (practically much smaller)
-- **Interpretation:** percentage deviation of one side from the bilateral mean
+- **Range:** 0% to +100% (practically much smaller)
+- **Interpretation:** how much the smaller side differs from the larger side
 
-### 5.4 Dominant Side Determination
+> **Note:** The Relative Difference and Habets Asymmetry Index are mathematically distinct formulas. The Relative Difference is not a fixed multiple of the Habets index.
+
+### 5.4 Larger Measured Side Determination
 
 ```
 if |R − L| ≤ tolerance:
-    dominantSide = "equal"
+    largerSide = "equal"
 elif R > L:
-    dominantSide = "right"
+    largerSide = "right"
 else:
-    dominantSide = "left"
+    largerSide = "left"
 ```
 
 Where `tolerance` is the "approximately equal" threshold:
@@ -426,6 +423,8 @@ Boundary rules:
 
 Note: A value of exactly 6.0% falls in Band 2 (borderline), because 6% is the upper limit of the technical error margin — at that value, we cannot exclude technical origin.
 
+**Important:** Classification is applied to the ramus length proxy (vertical measurement) only. The mandibular body length proxy (horizontal measurement) does **not** receive a threshold classification, because the 3% and 6% thresholds were derived from vertical measurement data and do not apply to horizontal measurements, which have higher and more variable magnification on panoramic radiographs.
+
 ### 5.6 Calibration Calculation (Mode B)
 
 ```
@@ -449,11 +448,15 @@ measurement_mm = measurement_normalized × referenceDimension_pixels × mmPerPix
 
 ### 6.1 Tiered Thresholds
 
-| Band | Habets Index (absolute) | Relative Difference | Label | Interpretation Guidance |
-|------|------------------------|---------------------|-------|-------------------------|
-| **1** | < 3% | < 6% | Within typical range | "The measured difference is within the range commonly observed in asymptomatic individuals." |
-| **2** | 3–6% | 6–12% | Borderline | "The measured difference is in a borderline range that may include technical/positioning effects. Clinical correlation is recommended." |
-| **3** | > 6% | > 12% | Above technical error margin | "The measured difference exceeds the 6% technical error margin reported for panoramic radiography. Clinical correlation and 3D imaging (CBCT) are recommended when clinically indicated." |
+Thresholds apply to the **ramus length proxy** (vertical measurement) only. The mandibular body length proxy (horizontal measurement) does not receive threshold classifications.
+
+| Band | Habets Index (absolute) | Label | Interpretation Guidance |
+|------|------------------------|-------|-------------------------|
+| **1** | < 3% | Within typical range | "The measured difference is within the range commonly observed in asymptomatic individuals." |
+| **2** | 3–6% | Borderline | "The measured difference is in a borderline range that may include technical/positioning effects. Clinical correlation is recommended." |
+| **3** | > 6% | Above technical error margin | "The measured difference exceeds the 6% technical error margin reported for panoramic radiography. Clinical correlation and 3D imaging (CBCT) are recommended when clinically indicated." |
+
+> **Note:** The Relative Difference value is displayed alongside the Habets index but is not mapped to threshold bands. The classification is based on the Habets index only. The two formulas are mathematically distinct and do not have a fixed proportional relationship.
 
 ### 6.2 Threshold Caveat (Mandatory Display)
 
@@ -638,14 +641,12 @@ This is a recommendation, not a directive. The application does not state that C
 
 | Metric | Display Label | Tooltip / Subtitle |
 |--------|--------------|-------------------|
-| Habets Asymmetry Index | "Habets Asymmetry Index" | "(R−L)/(R+L) × 100 — standard research metric (Habets et al. 1988). Positive = right greater." |
-| Relative Difference | "Relative Difference" | "\|R−L\| / ((R+L)/2) × 100 — percentage deviation from bilateral mean. Always positive. = 2 × \|Habets Index\|." |
+| Habets Asymmetry Index | "Habets Asymmetry Index" | "\|R−L\|/(R+L) × 100 — standard research metric (Habets et al. 1988). Absolute (unsigned) value. Larger measured side shown separately." |
+| Relative Difference | "Relative Difference" | "\|R−L\|/max(R,L) × 100 — how much the smaller side differs from the larger side. Always positive." |
 
-### 10.2 Relationship Footnote
+### 10.2 Relationship Note
 
-Beneath the metrics table, always display:
-
-> "The Relative Difference is exactly twice the absolute value of the Habets Asymmetry Index. For example, a Habets index of 3% corresponds to a Relative Difference of 6%."
+The Habets Asymmetry Index and Relative Difference are mathematically distinct formulas and do not have a fixed proportional relationship. Both values are displayed for completeness; threshold classification is based on the Habets index only.
 
 ### 10.3 Threshold Labels
 
@@ -674,9 +675,9 @@ This section provides the clinical specification for the domain module (`src/dom
 |----------|-------|--------|----------------------|
 | `calculateDistance(A, B)` | Two Points (normalized 0–1) | Number (normalized distance) | Euclidean distance in normalized coordinate space |
 | `calculateSideDifference(R, L)` | Right measurement, Left measurement | `{ difference, absoluteDifference }` | `difference = R − L`; `absoluteDifference = \|R − L\|` |
-| `calculateRelativeDifference(R, L)` | Right measurement, Left measurement | Number (percentage) | `\|R − L\| / ((R + L) / 2) × 100` — always positive, rounded to 1 decimal |
-| `calculateAsymmetryIndex(R, L)` | Right measurement, Left measurement | Number (percentage, signed) | `(R − L) / (R + L) × 100` — signed, rounded to 1 decimal |
-| `determineDominantSide(R, L)` | Right measurement, Left measurement | `"right" \| "left" \| "equal"` | `equal` if relative difference ≤ 0.5%; otherwise side with larger value |
+| `calculateRelativeDifference(R, L)` | Right measurement, Left measurement | Number (percentage) | `\|R − L\| / max(R, L) × 100` — always positive, range 0% to 100% |
+| `calculateAsymmetryIndex(R, L)` | Right measurement, Left measurement | Number (percentage, absolute) | `\|R − L\| / (R + L) × 100` — absolute (unsigned), range 0% to 100% |
+| `determineLargerSide(R, L)` | Right measurement, Left measurement | `"right" \| "left" \| "equal"` | `equal` if relative difference ≤ 0.5%; otherwise side with larger value |
 | `classifyAsymmetry(habetsAbsValue)` | Absolute Habets index (\|AI\|) | `"within_typical_range" \| "borderline" \| "above_technical_error_margin"` | `< 3` → within_typical_range; `[3, 6]` → borderline; `> 6` → above_technical_error_margin |
 | `generateClinicalSummary(results)` | Full results object | String (structured clinical text) | Produces the full clinical summary per §8.1 template with limitations |
 
@@ -684,21 +685,21 @@ This section provides the clinical specification for the domain module (`src/dom
 
 For each study, the domain layer computes:
 
-**Ramus Height:**
+**Ramus Length Proxy:**
 1. `ramusRight = calculateDistance(CoR, GoR)`
 2. `ramusLeft = calculateDistance(CoL, GoL)`
 3. `ramusHabetsAI = calculateAsymmetryIndex(ramusRight, ramusLeft)`
 4. `ramusRelativeDiff = calculateRelativeDifference(ramusRight, ramusLeft)`
-5. `ramusDominantSide = determineDominantSide(ramusRight, ramusLeft)`
+5. `ramusLargerSide = determineLargerSide(ramusRight, ramusLeft)`
 6. `ramusClassification = classifyAsymmetry(abs(ramusHabetsAI))`
 
-**Mandibular Body Length:**
+**Mandibular Body Length Proxy:**
 1. `bodyRight = calculateDistance(GoR, Me)`
 2. `bodyLeft = calculateDistance(GoL, Me)`
 3. `bodyHabetsAI = calculateAsymmetryIndex(bodyRight, bodyLeft)`
 4. `bodyRelativeDiff = calculateRelativeDifference(bodyRight, bodyLeft)`
-5. `bodyDominantSide = determineDominantSide(bodyRight, bodyLeft)`
-6. `bodyClassification = classifyAsymmetry(abs(bodyHabetsAI))`
+5. `bodyLargerSide = determineLargerSide(bodyRight, bodyLeft)`
+6. `bodyClassification = null` — **thresholds are NOT applied to horizontal measurements**
 
 **Calibration (Mode B only):**
 - If `calibration` is not null, convert all distances to mm using `mmPerPixel`.
@@ -750,7 +751,7 @@ OrthoBot concurs with all of ResearchBot's recommendations. The following are ex
 | **Status** | APPROVED |
 | **Evidence base** | docs/clinical-evidence.md (ResearchBot, 2026-08-16, 40 references) |
 | **Landmarks** | 5 (CoR, GoR, CoL, GoL, Me) |
-| **Measurements** | 2 (Ramus height, Mandibular body length) |
+| **Measurements** | 2 (Ramus length proxy, Mandibular body length proxy) |
 | **Asymmetry metrics** | 2 (Habets index, Relative difference) |
 | **Threshold system** | 3 tiers (guidelines, not diagnoses) |
 | **Calibration** | Optional (Mode A / Mode B) |

@@ -628,27 +628,44 @@ distance_mm = distance_px × mmPerPixel
 
 ---
 
-## 7. Study Persistence (localStorage)
+## 7. Study Persistence (localStorage + IndexedDB)
 
 ### 7.1 Storage Schema
 
+The persistence layer uses two storage mechanisms:
+
+- **localStorage** — lightweight study metadata (landmarks, calibration, measurements, timestamps)
+- **IndexedDB** — radiograph images (base64 data URLs, which can be 1–5 MB each)
+
+This separation prevents localStorage quota exhaustion from large base64 images.
+
 ```typescript
-// localStorage key: "ma.studies" → JSON array of Study objects
+// localStorage key: "ma.studies" → JSON array of study metadata (NO imageDataUrl)
 // localStorage key: "ma.currentStudyId" → string (active study)
+// localStorage key: "ma.imagesMigrated" → "true" (migration flag)
+// IndexedDB database: "mandibular-asymmetry", store: "images", keyPath: "studyId"
 
 interface StoredStudy {
   studyId: string;
   patientId: string;
-  imageDataUrl: string;       // base64-encoded image
+  // imageDataUrl is NOT stored in localStorage — stored in IndexedDB
   imageNaturalWidth: number;
   imageNaturalHeight: number;
   landmarks: LandmarkSet;     // normalized coordinates
   calibration: Calibration | null;
-  calibrationPoints: [Point, Point] | null;
+  calibrationPoints: CalibrationDraft | null;
   measurements: StudyMeasurements;
   interpretation: string;     // generated clinical summary text
   createdAt: string;          // ISO 8601
   updatedAt: string;           // ISO 8601
+}
+
+// IndexedDB record (src/persistence/imageStore.ts)
+interface StoredImage {
+  studyId: string;            // key — matches StoredStudy.studyId
+  imageDataUrl: string;       // base64 data URL
+  width: number;
+  height: number;
 }
 ```
 
@@ -660,25 +677,33 @@ interface StoredStudy {
 interface StudyRepository {
   getAll(): StoredStudy[];
   getById(studyId: string): StoredStudy | null;
-  save(study: StoredStudy): void;
-  remove(studyId: string): void;
+  save(study: StoredStudy, imageDataUrl?: string): Promise<void>;
+  remove(studyId: string): Promise<void>;
+  getImage(studyId: string): Promise<string | null>;
   getCurrentStudyId(): string | null;
   setCurrentStudyId(studyId: string | null): void;
+  migrateLegacyImages(): Promise<void>;
+  getLastError(): string | null;
+  clearLastError(): void;
 }
 
 // MVP implementation: LocalStorageStudyRepository
+// - Metadata in localStorage, images in IndexedDB
+// - Falls back to localStorage for images if IndexedDB is unavailable
+// - Migrates legacy localStorage imageDataUrl to IndexedDB on load
 // Future: ApiStudyRepository (same interface, different backend)
 ```
 
-### 7.3 localStorage Limits & Considerations
+### 7.3 Storage Limits & Considerations
 
 | Concern | Mitigation |
 |---------|-----------|
-| 5–10MB per-origin limit | Compress images before storing; warn if image > 2MB |
-| Base64 bloats size ~33% | Accept for MVP; future: IndexedDB for binary blobs |
-| Synchronous API blocks main thread | Debounce saves; off-load to `requestIdleCallback` |
+| localStorage 5–10MB per-origin limit | Images stored in IndexedDB (much larger quota); localStorage holds only lightweight metadata |
+| Base64 bloats size ~33% | Accepted for MVP; IndexedDB can handle larger blobs |
+| Synchronous localStorage API blocks main thread | Debounce saves (500ms); IndexedDB is async |
+| IndexedDB may be unavailable (private browsing) | Falls back to localStorage with image embedded; quota error handled with user-facing message |
 | No query capability | MVP has < 100 studies; linear scan is acceptable |
-| Private browsing may disable localStorage | Graceful degradation: warn "storage unavailable" |
+| Legacy data with images in localStorage | Auto-migrates to IndexedDB on first load; safe to call multiple times |
 
 ### 7.4 Image Storage Strategy
 
@@ -686,12 +711,26 @@ interface StudyRepository {
 Upload flow:
 1. User selects OPG image file
 2. FileReader.readAsDataURL → base64 string
-3. If size > 2MB, downscale via canvas (max dimension 2000px)
-4. Store base64 in store.imageDataUrl
-5. On save, persist to localStorage
+3. Store base64 in store.imageDataUrl (in-memory)
+4. On save:
+   a. Image (base64) → IndexedDB via imageStore.saveImage()
+   b. Study metadata (landmarks, calibration, etc.) → localStorage
+   c. imageDataUrl is NOT stored in localStorage
 ```
 
-### 7.5 Navigation Safety
+### 7.5 Legacy Migration
+
+On module load, `migrateLegacyImages()` is called automatically:
+
+1. Checks if migration was already done (localStorage flag `ma.imagesMigrated`)
+2. Scans all localStorage study records for embedded `imageDataUrl`
+3. Moves each image to IndexedDB via `imageStore.saveImage()`
+4. Strips `imageDataUrl` from the localStorage record
+5. Sets the migration flag
+
+Safe to call multiple times — no-op if already migrated.
+
+### 7.6 Navigation Safety
 
 The Zustand store lives at module scope — it is NOT tied to React component
 lifecycle. Navigating between views (if routes are added) does not unmount
@@ -782,8 +821,8 @@ interface Calibration {
   mmPerPixel: number;       // computed: realDistanceMm / pixelDistance
 }
 
-/** Dominant side determination */
-type DominantSide = "right" | "left" | "equal";
+/** Larger measured side determination */
+type LargerSide = "right" | "left" | "equal";
 
 /** Asymmetry classification tiers */
 type AsymmetryTier =
@@ -803,10 +842,10 @@ interface MeasurementResult {
   left: number;                        // left-side distance
   difference: number;                  // R − L
   absoluteDifference: number;          // |R − L|
-  relativeDifferencePercent: number;   // |R−L| / ((R+L)/2) × 100
-  asymmetryIndexPercent: number;       // (R−L) / (R+L) × 100 (signed)
-  dominantSide: DominantSide;
-  classification: AsymmetryTier;
+  relativeDifferencePercent: number;   // |R−L| / max(R,L) × 100
+  asymmetryIndexPercent: number;       // |R−L| / (R+L) × 100 (absolute)
+  largerSide: LargerSide;
+  classification: AsymmetryTier | null; // null for horizontal measurements
   rightMm: number | null;              // null in Mode A
   leftMm: number | null;              // null in Mode A
 }
@@ -846,25 +885,25 @@ function calculateDistance(a: Point, b: Point): number;
 function calculateSideDifference(right: number, left: number): SideDifference;
 
 /**
- * Relative difference: |R−L| / ((R+L)/2) × 100
- * Always positive. Rounded to 1 decimal place.
- * @returns percentage (0% to 200%)
+ * Relative difference: |R−L| / max(R,L) × 100
+ * Always positive. Range 0% to 100%.
+ * @returns percentage (0% to 100%)
  */
 function calculateRelativeDifference(right: number, left: number): number;
 
 /**
- * Habets Asymmetry Index: (R−L) / (R+L) × 100
- * Signed (positive = right greater). Rounded to 1 decimal place.
- * @returns percentage (−100% to +100%)
+ * Habets Asymmetry Index: |R−L| / (R+L) × 100
+ * Absolute (unsigned) value. Range 0% to 100%.
+ * @returns percentage (0% to 100%)
  */
 function calculateAsymmetryIndex(right: number, left: number): number;
 
 /**
- * Determine which side is larger.
+ * Determine which side has the larger measurement.
  * "equal" if relative difference ≤ 0.5%.
  * @returns "right" | "left" | "equal"
  */
-function determineDominantSide(right: number, left: number): DominantSide;
+function determineLargerSide(right: number, left: number): LargerSide;
 
 /**
  * Classify asymmetry by tier using absolute Habets index.
@@ -931,8 +970,8 @@ function computeSingleMeasurement(
 
   const habets = calculateAsymmetryIndex(rightNorm, leftNorm);
   const relDiff = calculateRelativeDifference(rightNorm, leftNorm);
-  const dominant = determineDominantSide(rightNorm, leftNorm);
-  const tier = classifyAsymmetry(Math.abs(habets));
+  const larger = determineLargerSide(rightNorm, leftNorm);
+  const tier = isHorizontal ? null : classifyAsymmetry(Math.abs(habets));
   const diff = calculateSideDifference(rightNorm, leftNorm);
 
   // Mode B: convert to mm
@@ -951,7 +990,7 @@ function computeSingleMeasurement(
     absoluteDifference: diff.absoluteDifference,
     relativeDifferencePercent: relDiff,
     asymmetryIndexPercent: habets,
-    dominantSide: dominant,
+    largerSide: larger,
     classification: tier,
     rightMm,
     leftMm,

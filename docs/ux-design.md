@@ -114,17 +114,17 @@ Displayed in the right panel below landmark placement. Becomes active once all l
 ### Structure
 ```
 RESULTS
-├── Ramus Height (Co–Go)
+├── Ramus Length Proxy (Co–Go)
 │   ├── Right:    XX.X px  [XX.X mm if calibrated]
 │   ├── Left:     XX.X px  [XX.X mm if calibrated]
 │   ├── Difference:        XX.X px  (XX.X%)
-│   └── Dominant side:     Right / Left / Equal
+│   └── Larger measured side:  Right / Left / Equal
 │
-├── Body Length (Go–Me)
+├── Body Length Proxy (Go–Me)
 │   ├── Right:    XX.X px  [XX.X mm if calibrated]
 │   ├── Left:     XX.X px  [XX.X mm if calibrated]
 │   ├── Difference:        XX.X px  (XX.X%)
-│   └── Dominant side:     Right / Left / Equal
+│   └── Larger measured side:  Right / Left / Equal
 │
 ├── Asymmetry Summary
 │   ├── Habets Index:      XX.X%
@@ -134,12 +134,14 @@ RESULTS
 ```
 
 ### Threshold Display
-A 3-tier visual indicator per measurement:
+A 3-tier visual indicator for the **ramus length proxy** (vertical measurement) only:
 | Tier | Range | Color | Label |
 |------|-------|-------|-------|
-| 1 | < 3% | Green | Within normal limits |
-| 2 | 3–6% | Amber | Mild asymmetry — clinical correlation advised |
-| 3 | > 6% | Red | Significant asymmetry — further investigation recommended |
+| 1 | < 3% | Green | Within typical range |
+| 2 | 3–6% | Amber | Borderline — clinical correlation advised |
+| 3 | > 6% | Red | Above technical error margin — further investigation recommended |
+
+**Body length proxy does not receive threshold classifications** because the thresholds were derived from vertical measurement data.
 
 These thresholds are **guidelines only** — the label text must clarify they are not diagnostic criteria. Actual clinical wording is defined by OrthoBot.
 
@@ -201,7 +203,7 @@ INTERPRETATION
 │ Body: "Right body length is X% longer         │
 │  than left"                                  │
 │                                              │
-│ Dominant side: Right / Left / Equal           │
+│ Larger measured side: Right / Left / Equal          │
 │                                              │
 │ ──────────────────────────────────────────  │
 │ ⚠ 2D PROJECTION LIMITATION NOTICE            │
@@ -260,7 +262,7 @@ IMAGE QUALITY
 
 ### Saving
 - "Save Study" button at bottom of right panel.
-- Saves to localStorage: study ID, patient ID (optional), image data, landmarks, calibration, measurements, interpretation, timestamps.
+- Saves to localStorage (metadata) + IndexedDB (images): study ID, patient ID, landmarks, calibration, measurements, interpretation, timestamps. Image stored separately in IndexedDB.
 - Confirmation toast: "Study saved."
 
 ### Loading
@@ -343,7 +345,7 @@ IMAGE QUALITY
 | All measurements are equal | Dominant side shows "Equal", thresholds show green tier |
 | Calibration input is 0 or negative | Validation error: "Distance must be a positive number" |
 | Image too small for reliable measurement | Warning in Image Quality, but analysis proceeds |
-| localStorage full or unavailable | Error toast: "Could not save study — storage unavailable" |
+| localStorage/IndexedDB full or unavailable | Error banner: "⚠ Storage limit exceeded. Could not save study. Try deleting old studies or clearing browser data." |
 | Study data corrupted on load | Error message, offer to start new study |
 
 ---

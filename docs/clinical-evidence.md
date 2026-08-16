@@ -261,28 +261,25 @@ The Habets index is the most widely used and cited method for vertical mandibula
 ### Formula
 
 ```
-Relative Difference (%) = |R − L| / ((R + L) / 2) × 100
+Relative Difference (%) = |R − L| / max(R, L) × 100
 ```
 
-Which simplifies to:
-
-```
-Relative Difference (%) = 2 × |R − L| / (R + L) × 100
-```
+- **Always positive** (absolute value)
+- **Range:** 0% to +100%
+- **Interpretation:** how much the smaller side differs from the larger side
 
 ### Relationship to Habets Index
 
-The relative difference formula is mathematically related to the Habets asymmetry index:
+The Relative Difference formula used in this application is `|R−L| / max(R,L) × 100`, which is mathematically distinct from the Habets Asymmetry Index `|R−L| / (R+L) × 100`. The two formulas do not have a fixed proportional relationship.
 
 | Formula | Expression |
 |---------|-----------|
-| Habets AI | (R − L) / (R + L) × 100 |
-| Absolute Habets AI | \|R − L\| / (R + L) × 100 |
-| **Relative Difference** | **\|R − L\| / ((R + L) / 2) × 100 = 2 × \|Habets AI\|** |
+| Habets AI (absolute) | \|R − L\| / (R + L) × 100 |
+| **Relative Difference** | **\|R − L\| / max(R, L) × 100** |
 
-The relative difference is exactly **twice** the absolute value of the Habets asymmetry index. For example:
-- If Habets AI = 3%, then Relative Difference = 6%
-- If Habets AI = 5%, then Relative Difference = 10%
+The Relative Difference expresses how much the smaller side differs from the larger side. For example:
+- If R = 60, L = 50: Habets = 9.1%, Relative Difference = 16.7%
+- If R = 52, L = 48: Habets = 4.0%, Relative Difference = 7.7%
 
 ### When This Is Used vs the Habets Index
 
@@ -296,7 +293,7 @@ The relative difference is exactly **twice** the absolute value of the Habets as
 ### Scientific Basis
 The relative difference formula is a standard mathematical expression for percentage deviation from the mean of two values. It is not a separately published clinical method but is derived from basic statistical principles. Its mathematical equivalence to twice the absolute Habets index means that all validation studies of the Habets index apply equally, with appropriate scaling.
 
-**Important note for implementation:** If the Habets 3% threshold is used, the equivalent relative difference threshold is 6%. The application must be clear about which formula is being displayed to avoid confusion.
+**Important note for implementation:** The Relative Difference formula `|R−L|/max(R,L)×100` is mathematically distinct from the Habets index `|R−L|/(R+L)×100`. The two do not have a fixed proportional relationship. Threshold classification is based on the Habets index only.
 
 ### Evidence Quality: **MODERATE** (by derivation from Habets)
 Not independently validated, but mathematically equivalent to 2 × |Habets AI|.

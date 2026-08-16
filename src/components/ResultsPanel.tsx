@@ -16,6 +16,8 @@ import type {
   MeasurementResult,
   AsymmetryTier,
   BilateralMeasurement,
+  LandmarkSet,
+  Point,
 } from "../domain/types";
 
 // ── Threshold Badge ──────────────────────────────────────────
@@ -40,9 +42,16 @@ function ThresholdBadge({ tier }: { tier: AsymmetryTier }) {
   );
 }
 
+// ── Larger side label helper ────────────────────────────────
+function largerSideLabel(side: string): string {
+  if (side === "right") return "Right";
+  if (side === "left") return "Left";
+  return "Neither — measurements are equal";
+}
+
 // ── Calibrated mm Section (PRIMARY) ──────────────────────────
 // mm values front and center: Right mm, Left mm, Difference mm,
-// then comparison sentence, then secondary metrics (%, classification).
+// then secondary metrics (%, classification).
 function CalibratedMmSection({
   title,
   bilateral,
@@ -59,13 +68,18 @@ function CalibratedMmSection({
   isBody?: boolean;
 }) {
   const setHoveredLine = useStudyStore((s) => s.setHoveredLine);
+  const hasClassification = result.classification !== null;
 
   return (
     <div className="mb-4 rounded-lg border border-gray-200 bg-white p-3">
       {/* Header */}
       <div className="mb-2 flex items-center justify-between">
         <h4 className="text-sm font-semibold text-gray-800">{title}</h4>
-        <ThresholdBadge tier={result.classification} />
+        {hasClassification ? (
+          <ThresholdBadge tier={result.classification!} />
+        ) : (
+          <span className="text-xs text-gray-400 italic">Not classified</span>
+        )}
       </div>
 
       {/* PRIMARY: mm values */}
@@ -93,7 +107,7 @@ function CalibratedMmSection({
           <div className="text-xs text-gray-500">mm</div>
         </div>
         <div className="rounded border border-gray-300 bg-gray-50 p-2 text-center">
-          <div className="text-xs font-medium text-gray-500">Difference</div>
+          <div className="text-xs font-medium text-gray-500">Abs. Diff.</div>
           <div className="font-mono text-lg font-bold text-gray-800">
             {bilateral.absoluteDifferenceMm.toFixed(1)}
           </div>
@@ -104,31 +118,46 @@ function CalibratedMmSection({
       {/* Comparison sentence */}
       <p className="mb-2 text-sm text-gray-700">{comparisonSentence}</p>
 
-      {/* SECONDARY: relative %, Habets index, classification */}
+      {/* SECONDARY: relative %, Habets index (clearly separated) */}
       <div className="border-t border-gray-100 pt-2">
-        <div className="flex flex-wrap gap-4 text-xs text-gray-500">
-          <span>
-            <span className="font-medium">Rel. Diff:</span>{" "}
-            {result.relativeDifferencePercent.toFixed(1)}%
-          </span>
-          <span>
-            <span className="font-medium">Habets Index:</span>{" "}
-            {result.asymmetryIndexPercent > 0 ? "+" : ""}
-            {result.asymmetryIndexPercent.toFixed(1)}%
-          </span>
-          <span>
-            <span className="font-medium">Greater side:</span>{" "}
-            {result.dominantSide === "right"
-              ? "Right"
-              : result.dominantSide === "left"
-                ? "Left"
-                : "Approximately equal"}
-          </span>
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          {/* Relative Difference */}
+          <div className="rounded bg-gray-50 p-2">
+            <div className="font-medium text-gray-600">Relative Difference</div>
+            <div className="font-mono text-sm font-bold text-gray-800">
+              {result.relativeDifferencePercent.toFixed(1)}%
+            </div>
+          </div>
+          {/* Habets Asymmetry Index */}
+          <div className="rounded bg-gray-50 p-2">
+            <div className="font-medium text-gray-600">Habets Asymmetry Index</div>
+            <div className="font-mono text-sm font-bold text-gray-800">
+              {result.asymmetryIndexPercent.toFixed(1)}%
+            </div>
+          </div>
         </div>
-        <p className="mt-1 text-xs text-gray-600 italic">
-          {TIER_GUIDANCE[result.classification]}
-        </p>
+
+        {/* Larger measured side */}
+        <div className="mt-2 text-xs text-gray-600">
+          <span className="font-medium">Larger measured side:</span>{" "}
+          {largerSideLabel(result.largerSide)}
+        </div>
+
+        {/* Classification guidance — only when classified */}
+        {hasClassification && (
+          <p className="mt-1 text-xs text-gray-600 italic">
+            {TIER_GUIDANCE[result.classification!]}
+          </p>
+        )}
       </div>
+
+      {/* Body length: no classification note */}
+      {isBody && !hasClassification && (
+        <div className="mt-2 rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800">
+          Classification thresholds are based on vertical measurement data and
+          are not applied to horizontal (body length) measurements.
+        </div>
+      )}
 
       {/* Body length reliability warning */}
       {isBody && (
@@ -158,16 +187,21 @@ function UncalibratedSection({
   isBody?: boolean;
 }) {
   const setHoveredLine = useStudyStore((s) => s.setHoveredLine);
+  const hasClassification = result.classification !== null;
 
   return (
     <div className="mb-4 rounded-lg border border-gray-200 bg-white p-3">
       {/* Header */}
       <div className="mb-2 flex items-center justify-between">
         <h4 className="text-sm font-semibold text-gray-800">{title}</h4>
-        <ThresholdBadge tier={result.classification} />
+        {hasClassification ? (
+          <ThresholdBadge tier={result.classification!} />
+        ) : (
+          <span className="text-xs text-gray-400 italic">Not classified</span>
+        )}
       </div>
 
-      {/* PRIMARY (uncalibrated): relative difference % is the key metric */}
+      {/* Uncalibrated: show "—" for mm, show % values */}
       <div className="mb-2 grid grid-cols-3 gap-3">
         <div
           className="rounded border border-blue-200 bg-blue-50 p-2 text-center"
@@ -175,10 +209,10 @@ function UncalibratedSection({
           onMouseLeave={() => setHoveredLine(null)}
         >
           <div className="text-xs font-medium text-blue-600">Right</div>
-          <div className="font-mono text-sm font-bold text-gray-800">
-            {result.right.toFixed(4)}
+          <div className="font-mono text-lg font-bold text-gray-400">
+            —
           </div>
-          <div className="text-xs text-gray-500">normalized</div>
+          <div className="text-xs text-gray-500">mm (uncalibrated)</div>
         </div>
         <div
           className="rounded border border-green-200 bg-green-50 p-2 text-center"
@@ -186,41 +220,60 @@ function UncalibratedSection({
           onMouseLeave={() => setHoveredLine(null)}
         >
           <div className="text-xs font-medium text-green-600">Left</div>
-          <div className="font-mono text-sm font-bold text-gray-800">
-            {result.left.toFixed(4)}
+          <div className="font-mono text-lg font-bold text-gray-400">
+            —
           </div>
-          <div className="text-xs text-gray-500">normalized</div>
+          <div className="text-xs text-gray-500">mm (uncalibrated)</div>
         </div>
         <div className="rounded border border-gray-300 bg-gray-50 p-2 text-center">
-          <div className="text-xs font-medium text-gray-500">Rel. Diff.</div>
-          <div className="font-mono text-sm font-bold text-gray-800">
-            {result.relativeDifferencePercent.toFixed(1)}%
+          <div className="text-xs font-medium text-gray-500">Abs. Diff.</div>
+          <div className="font-mono text-lg font-bold text-gray-400">
+            —
           </div>
-          <div className="text-xs text-gray-500">side-to-side</div>
+          <div className="text-xs text-gray-500">mm (uncalibrated)</div>
         </div>
       </div>
 
-      {/* Secondary: Habets, dominant side, guidance */}
+      {/* Relative % and Habets Index (clearly separated) */}
       <div className="border-t border-gray-100 pt-2">
-        <div className="flex flex-wrap gap-4 text-xs text-gray-500">
-          <span>
-            <span className="font-medium">Habets Index:</span>{" "}
-            {result.asymmetryIndexPercent > 0 ? "+" : ""}
-            {result.asymmetryIndexPercent.toFixed(1)}%
-          </span>
-          <span>
-            <span className="font-medium">Greater side:</span>{" "}
-            {result.dominantSide === "right"
-              ? "Right"
-              : result.dominantSide === "left"
-                ? "Left"
-                : "Approximately equal"}
-          </span>
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          {/* Relative Difference */}
+          <div className="rounded bg-gray-50 p-2">
+            <div className="font-medium text-gray-600">Relative Difference</div>
+            <div className="font-mono text-sm font-bold text-gray-800">
+              {result.relativeDifferencePercent.toFixed(1)}%
+            </div>
+          </div>
+          {/* Habets Asymmetry Index */}
+          <div className="rounded bg-gray-50 p-2">
+            <div className="font-medium text-gray-600">Habets Asymmetry Index</div>
+            <div className="font-mono text-sm font-bold text-gray-800">
+              {result.asymmetryIndexPercent.toFixed(1)}%
+            </div>
+          </div>
         </div>
-        <p className="mt-1 text-xs text-gray-600 italic">
-          {TIER_GUIDANCE[result.classification]}
-        </p>
+
+        {/* Larger measured side */}
+        <div className="mt-2 text-xs text-gray-600">
+          <span className="font-medium">Larger measured side:</span>{" "}
+          {largerSideLabel(result.largerSide)}
+        </div>
+
+        {/* Classification guidance — only when classified */}
+        {hasClassification && (
+          <p className="mt-1 text-xs text-gray-600 italic">
+            {TIER_GUIDANCE[result.classification!]}
+          </p>
+        )}
       </div>
+
+      {/* Body length: no classification note */}
+      {isBody && !hasClassification && (
+        <div className="mt-2 rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800">
+          Classification thresholds are based on vertical measurement data and
+          are not applied to horizontal (body length) measurements.
+        </div>
+      )}
 
       {/* Body length reliability warning */}
       {isBody && (
@@ -234,6 +287,122 @@ function UncalibratedSection({
   );
 }
 
+// ── Landmark Validation Warnings (Item 10) ───────────────────
+// Non-destructive advisory warnings about potential landmark placement issues.
+// These warnings NEVER move or replace user landmarks — they are advisory text only.
+
+function pointsEqual(a: Point, b: Point, tolerance = 0.0001): boolean {
+  return Math.abs(a.x - b.x) < tolerance && Math.abs(a.y - b.y) < tolerance;
+}
+
+function generateLandmarkWarnings(landmarks: LandmarkSet): string[] {
+  const warnings: string[] = [];
+  const { CoR, GoR, CoL, GoL, Me } = landmarks;
+
+  // a) Co located below its corresponding Go (in image coords, higher y = lower)
+  if (CoR && GoR && CoR.y > GoR.y) {
+    warnings.push(
+      "CoR appears to be located below GoR. Condylion (Co) is typically superior to Gonion (Go). Verify landmark placement."
+    );
+  }
+  if (CoL && GoL && CoL.y > GoL.y) {
+    warnings.push(
+      "CoL appears to be located below GoL. Condylion (Co) is typically superior to Gonion (Go). Verify landmark placement."
+    );
+  }
+
+  // b) Menton outside expected horizontal span of mandibular landmarks
+  if (Me && GoR && GoL) {
+    const minX = Math.min(GoR.x, GoL.x);
+    const maxX = Math.max(GoR.x, GoL.x);
+    // Add some tolerance (10% of span on each side)
+    const span = maxX - minX;
+    const tolerance = Math.max(span * 0.1, 0.05);
+    if (Me.x < minX - tolerance || Me.x > maxX + tolerance) {
+      warnings.push(
+        "Menton appears to be outside the expected horizontal span of the gonial landmarks. Verify placement."
+      );
+    }
+  }
+
+  // c) Coincident landmarks (same point for two different landmarks)
+  const allPlaced: { name: string; point: Point }[] = [];
+  if (CoR) allPlaced.push({ name: "CoR", point: CoR });
+  if (GoR) allPlaced.push({ name: "GoR", point: GoR });
+  if (CoL) allPlaced.push({ name: "CoL", point: CoL });
+  if (GoL) allPlaced.push({ name: "GoL", point: GoL });
+  if (Me) allPlaced.push({ name: "Me", point: Me });
+
+  for (let i = 0; i < allPlaced.length; i++) {
+    for (let j = i + 1; j < allPlaced.length; j++) {
+      if (pointsEqual(allPlaced[i].point, allPlaced[j].point)) {
+        warnings.push(
+          `${allPlaced[i].name} and ${allPlaced[j].name} appear to be at the same location. These should be distinct anatomical points.`
+        );
+      }
+    }
+  }
+
+  // d) Zero-length measurement (distance = 0 between landmarks that should be different)
+  if (CoR && GoR && pointsEqual(CoR, GoR)) {
+    warnings.push("Ramus height (CoR–GoR) has zero length. Check that CoR and GoR are at different positions.");
+  }
+  if (CoL && GoL && pointsEqual(CoL, GoL)) {
+    warnings.push("Ramus height (CoL–GoL) has zero length. Check that CoL and GoL are at different positions.");
+  }
+  if (GoR && Me && pointsEqual(GoR, Me)) {
+    warnings.push("Body length (GoR–Me) has zero length. Check that GoR and Me are at different positions.");
+  }
+  if (GoL && Me && pointsEqual(GoL, Me)) {
+    warnings.push("Body length (GoL–Me) has zero length. Check that GoL and Me are at different positions.");
+  }
+
+  // f) Right and left labels potentially reversed
+  // In radiological convention, the right side is on the left of the image (lower x).
+  // CoR.x should be < CoL.x. If CoR.x > CoL.x, labels may be reversed.
+  if (CoR && CoL && CoR.x > CoL.x) {
+    warnings.push(
+      "CoR is to the right of CoL on the image. In standard radiological convention, right-side landmarks appear on the left of the image. Labels may be reversed — verify orientation."
+    );
+  }
+
+  // g) Points outside image bounds (shouldn't happen with clamping, but check)
+  const allPoints: { name: string; point: Point }[] = allPlaced;
+  for (const { name, point } of allPoints) {
+    if (point.x < 0 || point.x > 1 || point.y < 0 || point.y > 1) {
+      warnings.push(`${name} is outside the image bounds (coordinates should be 0–1).`);
+    }
+  }
+
+  return warnings;
+}
+
+function LandmarkWarnings() {
+  const landmarks = useStudyStore((s) => s.landmarks);
+  const warnings = generateLandmarkWarnings(landmarks);
+
+  if (warnings.length === 0) return null;
+
+  return (
+    <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3">
+      <h4 className="mb-2 text-sm font-semibold text-amber-800">
+        ⚠ Landmark Placement Warnings
+      </h4>
+      <ul className="space-y-1 text-xs text-amber-700">
+        {warnings.map((w, idx) => (
+          <li key={idx} className="flex items-start gap-1">
+            <span className="text-amber-500 mt-0.5">•</span>
+            <span>{w}</span>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-2 text-xs text-amber-600 italic">
+        These are advisory warnings only. Landmarks are not modified automatically.
+      </p>
+    </div>
+  );
+}
+
 // ── Main Results Panel ──────────────────────────────────────
 export function ResultsPanel() {
   const measurements = useStudyStore((s) => s.measurements);
@@ -241,6 +410,7 @@ export function ResultsPanel() {
   const calibration = useStudyStore((s) => s.calibration);
   const mandibularResult = useStudyStore((s) => s.mandibularResult);
   const startCalibration = useStudyStore((s) => s.startCalibration);
+  const landmarks = useStudyStore((s) => s.landmarks);
 
   if (
     !measurements ||
@@ -254,6 +424,7 @@ export function ResultsPanel() {
   }
 
   const isCalibrated = calibration !== null;
+  const hasAnyLandmarks = Object.keys(landmarks).length > 0;
 
   return (
     <div className="p-4">
@@ -265,7 +436,7 @@ export function ResultsPanel() {
           <div className="rounded border border-green-200 bg-green-50 p-2 text-xs text-green-700">
             ✓ Calibrated: {calibration!.mmPerPixel.toFixed(4)} mm/pixel
             <span className="text-green-600">
-              {" "}(user-marked reference distance) — Measurements in mm.
+              {" "}(user-marked reference distance) — Calibrated estimate in millimeters.
             </span>
           </div>
         ) : (
@@ -275,7 +446,7 @@ export function ResultsPanel() {
             </p>
             <p className="mb-2">
               Showing relative percentages only. Calibrate the image to enable
-              millimeter measurements.
+              approximate millimeter measurements.
             </p>
             <button
               onClick={() => startCalibration()}
@@ -287,12 +458,31 @@ export function ResultsPanel() {
         )}
       </div>
 
-      {/* ── Ramus Height ── */}
+      {/* Habets protocol disclaimer banner (Item 11 / PIBot §2.4) */}
+      <div className="mb-3 rounded border border-blue-200 bg-blue-50 p-2 text-xs text-blue-700">
+        <strong>Habets Protocol Notice:</strong> This MVP performs a simplified
+        landmark-based mandibular asymmetry analysis and uses the Habets
+        normalization formula. It does not reproduce the complete original
+        Habets tracing protocol.
+      </div>
+
+      {/* Persistent limitation notice (Item 7b) */}
+      <div className="mb-3 rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
+        <strong>Approximate values:</strong> Millimeter values are approximate.
+        Panoramic radiographs may contain non-uniform magnification and
+        projection distortion. Calibration improves scaling but does not
+        eliminate these limitations.
+      </div>
+
+      {/* Landmark validation warnings (Item 10) */}
+      {hasAnyLandmarks && <LandmarkWarnings />}
+
+      {/* ── Ramus length proxy ── */}
       {measurements.ramusHeight &&
         isCalibrated &&
         mandibularResult && (
           <CalibratedMmSection
-            title="Ramus Height (Co–Go)"
+            title="Ramus length proxy"
             bilateral={mandibularResult.ramus}
             result={measurements.ramusHeight}
             comparisonSentence={generateRamusComparison(
@@ -305,18 +495,18 @@ export function ResultsPanel() {
 
       {measurements.ramusHeight && !isCalibrated && (
         <UncalibratedSection
-          title="Ramus Height (Co–Go)"
+          title="Ramus length proxy"
           result={measurements.ramusHeight}
           measurementId="ramus"
         />
       )}
 
-      {/* ── Body Length ── */}
+      {/* ── Mandibular body length proxy ── */}
       {measurements.bodyLength &&
         isCalibrated &&
         mandibularResult && (
           <CalibratedMmSection
-            title="Mandibular Body Length (Go–Me)"
+            title="Mandibular body length proxy"
             bilateral={mandibularResult.body}
             result={measurements.bodyLength}
             comparisonSentence={generateBodyComparison(
@@ -330,7 +520,7 @@ export function ResultsPanel() {
 
       {measurements.bodyLength && !isCalibrated && (
         <UncalibratedSection
-          title="Mandibular Body Length (Go–Me)"
+          title="Mandibular body length proxy"
           result={measurements.bodyLength}
           measurementId="body"
           isBody
@@ -349,20 +539,14 @@ export function ResultsPanel() {
         </div>
       )}
 
-      {/* Relationship footnote */}
-      <div className="mt-2 mb-4 rounded bg-gray-50 p-2 text-xs text-gray-500">
-        The Relative Difference is exactly twice the absolute value of the
-        Habets Asymmetry Index. For example, a Habets index of 3% corresponds
-        to a Relative Difference of 6%.
-      </div>
-
-      {/* 2D Projection Warning */}
-      <div className="mt-2 mb-4 rounded border border-gray-300 bg-gray-50 p-2 text-xs text-gray-600">
-        <span className="font-medium">⚠ 2D Projection Limitation:</span>{" "}
-        Measurements are derived from a 2D projection of 3D anatomy. Panoramic
-        radiographs have inherent magnification and distortion that may affect
-        measurement accuracy. Results must be interpreted in the context of
-        clinical examination and adjunct imaging.
+      {/* Medical disclaimer (Item 12) */}
+      <div className="mt-2 mb-4 rounded border border-gray-300 bg-gray-50 p-3 text-xs text-gray-600">
+        <span className="font-medium">⚠ Medical Disclaimer:</span>{" "}
+        This application provides comparative measurements and does not produce a
+        diagnosis. Results are derived from a two-dimensional panoramic projection
+        of three-dimensional anatomy and may be affected by magnification,
+        distortion, and patient positioning. Interpret results together with
+        clinical examination and additional imaging when indicated.
       </div>
 
       {/* Threshold caveat */}

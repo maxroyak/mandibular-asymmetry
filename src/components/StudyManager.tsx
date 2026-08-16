@@ -1,7 +1,8 @@
 // ── Study Manager ───────────────────────────────────────────
-// Save, load, new, delete studies. Uses localStorage persistence.
+// Save, load, new, delete studies. Uses localStorage (metadata) +
+// IndexedDB (images) persistence.
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useStudyStore } from "../store/studyStore";
 import type { StoredStudy } from "../persistence/studyRepository";
 
@@ -15,10 +16,50 @@ export function StudyManager() {
   const newStudy = useStudyStore((s) => s.newStudy);
   const patientId = useStudyStore((s) => s.patientId);
   const refreshStudyList = useStudyStore((s) => s.refreshStudyList);
+  const getPersistenceError = useStudyStore((s) => s.getPersistenceError);
+  const clearPersistenceError = useStudyStore((s) => s.clearPersistenceError);
 
   const [showList, setShowList] = useState(false);
   const [showPatientInput, setShowPatientInput] = useState(false);
   const [localPatientId, setLocalPatientId] = useState(patientId);
+  const [persistenceError, setPersistenceError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Check for persistence errors after save operations
+  useEffect(() => {
+    const err = getPersistenceError();
+    if (err) {
+      setPersistenceError(err);
+      clearPersistenceError();
+    }
+  }, [isSaved, getPersistenceError, clearPersistenceError]);
+
+  const handleSave = async () => {
+    await saveStudy();
+    // Check for errors after save
+    const err = getPersistenceError();
+    if (err) {
+      setPersistenceError(err);
+      clearPersistenceError();
+    }
+  };
+
+  const handleLoad = async (id: string) => {
+    setIsLoading(true);
+    try {
+      await loadStudy(id);
+    } catch {
+      setPersistenceError("Failed to load study. The data may be corrupted.");
+    }
+    setIsLoading(false);
+    setShowList(false);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (confirm("Delete this study permanently?")) {
+      await deleteStudy(id);
+    }
+  };
 
   const handleNew = () => {
     if (!isSaved && studyId) {
@@ -30,17 +71,31 @@ export function StudyManager() {
     setShowList(false);
   };
 
-  const handleDelete = (id: string) => {
-    if (confirm("Delete this study permanently?")) {
-      deleteStudy(id);
-    }
-  };
-
   return (
     <div className="border-t border-gray-200 p-4">
+      {/* Persistence error banner */}
+      {persistenceError && (
+        <div className="mb-2 rounded bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700">
+          <div className="flex items-start justify-between gap-2">
+            <span>⚠ {persistenceError}</span>
+            <button
+              onClick={() => setPersistenceError(null)}
+              className="text-red-400 hover:text-red-600 shrink-0"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Loading indicator */}
+      {isLoading && (
+        <div className="mb-2 text-xs text-blue-600">Loading study…</div>
+      )}
+
       <div className="mb-3 flex gap-2">
         <button
-          onClick={() => saveStudy()}
+          onClick={handleSave}
           disabled={!studyId}
           className="flex-1 rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-40"
         >
@@ -123,10 +178,7 @@ export function StudyManager() {
                   }`}
                 >
                   <button
-                    onClick={() => {
-                      loadStudy(study.studyId);
-                      setShowList(false);
-                    }}
+                    onClick={() => handleLoad(study.studyId)}
                     className="flex-1 text-left"
                   >
                     <span className="font-medium">
@@ -148,6 +200,15 @@ export function StudyManager() {
           )}
         </div>
       )}
+
+      {/* Local persistence note */}
+      <div className="mt-3 border-t border-gray-100 pt-2">
+        <p className="text-[10px] leading-tight text-gray-400">
+          Studies are stored locally in this browser (localStorage + IndexedDB).
+          They remain on this device only — clearing browser data may remove them.
+          No data is sent to any server.
+        </p>
+      </div>
     </div>
   );
 }

@@ -4,10 +4,12 @@ import {
   calculateSideDifference,
   calculateRelativeDifference,
   calculateAsymmetryIndex,
-  determineDominantSide,
+  determineLargerSide,
   classifyAsymmetry,
   generateClinicalSummary,
   TIER_GUIDANCE,
+  TIER_LABELS,
+  UNCLASSIFIED_LABEL,
   LIMITATION_HEADER,
   LIMITATION_FOOTER,
   convertDistanceToMm,
@@ -88,12 +90,16 @@ describe("calculateRelativeDifference", () => {
     expect(calculateRelativeDifference(50, 50)).toBe(0);
   });
 
-  it("returns 2× the absolute Habets index (known ratio)", () => {
-    // R=55, L=50 → Habets = (55-50)/(105)*100 = 4.76... → 4.8
-    // Relative diff = |55-50| / ((105)/2) * 100 = 5/52.5*100 = 9.523... → 9.5
-    const habets = calculateAsymmetryIndex(55, 50);
-    const relDiff = calculateRelativeDifference(55, 50);
-    expect(relDiff).toBeCloseTo(Math.abs(habets) * 2, 0);
+  it("calculates |R-L| / max(R,L) × 100 correctly (R > L)", () => {
+    // |55-50| / max(55,50) * 100 = 5/55*100 = 9.0909... → 9.1
+    const result = calculateRelativeDifference(55, 50);
+    expect(result).toBe(9.1);
+  });
+
+  it("calculates |R-L| / max(R,L) × 100 correctly (L > R)", () => {
+    // |50-55| / max(50,55) * 100 = 5/55*100 = 9.0909... → 9.1
+    const result = calculateRelativeDifference(50, 55);
+    expect(result).toBe(9.1);
   });
 
   it("is always positive", () => {
@@ -105,9 +111,15 @@ describe("calculateRelativeDifference", () => {
     expect(calculateRelativeDifference(0, 0)).toBe(0);
   });
 
+  it("returns 100 when one side is 0 and other is non-zero", () => {
+    // |0-60| / max(0,60) * 100 = 60/60*100 = 100
+    expect(calculateRelativeDifference(0, 60)).toBe(100);
+    expect(calculateRelativeDifference(60, 0)).toBe(100);
+  });
+
   it("rounds to 1 decimal place", () => {
     const result = calculateRelativeDifference(51, 50);
-    // |51-50| / (101/2) * 100 = 1/50.5*100 = 1.980... → 2.0
+    // |51-50| / max(51,50) * 100 = 1/51*100 = 1.960... → 2.0
     expect(result).toBe(2.0);
   });
 });
@@ -115,18 +127,18 @@ describe("calculateRelativeDifference", () => {
 // ── calculateAsymmetryIndex (Habets) ───────────────────────
 
 describe("calculateAsymmetryIndex", () => {
-  it("returns positive when right > left", () => {
+  it("returns positive when right > left (absolute)", () => {
     const result = calculateAsymmetryIndex(60, 50);
-    expect(result).toBeGreaterThan(0);
-    // (60-50)/(110)*100 = 9.09... → 9.1
+    expect(result).toBeGreaterThanOrEqual(0);
+    // |60-50|/(110)*100 = 9.09... → 9.1
     expect(result).toBe(9.1);
   });
 
-  it("returns negative when left > right", () => {
+  it("returns positive when left > right (absolute — no longer signed)", () => {
     const result = calculateAsymmetryIndex(40, 50);
-    expect(result).toBeLessThan(0);
-    // (40-50)/(90)*100 = -11.11... → -11.1
-    expect(result).toBe(-11.1);
+    expect(result).toBeGreaterThanOrEqual(0);
+    // |40-50|/(90)*100 = 11.11... → 11.1
+    expect(result).toBe(11.1);
   });
 
   it("returns 0 for equal sides", () => {
@@ -139,46 +151,46 @@ describe("calculateAsymmetryIndex", () => {
 
   it("rounds to 1 decimal place", () => {
     const result = calculateAsymmetryIndex(55, 50);
-    // (55-50)/(105)*100 = 4.7619... → 4.8
+    // |55-50|/(105)*100 = 4.7619... → 4.8
     expect(result).toBe(4.8);
   });
 
-  it("is signed (positive = right greater)", () => {
+  it("is absolute — both directions give same value", () => {
     const rightGreater = calculateAsymmetryIndex(55, 50);
     const leftGreater = calculateAsymmetryIndex(50, 55);
-    expect(rightGreater).toBeGreaterThan(0);
-    expect(leftGreater).toBeLessThan(0);
-    expect(Math.abs(rightGreater)).toBeCloseTo(Math.abs(leftGreater), 1);
+    expect(rightGreater).toBeGreaterThanOrEqual(0);
+    expect(leftGreater).toBeGreaterThanOrEqual(0);
+    expect(rightGreater).toBe(leftGreater);
   });
 });
 
-// ── determineDominantSide ───────────────────────────────────
+// ── determineLargerSide ─────────────────────────────────────
 
-describe("determineDominantSide", () => {
+describe("determineLargerSide", () => {
   it("returns 'right' when right is larger", () => {
-    expect(determineDominantSide(60, 50)).toBe("right");
+    expect(determineLargerSide(60, 50)).toBe("right");
   });
 
   it("returns 'left' when left is larger", () => {
-    expect(determineDominantSide(40, 55)).toBe("left");
+    expect(determineLargerSide(40, 55)).toBe("left");
   });
 
   it("returns 'equal' when values are identical", () => {
-    expect(determineDominantSide(50, 50)).toBe("equal");
+    expect(determineLargerSide(50, 50)).toBe("equal");
   });
 
   it("returns 'equal' when relative difference ≤ 0.5%", () => {
-    // R=50.1, L=50 → rel diff = |0.1| / (100.1/2) * 100 = 0.1998 → 0.2 ≤ 0.5
-    expect(determineDominantSide(50.1, 50)).toBe("equal");
+    // R=50.1, L=50 → rel diff = |0.1| / max(50.1,50) * 100 = 0.1996 → 0.2 ≤ 0.5
+    expect(determineLargerSide(50.1, 50)).toBe("equal");
   });
 
   it("returns 'right' when relative difference > 0.5%", () => {
-    // R=50.5, L=50 → rel diff = |0.5| / (100.5/2) * 100 = 0.995 → 1.0 > 0.5
-    expect(determineDominantSide(50.5, 50)).toBe("right");
+    // R=50.5, L=50 → rel diff = |0.5| / max(50.5,50) * 100 = 0.990 → 1.0 > 0.5
+    expect(determineLargerSide(50.5, 50)).toBe("right");
   });
 
   it("returns 'equal' when both sides are 0", () => {
-    expect(determineDominantSide(0, 0)).toBe("equal");
+    expect(determineLargerSide(0, 0)).toBe("equal");
   });
 });
 
@@ -226,9 +238,9 @@ describe("generateClinicalSummary", () => {
       left: 0.50,
       difference: 0.05,
       absoluteDifference: 0.05,
-      relativeDifferencePercent: 9.5,
+      relativeDifferencePercent: 9.1,
       asymmetryIndexPercent: 4.8,
-      dominantSide: "right",
+      largerSide: "right",
       classification: "borderline",
       rightMm: null,
       leftMm: null,
@@ -277,8 +289,8 @@ describe("generateClinicalSummary", () => {
 
   it("uses 'greater than' comparative language", () => {
     const results: FullResults = {
-      ramusHeight: makeResult({ dominantSide: "right" }),
-      bodyLength: makeResult({ dominantSide: "left" }),
+      ramusHeight: makeResult({ largerSide: "right" }),
+      bodyLength: makeResult({ largerSide: "left" }),
       calibration: null,
       calibrationMode: "A",
     };
@@ -286,15 +298,15 @@ describe("generateClinicalSummary", () => {
     expect(summary).toContain("greater than");
   });
 
-  it("shows 'approximately equal' when dominantSide is equal", () => {
+  it("shows 'approximately equal' when largerSide is equal", () => {
     const results: FullResults = {
       ramusHeight: makeResult({
-        dominantSide: "equal",
+        largerSide: "equal",
         relativeDifferencePercent: 0,
         asymmetryIndexPercent: 0,
       }),
       bodyLength: makeResult({
-        dominantSide: "equal",
+        largerSide: "equal",
         relativeDifferencePercent: 0,
         asymmetryIndexPercent: 0,
       }),
@@ -371,16 +383,29 @@ describe("generateClinicalSummary", () => {
     expect(summary).toContain("0.0800 mm/pixel");
   });
 
-  it("includes tier guidance text", () => {
+  it("includes tier guidance text for ramus height (classified)", () => {
     const results: FullResults = {
       ramusHeight: makeResult({ classification: "borderline" }),
-      bodyLength: makeResult({ classification: "above_technical_error_margin" }),
+      bodyLength: makeResult({ classification: null }),
       calibration: null,
       calibrationMode: "A",
     };
     const summary = generateClinicalSummary(results);
     expect(summary).toContain(TIER_GUIDANCE.borderline);
-    expect(summary).toContain(TIER_GUIDANCE.above_technical_error_margin);
+  });
+
+  it("does NOT include tier guidance for body length (unclassified)", () => {
+    const results: FullResults = {
+      ramusHeight: makeResult({ classification: "within_typical_range" }),
+      bodyLength: makeResult({ classification: "above_technical_error_margin" }),
+      calibration: null,
+      calibrationMode: "A",
+    };
+    const summary = generateClinicalSummary(results);
+    // Body length should NOT show tier guidance even if classification is set,
+    // because the body length section always shows "Not classified" note
+    expect(summary).toContain("Not classified");
+    expect(summary).toContain("thresholds are based on vertical measurement data");
   });
 
   it("includes CBCT recommendation for Band 3", () => {
@@ -407,6 +432,43 @@ describe("generateClinicalSummary", () => {
     // Still has limitations
     expect(summary).toContain(LIMITATION_HEADER);
     expect(summary).toContain(LIMITATION_FOOTER);
+  });
+
+  it("includes Habets protocol disclaimer", () => {
+    const results: FullResults = {
+      ramusHeight: makeResult(),
+      bodyLength: makeResult(),
+      calibration: null,
+      calibrationMode: "A",
+    };
+    const summary = generateClinicalSummary(results);
+    expect(summary).toContain("simplified landmark-based mandibular asymmetry analysis");
+    expect(summary).toContain("uses the Habets normalization formula");
+    expect(summary).toContain("It does not reproduce the complete");
+    expect(summary).toContain("original Habets tracing protocol");
+  });
+
+  it("includes updated section headers with 'proxy' terminology", () => {
+    const results: FullResults = {
+      ramusHeight: makeResult(),
+      bodyLength: makeResult(),
+      calibration: null,
+      calibrationMode: "A",
+    };
+    const summary = generateClinicalSummary(results);
+    expect(summary).toContain("RAMUS LENGTH PROXY ANALYSIS");
+    expect(summary).toContain("MANDIBULAR BODY LENGTH PROXY ANALYSIS");
+  });
+
+  it("shows 'Not classified' for body length section", () => {
+    const results: FullResults = {
+      ramusHeight: makeResult(),
+      bodyLength: makeResult(),
+      calibration: null,
+      calibrationMode: "A",
+    };
+    const summary = generateClinicalSummary(results);
+    expect(summary).toContain("Not classified");
   });
 
   it("never uses diagnostic language", () => {
@@ -445,40 +507,42 @@ describe("generateClinicalSummary", () => {
 // ── Specific Test Cases (from TestBot spec) ────────────────
 
 describe("Specific spec test cases", () => {
-  it("right=60, left=60 → AI=0, relativeDiff=0, dominantSide='equal'", () => {
+  it("right=60, left=60 → AI=0, relativeDiff=0, largerSide='equal'", () => {
     const ai = calculateAsymmetryIndex(60, 60);
     const relDiff = calculateRelativeDifference(60, 60);
-    const dominant = determineDominantSide(60, 60);
+    const larger = determineLargerSide(60, 60);
     expect(ai).toBe(0);
     expect(relDiff).toBe(0);
-    expect(dominant).toBe("equal");
+    expect(larger).toBe("equal");
   });
 
-  it("right=66, left=60 → AI=4.7619..., relativeDiff=9.52..., dominantSide='right'", () => {
+  it("right=66, left=60 → AI=4.7619..., relativeDiff=9.1, largerSide='right'", () => {
     const ai = calculateAsymmetryIndex(66, 60);
     const relDiff = calculateRelativeDifference(66, 60);
-    const dominant = determineDominantSide(66, 60);
-    // AI = (66-60)/(66+60)*100 = 6/126*100 = 4.761904... → rounds to 4.8
+    const larger = determineLargerSide(66, 60);
+    // AI = |66-60|/(66+60)*100 = 6/126*100 = 4.761904... → rounds to 4.8
     expect(ai).toBe(4.8); // rounded to 1 decimal
     // Verify the raw formula value (before rounding) is 4.7619...
-    const rawAi = ((66 - 60) / (66 + 60)) * 100;
+    const rawAi = (Math.abs(66 - 60) / (66 + 60)) * 100;
     expect(rawAi).toBeCloseTo(4.761904761904762, 5);
-    // relativeDiff = |66-60| / ((66+60)/2) * 100 = 6/63*100 = 9.5238... → 9.5
-    expect(relDiff).toBe(9.5); // rounded to 1 decimal
-    const rawRelDiff = (Math.abs(66 - 60) / ((66 + 60) / 2)) * 100;
-    expect(rawRelDiff).toBeCloseTo(9.523809523809524, 5);
-    expect(dominant).toBe("right");
+    // relativeDiff = |66-60| / max(66,60) * 100 = 6/66*100 = 9.0909... → 9.1
+    expect(relDiff).toBe(9.1); // rounded to 1 decimal
+    const rawRelDiff = (Math.abs(66 - 60) / Math.max(66, 60)) * 100;
+    expect(rawRelDiff).toBeCloseTo(9.090909090909092, 5);
+    expect(larger).toBe("right");
   });
 
-  it("right=60, left=66 → AI=-4.7619..., relativeDiff=9.52..., dominantSide='left'", () => {
+  it("right=60, left=66 → AI=4.7619... (absolute), relativeDiff=9.1, largerSide='left'", () => {
     const ai = calculateAsymmetryIndex(60, 66);
     const relDiff = calculateRelativeDifference(60, 66);
-    const dominant = determineDominantSide(60, 66);
-    expect(ai).toBe(-4.8);
-    const rawAi = ((60 - 66) / (60 + 66)) * 100;
-    expect(rawAi).toBeCloseTo(-4.761904761904762, 5);
-    expect(relDiff).toBe(9.5);
-    expect(dominant).toBe("left");
+    const larger = determineLargerSide(60, 66);
+    // AI is now absolute: |60-66|/(60+66)*100 = 6/126*100 = 4.761904... → 4.8
+    expect(ai).toBe(4.8);
+    const rawAi = (Math.abs(60 - 66) / (60 + 66)) * 100;
+    expect(rawAi).toBeCloseTo(4.761904761904762, 5);
+    // relativeDiff = |60-66| / max(60,66) * 100 = 6/66*100 = 9.0909... → 9.1
+    expect(relDiff).toBe(9.1);
+    expect(larger).toBe("left");
   });
 });
 
@@ -487,14 +551,15 @@ describe("Specific spec test cases", () => {
 describe("Edge cases — negative inputs", () => {
   it("calculateRelativeDifference handles negative inputs gracefully", () => {
     // Negative values are not physically meaningful but should not crash
+    // With Number.isFinite guard, -10 and 10 are both finite, so it proceeds:
+    // |-10-10| / max(-10,10) * 100 = 20/10*100 = 200.0
     const result = calculateRelativeDifference(-10, 10);
-    // |-10-10| / ((0)/2) * 100 → div by zero guard: sum=0 returns 0
-    expect(result).toBe(0);
+    expect(result).toBe(200);
   });
 
   it("calculateAsymmetryIndex handles negative inputs gracefully", () => {
+    // |-10-10| / (-10+10) * 100 → sum = 0 → returns 0
     const result = calculateAsymmetryIndex(-10, 10);
-    // sum = 0 → returns 0
     expect(result).toBe(0);
   });
 
@@ -504,14 +569,15 @@ describe("Edge cases — negative inputs", () => {
     expect(result.absoluteDifference).toBe(10);
   });
 
-  it("determineDominantSide handles negative inputs gracefully", () => {
-    // sum = 0 → relDiff = 0 → equal
-    expect(determineDominantSide(-10, 10)).toBe("equal");
+  it("determineLargerSide handles negative inputs gracefully", () => {
+    // With new formula: relDiff = |-10-10| / max(-10,10) * 100 = 20/10*100 = 200%
+    // 200% > 0.5% → returns "left" (since -10 < 10)
+    // Negative inputs are non-physical but the function does not crash
+    expect(determineLargerSide(-10, 10)).toBe("left");
   });
 
   it("both negative equal values return 0 for AI", () => {
-    // AI = (-50 - -50) / (-50 + -50) * 100 = 0 / -100 * 100 = -0 (negative zero)
-    // Use Object.is to accept -0 as equivalent to 0, or use toBeCloseTo
+    // AI = |-50 - -50| / (-50 + -50) * 100 = 0 / -100 * 100 = 0
     const result = calculateAsymmetryIndex(-50, -50);
     expect(Object.is(result, -0) || Object.is(result, 0)).toBe(true);
   });
@@ -519,28 +585,28 @@ describe("Edge cases — negative inputs", () => {
 
 describe("Edge cases — very small differences (floating point precision)", () => {
   it("tiny floating-point difference is detected as non-equal when above threshold", () => {
-    // R=50.5, L=50 → rel diff ≈ 0.995% > 0.5% → right dominant
-    expect(determineDominantSide(50.5, 50)).toBe("right");
+    // R=50.5, L=50 → rel diff ≈ 0.990% > 0.5% → right larger
+    expect(determineLargerSide(50.5, 50)).toBe("right");
   });
 
   it("tiny floating-point difference within threshold is 'equal'", () => {
     // R=50.1, L=50 → rel diff ≈ 0.2% ≤ 0.5% → equal
-    expect(determineDominantSide(50.1, 50)).toBe("equal");
+    expect(determineLargerSide(50.1, 50)).toBe("equal");
   });
 
   it("extremely small difference (1e-10) is treated as equal", () => {
-    expect(determineDominantSide(50.0000000001, 50)).toBe("equal");
+    expect(determineLargerSide(50.0000000001, 50)).toBe("equal");
   });
 
   it("floating-point asymmetry index is stable for near-equal values", () => {
     const ai = calculateAsymmetryIndex(50.001, 50);
-    // (0.001 / 100.001) * 100 = 0.0009999... → rounds to 0.0
+    // |0.001| / 100.001) * 100 = 0.0009999... → rounds to 0.0
     expect(ai).toBe(0);
   });
 
   it("floating-point relative difference is stable for near-equal values", () => {
     const rd = calculateRelativeDifference(50.001, 50);
-    // |0.001| / (100.001/2) * 100 = 0.0019999... → rounds to 0.0
+    // |0.001| / max(50.001,50) * 100 = 0.0019999... → rounds to 0.0
     expect(rd).toBe(0);
   });
 });
@@ -562,50 +628,127 @@ describe("Edge cases — boundary values", () => {
     expect(classifyAsymmetry(6.0001)).toBe("above_technical_error_margin");
   });
 
-  it("determineDominantSide: relative diff exactly 0.5% → equal (inclusive)", () => {
-    // R=50.125, L=50 → |0.125| / (100.125/2) * 100 = 0.24968... → rounds to 0.2
-    // Actually we need exactly 0.5. R=50.25, L=50 → |0.25|/(100.25/2)*100 = 0.499... → 0.5
-    // Let's use values that produce exactly 0.5% after rounding
-    // |d| / ((R+L)/2) * 100 = 0.5 → |d| = 0.5 * (R+L) / 200 = (R+L) / 400
-    // With R=50.25, L=50: sum=100.25, |d|=0.25 → 0.25/50.125*100 = 0.4997... → rounds to 0.5
-    expect(determineDominantSide(50.25, 50)).toBe("equal");
+  it("classifyAsymmetry: exactly 6.01 is above_technical_error_margin", () => {
+    expect(classifyAsymmetry(6.01)).toBe("above_technical_error_margin");
   });
 
-  it("determineDominantSide: relative diff just above 0.5% → dominant side", () => {
-    // R=50.5, L=50 → 0.5/50.25*100 = 0.995 → 1.0 → right dominant
-    expect(determineDominantSide(50.5, 50)).toBe("right");
+  it("determineLargerSide: relative diff exactly 0.5% → equal (inclusive)", () => {
+    // R=50.25, L=50 → |0.25| / max(50.25,50) * 100 = 0.25/50.25*100 = 0.4975... → 0.5
+    expect(determineLargerSide(50.25, 50)).toBe("equal");
+  });
+
+  it("determineLargerSide: relative diff just above 0.5% → larger side", () => {
+    // R=50.5, L=50 → 0.5/50.5*100 = 0.990 → 1.0 → right larger
+    expect(determineLargerSide(50.5, 50)).toBe("right");
   });
 });
 
 describe("Edge cases — zero values", () => {
-  it("one side zero, other non-zero: AI is extreme", () => {
+  it("one side zero, other non-zero: AI is 100% (absolute)", () => {
     const ai = calculateAsymmetryIndex(0, 60);
-    // (0-60)/(60) * 100 = -100
-    expect(ai).toBe(-100);
+    // |0-60| / (60) * 100 = 100
+    expect(ai).toBe(100);
   });
 
-  it("one side zero, other non-zero: relativeDiff is 200%", () => {
+  it("one side zero, other non-zero: relativeDiff is 100%", () => {
     const rd = calculateRelativeDifference(0, 60);
-    // |0-60| / (60/2) * 100 = 60/30*100 = 200
-    expect(rd).toBe(200);
+    // |0-60| / max(0,60) * 100 = 60/60*100 = 100
+    expect(rd).toBe(100);
   });
 
-  it("one side zero, other non-zero: dominantSide is the non-zero side", () => {
-    expect(determineDominantSide(0, 60)).toBe("left");
-    expect(determineDominantSide(60, 0)).toBe("right");
+  it("one side zero, other non-zero: largerSide is the non-zero side", () => {
+    expect(determineLargerSide(0, 60)).toBe("left");
+    expect(determineLargerSide(60, 0)).toBe("right");
   });
 
   it("both sides zero: all metrics return 0/equal", () => {
     expect(calculateAsymmetryIndex(0, 0)).toBe(0);
     expect(calculateRelativeDifference(0, 0)).toBe(0);
-    expect(determineDominantSide(0, 0)).toBe("equal");
+    expect(determineLargerSide(0, 0)).toBe("equal");
     const diff = calculateSideDifference(0, 0);
     expect(diff.difference).toBe(0);
     expect(diff.absoluteDifference).toBe(0);
   });
 });
 
+// ── NaN and Infinity Input Guards ──────────────────────────
+
+describe("Edge cases — NaN and Infinity inputs", () => {
+  it("calculateAsymmetryIndex returns 0 for NaN inputs", () => {
+    expect(calculateAsymmetryIndex(NaN, 50)).toBe(0);
+    expect(calculateAsymmetryIndex(50, NaN)).toBe(0);
+    expect(calculateAsymmetryIndex(NaN, NaN)).toBe(0);
+  });
+
+  it("calculateAsymmetryIndex returns 0 for Infinity inputs", () => {
+    expect(calculateAsymmetryIndex(Infinity, 50)).toBe(0);
+    expect(calculateAsymmetryIndex(50, Infinity)).toBe(0);
+    expect(calculateAsymmetryIndex(-Infinity, 50)).toBe(0);
+    expect(calculateAsymmetryIndex(Infinity, Infinity)).toBe(0);
+  });
+
+  it("calculateRelativeDifference returns 0 for NaN inputs", () => {
+    expect(calculateRelativeDifference(NaN, 50)).toBe(0);
+    expect(calculateRelativeDifference(50, NaN)).toBe(0);
+    expect(calculateRelativeDifference(NaN, NaN)).toBe(0);
+  });
+
+  it("calculateRelativeDifference returns 0 for Infinity inputs", () => {
+    expect(calculateRelativeDifference(Infinity, 50)).toBe(0);
+    expect(calculateRelativeDifference(50, Infinity)).toBe(0);
+    expect(calculateRelativeDifference(-Infinity, 50)).toBe(0);
+    expect(calculateRelativeDifference(Infinity, Infinity)).toBe(0);
+  });
+});
+
 // ── Calibration Tests ──────────────────────────────────────
+
+describe("TIER_LABELS and UNCLASSIFIED_LABEL", () => {
+  it("TIER_LABELS has all three tier labels", () => {
+    expect(TIER_LABELS.within_typical_range).toBe("Within typical range");
+    expect(TIER_LABELS.borderline).toBe("Borderline");
+    expect(TIER_LABELS.above_technical_error_margin).toBe("Above technical error margin");
+  });
+
+  it("UNCLASSIFIED_LABEL is defined for horizontal measurements", () => {
+    expect(UNCLASSIFIED_LABEL).toBe("Not classified — horizontal measurement");
+  });
+});
+
+describe("Body length classification is null (horizontal measurement)", () => {
+  it("MeasurementResult with classification=null represents unclassified body length", () => {
+    const bodyLengthResult: MeasurementResult = {
+      right: 0.35,
+      left: 0.37,
+      difference: -0.02,
+      absoluteDifference: 0.02,
+      relativeDifferencePercent: 5.4,
+      asymmetryIndexPercent: 2.8,
+      largerSide: "left",
+      classification: null,
+      rightMm: null,
+      leftMm: null,
+    };
+    expect(bodyLengthResult.classification).toBe(null);
+  });
+
+  it("MeasurementResult with non-null classification represents classified ramus height", () => {
+    const ramusResult: MeasurementResult = {
+      right: 0.55,
+      left: 0.50,
+      difference: 0.05,
+      absoluteDifference: 0.05,
+      relativeDifferencePercent: 9.1,
+      asymmetryIndexPercent: 4.8,
+      largerSide: "right",
+      classification: "borderline",
+      rightMm: null,
+      leftMm: null,
+    };
+    expect(ramusResult.classification).not.toBe(null);
+    expect(ramusResult.classification).toBe("borderline");
+  });
+});
 
 describe("computeMmPerPixel", () => {
   it("computes mm_per_pixel correctly", () => {

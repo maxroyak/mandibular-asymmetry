@@ -57,8 +57,8 @@ export type CalibrationStage =
   | "entering-distance"
   | "calibrated";
 
-/** Dominant side determination */
-export type DominantSide = "right" | "left" | "equal";
+/** Larger measured side determination */
+export type LargerSide = "right" | "left" | "equal";
 
 /** Asymmetry classification tiers */
 export type AsymmetryTier =
@@ -78,10 +78,10 @@ export interface MeasurementResult {
   left: number; // left-side distance (normalized)
   difference: number; // R − L (signed)
   absoluteDifference: number; // |R − L|
-  relativeDifferencePercent: number; // |R−L| / ((R+L)/2) × 100
-  asymmetryIndexPercent: number; // (R−L) / (R+L) × 100 (signed)
-  dominantSide: DominantSide;
-  classification: AsymmetryTier;
+  relativeDifferencePercent: number; // |R−L| / max(R,L) × 100
+  asymmetryIndexPercent: number; // |R−L| / (R+L) × 100 (absolute)
+  largerSide: LargerSide;
+  classification: AsymmetryTier | null; // null = not classified (horizontal measurements)
   rightMm: number | null; // null when uncalibrated
   leftMm: number | null; // null when uncalibrated
 }
