@@ -204,4 +204,14 @@ export const en: Translations = {
     disclaimerBody: "⚠ This report provides 2D comparative measurements derived from a panoramic radiograph (OPG) and does not constitute a diagnostic medical opinion. Radiographic projection distortion, magnification non-uniformity, and head positioning factors may influence values. Clinical examination and 3D CBCT imaging are recommended when significant asymmetry is observed.",
     pageIndicator: "Page 1 of 1 — Generated with Mandibular Asymmetry Analysis",
   },
+  ai: {
+    detectButton: "✨ Auto-Detect Landmarks (AI)",
+    detecting: "Analyzing radiograph with AI…",
+    acceptAll: "Accept All AI Proposals",
+    clearProposals: "Clear AI Proposals",
+    candidateBadge: "AI Proposed",
+    verifiedBadge: "Verified",
+    disclaimer: "AI proposals are candidate estimates and require clinical verification. Adjust points to confirm.",
+    proposalsActive: (count) => `${count} AI landmark proposals ready for clinical review`,
+  },
 };

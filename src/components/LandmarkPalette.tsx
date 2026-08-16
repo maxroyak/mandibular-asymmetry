@@ -1,5 +1,5 @@
 // ── Landmark Palette ────────────────────────────────────────
-// Sequential guided landmark placement with anatomical hints.
+// Sequential guided landmark placement with AI proposal integration.
 
 import { useStudyStore } from "../store/studyStore";
 import { LANDMARK_DEFINITIONS } from "../domain/types";
@@ -8,15 +8,26 @@ import { getTranslations } from "../locales";
 
 export function LandmarkPalette() {
   const language = useStudyStore((s) => s.language);
+  const imageDataUrl = useStudyStore((s) => s.imageDataUrl);
   const landmarks = useStudyStore((s) => s.landmarks);
   const activeLandmark = useStudyStore((s) => s.activeLandmark);
+  const isAiDetecting = useStudyStore((s) => s.isAiDetecting);
+  const aiCandidateLandmarks = useStudyStore((s) => s.aiCandidateLandmarks);
+
   const setActiveLandmark = useStudyStore((s) => s.setActiveLandmark);
   const deleteLandmark = useStudyStore((s) => s.deleteLandmark);
+  const detectLandmarksAi = useStudyStore((s) => s.detectLandmarksAi);
+  const acceptAllAiProposals = useStudyStore((s) => s.acceptAllAiProposals);
+  const clearAiProposals = useStudyStore((s) => s.clearAiProposals);
 
   const t = getTranslations(language);
 
   const placedCount = LANDMARK_DEFINITIONS.filter(
     (l) => landmarks[l.name]
+  ).length;
+
+  const candidateCount = LANDMARK_DEFINITIONS.filter(
+    (l) => aiCandidateLandmarks[l.name]
   ).length;
 
   // Determine current step (first unplaced landmark)
@@ -38,6 +49,59 @@ export function LandmarkPalette() {
         </span>
       </div>
 
+      {/* AI Auto-Detect Trigger Button */}
+      {imageDataUrl && (
+        <div className="mb-3">
+          <button
+            onClick={() => detectLandmarksAi()}
+            disabled={isAiDetecting}
+            type="button"
+            className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white shadow-2xs hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-50 transition-colors"
+          >
+            {isAiDetecting ? (
+              <>
+                <span className="animate-spin text-sm">⏳</span>
+                <span>{t.ai.detecting}</span>
+              </>
+            ) : (
+              <>
+                <span>✨</span>
+                <span>{t.ai.detectButton}</span>
+              </>
+            )}
+          </button>
+        </div>
+      )}
+
+      {/* AI Proposals Review Banner */}
+      {candidateCount > 0 && (
+        <div className="mb-3 rounded-lg border border-amber-300 bg-amber-50 p-2.5 text-xs text-amber-900">
+          <div className="font-semibold flex items-center gap-1.5 mb-1">
+            <span className="text-amber-600">✨</span>
+            <span>{t.ai.proposalsActive(candidateCount)}</span>
+          </div>
+          <p className="text-[11px] text-amber-800 leading-snug mb-2">
+            {t.ai.disclaimer}
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => acceptAllAiProposals()}
+              type="button"
+              className="flex-1 rounded bg-green-600 px-2 py-1 text-[11px] font-medium text-white hover:bg-green-700 transition-colors"
+            >
+              {t.ai.acceptAll}
+            </button>
+            <button
+              onClick={() => clearAiProposals()}
+              type="button"
+              className="rounded border border-gray-300 bg-white px-2 py-1 text-[11px] font-medium text-gray-700 hover:bg-gray-100 transition-colors"
+            >
+              {t.ai.clearProposals}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Progress indicator */}
       <div className="mb-3 flex gap-1">
         {LANDMARK_DEFINITIONS.map((def, idx) => (
@@ -45,7 +109,9 @@ export function LandmarkPalette() {
             key={def.name}
             className={`h-1.5 flex-1 rounded-full transition-colors ${
               landmarks[def.name]
-                ? "bg-green-500"
+                ? aiCandidateLandmarks[def.name]
+                  ? "bg-amber-400"
+                  : "bg-green-500"
                 : idx === currentStep
                 ? "bg-orange-400"
                 : "bg-gray-200"
@@ -55,14 +121,14 @@ export function LandmarkPalette() {
       </div>
 
       {/* Compact summary when all placed */}
-      {allPlaced && !activeLandmark && (
+      {allPlaced && !activeLandmark && candidateCount === 0 && (
         <div className="mb-2 text-sm text-green-600 font-medium">
           {t.landmarks.allPlaced}
         </div>
       )}
 
       {/* Current step hint */}
-      {!allPlaced && nextUnplaced && (
+      {!allPlaced && nextUnplaced && candidateCount === 0 && (
         <div className="mb-3 rounded-md bg-orange-50 border border-orange-200 p-2">
           <div className="text-xs font-medium text-orange-600">
             {t.landmarks.stepOf(currentStep + 1)}
@@ -107,6 +173,7 @@ export function LandmarkPalette() {
       <div className="space-y-1">
         {LANDMARK_DEFINITIONS.map((def) => {
           const isPlaced = !!landmarks[def.name];
+          const isCandidate = !!aiCandidateLandmarks[def.name];
           const isActive = activeLandmark === def.name;
           const meta = t.landmarks.definitions[def.name];
           return (
@@ -115,6 +182,8 @@ export function LandmarkPalette() {
               className={`flex items-center gap-2 rounded px-2 py-1 text-xs ${
                 isActive
                   ? "bg-orange-100 border border-orange-300"
+                  : isCandidate
+                  ? "bg-amber-50 border border-amber-200"
                   : isPlaced
                   ? "bg-green-50"
                   : "bg-gray-50"
@@ -139,7 +208,13 @@ export function LandmarkPalette() {
               </button>
               {isPlaced ? (
                 <>
-                  <span className="text-green-600 text-xs">✓</span>
+                  {isCandidate ? (
+                    <span className="rounded bg-amber-200 px-1.5 py-0.2 text-[10px] font-semibold text-amber-900">
+                      AI
+                    </span>
+                  ) : (
+                    <span className="text-green-600 text-xs">✓</span>
+                  )}
                   <button
                     onClick={() => deleteLandmark(def.name as LandmarkName)}
                     className="text-red-400 hover:text-red-600 text-xs"

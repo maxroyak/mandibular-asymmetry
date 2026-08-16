@@ -187,4 +187,14 @@ export interface Translations {
     disclaimerBody: string;
     pageIndicator: string;
   };
+  ai: {
+    detectButton: string;
+    detecting: string;
+    acceptAll: string;
+    clearProposals: string;
+    candidateBadge: string;
+    verifiedBadge: string;
+    disclaimer: string;
+    proposalsActive: (count: number) => string;
+  };
 }

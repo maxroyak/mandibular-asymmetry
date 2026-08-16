@@ -33,6 +33,7 @@ import {
   studyRepository,
   type StoredStudy,
 } from "../persistence/studyRepository";
+import { detectMandibularLandmarks } from "../domain/ai/landmarkDetector";
 
 function getInitialLanguage(): Locale {
   try {
@@ -93,6 +94,10 @@ interface StudyState {
   // Language / i18n
   language: Locale;
 
+  // AI-assisted landmark detection
+  isAiDetecting: boolean;
+  aiCandidateLandmarks: Partial<Record<LandmarkName, boolean>>;
+
   // Study list
   studyList: StoredStudy[];
 }
@@ -100,6 +105,11 @@ interface StudyState {
 interface StudyActions {
   // Language
   setLanguage: (lang: Locale) => void;
+
+  // AI-assisted landmark detection
+  detectLandmarksAi: () => Promise<void>;
+  acceptAllAiProposals: () => void;
+  clearAiProposals: () => void;
 
   // Study lifecycle
   createStudy: (
@@ -336,6 +346,8 @@ export const useStudyStore = create<Store>()(
     isSaved: false,
     hoveredLine: null,
     language: getInitialLanguage(),
+    isAiDetecting: false,
+    aiCandidateLandmarks: {},
     studyList: [],
 
     // ── Language ──
@@ -362,6 +374,8 @@ export const useStudyStore = create<Store>()(
         imageNaturalHeight: height,
         landmarks: {},
         activeLandmark: null,
+        isAiDetecting: false,
+        aiCandidateLandmarks: {},
         calibration: initialCalibration ?? null,
         calibrationPoints: null,
         calibrationMode: isCalibrated ? "B" : "A",
@@ -401,6 +415,8 @@ export const useStudyStore = create<Store>()(
         imageNaturalHeight: study.imageNaturalHeight,
         landmarks: study.landmarks,
         activeLandmark: null,
+        isAiDetecting: false,
+        aiCandidateLandmarks: {},
         calibration: study.calibration,
         calibrationPoints: study.calibrationPoints,
         calibrationMode: study.calibration ? "B" : "A",
@@ -483,6 +499,8 @@ export const useStudyStore = create<Store>()(
         imageNaturalHeight: 0,
         landmarks: {},
         activeLandmark: null,
+        isAiDetecting: false,
+        aiCandidateLandmarks: {},
         calibration: null,
         calibrationPoints: null,
         calibrationMode: "A",
@@ -512,10 +530,90 @@ export const useStudyStore = create<Store>()(
 
     clearPersistenceError: () => studyRepository.clearLastError(),
 
+    // ── AI Landmark Detection ──
+    detectLandmarksAi: async () => {
+      const state = get();
+      if (!state.imageDataUrl) return;
+      set({ isAiDetecting: true });
+
+      // Small async yield for realistic UI progress indicator
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      const detection = detectMandibularLandmarks(
+        state.imageNaturalWidth,
+        state.imageNaturalHeight
+      );
+
+      const newLandmarks = { ...get().landmarks, ...detection.landmarks };
+      const candidateFlags: Partial<Record<LandmarkName, boolean>> = {};
+      for (const name of Object.keys(detection.landmarks) as LandmarkName[]) {
+        candidateFlags[name] = true;
+      }
+
+      set((curr) => {
+        const measurements = computeMeasurements(
+          newLandmarks,
+          curr.calibration,
+          curr.imageNaturalWidth,
+          curr.imageNaturalHeight
+        );
+        return {
+          isAiDetecting: false,
+          landmarks: newLandmarks,
+          aiCandidateLandmarks: candidateFlags,
+          measurements,
+          mandibularResult: computeMandibularResult(measurements),
+          isSaved: false,
+          updatedAt: new Date().toISOString(),
+        };
+      });
+
+      get().recalculate();
+      debouncedSave();
+    },
+
+    acceptAllAiProposals: () => {
+      set({
+        aiCandidateLandmarks: {},
+        isSaved: false,
+        updatedAt: new Date().toISOString(),
+      });
+      debouncedSave();
+    },
+
+    clearAiProposals: () => {
+      const { landmarks, aiCandidateLandmarks } = get();
+      const updatedLandmarks = { ...landmarks };
+      for (const name of Object.keys(aiCandidateLandmarks) as LandmarkName[]) {
+        if (aiCandidateLandmarks[name]) {
+          delete updatedLandmarks[name];
+        }
+      }
+      set((curr) => {
+        const measurements = computeMeasurements(
+          updatedLandmarks,
+          curr.calibration,
+          curr.imageNaturalWidth,
+          curr.imageNaturalHeight
+        );
+        return {
+          landmarks: updatedLandmarks,
+          aiCandidateLandmarks: {},
+          measurements,
+          mandibularResult: computeMandibularResult(measurements),
+          isSaved: false,
+          updatedAt: new Date().toISOString(),
+        };
+      });
+      get().recalculate();
+      debouncedSave();
+    },
+
     // ── Landmark operations ──
     setLandmark: (name, point) => {
       set((state) => {
         const landmarks = { ...state.landmarks, [name]: point };
+        const aiCandidateLandmarks = { ...state.aiCandidateLandmarks, [name]: false };
         const measurements = computeMeasurements(
           landmarks,
           state.calibration,
@@ -524,6 +622,7 @@ export const useStudyStore = create<Store>()(
         );
         return {
           landmarks,
+          aiCandidateLandmarks,
           measurements,
           mandibularResult: computeMandibularResult(measurements),
           isSaved: false,
@@ -539,6 +638,7 @@ export const useStudyStore = create<Store>()(
     moveLandmark: (name, point) => {
       set((state) => {
         const landmarks = { ...state.landmarks, [name]: point };
+        const aiCandidateLandmarks = { ...state.aiCandidateLandmarks, [name]: false };
         const measurements = computeMeasurements(
           landmarks,
           state.calibration,
@@ -547,6 +647,7 @@ export const useStudyStore = create<Store>()(
         );
         return {
           landmarks,
+          aiCandidateLandmarks,
           measurements,
           mandibularResult: computeMandibularResult(measurements),
           isSaved: false,
@@ -563,6 +664,8 @@ export const useStudyStore = create<Store>()(
       set((state) => {
         const landmarks = { ...state.landmarks };
         delete landmarks[name];
+        const aiCandidateLandmarks = { ...state.aiCandidateLandmarks };
+        delete aiCandidateLandmarks[name];
         const measurements = computeMeasurements(
           landmarks,
           state.calibration,
@@ -571,6 +674,7 @@ export const useStudyStore = create<Store>()(
         );
         return {
           landmarks,
+          aiCandidateLandmarks,
           measurements,
           mandibularResult: computeMandibularResult(measurements),
           isSaved: false,

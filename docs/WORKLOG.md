@@ -32,3 +32,9 @@ Details: Implemented `ClinicalReportModal.tsx` for 1-page clinical standard repo
 Details: Integrated `dicom-parser` with typed definitions. Implemented client-side DICOM reader (`src/domain/dicom/dicomReader.ts`), 16-bit/8-bit grayscale VOI windowing, photometric interpretations (MONOCHROME1/MONOCHROME2), metadata extraction (Patient ID, Study Date), and auto-calibration via Pixel Spacing (`0028,0030`) and Imager Pixel Spacing (`0018,1164`). Added DICOM drag-drop upload support in `ImageUploadZone.tsx`. Authored `src/test/dicomParser.test.ts`. 310/310 unit tests passing (100%).
 ---
 
+---
+2026-08-17 01:22 | Track 3: AI-Assisted Landmark Detection via Manual Trigger Button (Phase 2)
+Details: Implemented pure domain heuristic landmark regressor (`src/domain/ai/landmarkDetector.ts`) generating candidate points and confidence scores for CoR, GoR, CoL, GoL, and Me. Added manual trigger `[✨ Auto-Detect Landmarks (AI)]` in `LandmarkPalette.tsx` and `ImageViewer.tsx` toolbar. Added candidate review workflow (`aiCandidateLandmarks`), dashed candidate halo markers, `[Accept All AI Proposals]` / `[Clear AI Proposals]` actions, and manual edit verification. Authored `src/test/aiDetection.test.ts`. 318/318 unit tests passing (100%).
+---
+
+

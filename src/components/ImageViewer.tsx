@@ -62,6 +62,9 @@ export function ImageViewer() {
   const calibrationMode = useStudyStore((s) => s.calibrationMode);
   const calibrationStage = useStudyStore((s) => s.calibrationStage);
   const hoveredLine = useStudyStore((s) => s.hoveredLine);
+  const isAiDetecting = useStudyStore((s) => s.isAiDetecting);
+  const aiCandidateLandmarks = useStudyStore((s) => s.aiCandidateLandmarks);
+  const detectLandmarksAi = useStudyStore((s) => s.detectLandmarksAi);
 
   const setLandmark = useStudyStore((s) => s.setLandmark);
   const moveLandmark = useStudyStore((s) => s.moveLandmark);
@@ -627,6 +630,17 @@ export function ImageViewer() {
         >
           {language === "ru" ? "Сброс" : "Reset"}
         </button>
+        <div className="mx-2 text-xs text-gray-400">|</div>
+        {/* AI Auto-Detect Trigger */}
+        <button
+          onClick={() => detectLandmarksAi()}
+          disabled={isAiDetecting}
+          className="inline-flex items-center gap-1 px-3 py-1 text-xs font-semibold rounded bg-indigo-50 border border-indigo-300 text-indigo-700 hover:bg-indigo-100 disabled:opacity-50 transition-colors"
+          title={t.ai.detectButton}
+        >
+          <span>{isAiDetecting ? "⏳" : "✨"}</span>
+          <span>{isAiDetecting ? t.ai.detecting : t.ai.detectButton}</span>
+        </button>
         <div className="ml-auto text-xs text-gray-400">
           Zoom: {viewer.zoom.toFixed(1)}x
         </div>
@@ -889,6 +903,7 @@ export function ImageViewer() {
             if (!lm) return null;
             const color = landmarkColor(def.name);
             const isActive = activeLandmark === def.name;
+            const isAiCandidate = !!aiCandidateLandmarks[def.name];
             return (
               <g key={def.name}>
                 {/* Active ring */}
@@ -900,6 +915,19 @@ export function ImageViewer() {
                     fill="none"
                     stroke="#f97316"
                     strokeWidth={pxToViewBox(2)}
+                    vectorEffect="non-scaling-stroke"
+                  />
+                )}
+                {/* AI Candidate Dashed Halo */}
+                {isAiCandidate && !isActive && (
+                  <circle
+                    cx={lm.x}
+                    cy={lm.y}
+                    r={lmHitR * 1.3}
+                    fill="none"
+                    stroke="#f59e0b"
+                    strokeWidth={pxToViewBox(2)}
+                    strokeDasharray={`${pxToViewBox(3)} ${pxToViewBox(2)}`}
                     vectorEffect="non-scaling-stroke"
                   />
                 )}
@@ -930,12 +958,12 @@ export function ImageViewer() {
                 <text
                   x={lm.x + lmHitR}
                   y={lm.y - lmHitR * 0.7}
-                  fill="white"
+                  fill={isAiCandidate ? "#fde047" : "white"}
                   fontSize={0.01}
                   className="select-none font-bold"
                   style={{ pointerEvents: "none", textShadow: "0 0 2px black" }}
                 >
-                  {def.label}
+                  {def.label}{isAiCandidate ? " (AI)" : ""}
                 </text>
                 {/* Delete button — small red badge with × */}
                 <g
