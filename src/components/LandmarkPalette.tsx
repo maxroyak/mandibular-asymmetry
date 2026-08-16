@@ -4,12 +4,16 @@
 import { useStudyStore } from "../store/studyStore";
 import { LANDMARK_DEFINITIONS } from "../domain/types";
 import type { LandmarkName } from "../domain/types";
+import { getTranslations } from "../locales";
 
 export function LandmarkPalette() {
+  const language = useStudyStore((s) => s.language);
   const landmarks = useStudyStore((s) => s.landmarks);
   const activeLandmark = useStudyStore((s) => s.activeLandmark);
   const setActiveLandmark = useStudyStore((s) => s.setActiveLandmark);
   const deleteLandmark = useStudyStore((s) => s.deleteLandmark);
+
+  const t = getTranslations(language);
 
   const placedCount = LANDMARK_DEFINITIONS.filter(
     (l) => landmarks[l.name]
@@ -27,10 +31,10 @@ export function LandmarkPalette() {
     <div className="border-b border-gray-200 p-4">
       <div className="mb-3 flex items-center justify-between">
         <h3 className="text-sm font-semibold text-gray-700">
-          Place Landmarks
+          {t.landmarks.title}
         </h3>
         <span className="text-xs font-medium text-gray-500">
-          {placedCount}/5 placed
+          {t.landmarks.placedCount(placedCount)}
         </span>
       </div>
 
@@ -53,7 +57,7 @@ export function LandmarkPalette() {
       {/* Compact summary when all placed */}
       {allPlaced && !activeLandmark && (
         <div className="mb-2 text-sm text-green-600 font-medium">
-          ✓ All 5 landmarks placed — click any to reposition
+          {t.landmarks.allPlaced}
         </div>
       )}
 
@@ -61,19 +65,19 @@ export function LandmarkPalette() {
       {!allPlaced && nextUnplaced && (
         <div className="mb-3 rounded-md bg-orange-50 border border-orange-200 p-2">
           <div className="text-xs font-medium text-orange-600">
-            Step {currentStep + 1} of 5
+            {t.landmarks.stepOf(currentStep + 1)}
           </div>
           <div className="text-sm font-semibold text-gray-800 mt-0.5">
-            {nextUnplaced.fullName} ({nextUnplaced.label})
+            {t.landmarks.definitions[nextUnplaced.name].fullName} ({nextUnplaced.label})
           </div>
           <div className="text-xs text-gray-600 mt-0.5">
-            {nextUnplaced.hint}
+            {t.landmarks.definitions[nextUnplaced.name].hint}
           </div>
           <button
             onClick={() => setActiveLandmark(nextUnplaced.name)}
             className="mt-1.5 text-xs font-medium text-orange-600 hover:underline"
           >
-            Click to place →
+            {t.landmarks.clickToPlace}
           </button>
         </div>
       )}
@@ -82,19 +86,19 @@ export function LandmarkPalette() {
       {activeLandmark && (
         <div className="mb-3 rounded-md bg-blue-50 border border-blue-200 p-2">
           <div className="text-xs font-medium text-blue-600">
-            Placing: {LANDMARK_DEFINITIONS.find((l) => l.name === activeLandmark)?.fullName}
+            {t.landmarks.placing(t.landmarks.definitions[activeLandmark].fullName)}
           </div>
           <div className="text-xs text-gray-600 mt-0.5">
-            {LANDMARK_DEFINITIONS.find((l) => l.name === activeLandmark)?.hint}
+            {t.landmarks.definitions[activeLandmark].hint}
           </div>
           <div className="text-xs text-gray-500 mt-1">
-            Click on the radiograph to place.
+            {t.landmarks.clickOnRadiograph}
           </div>
           <button
             onClick={() => setActiveLandmark(null)}
             className="mt-1.5 text-xs font-medium text-gray-500 hover:underline"
           >
-            Cancel (Esc)
+            {t.landmarks.cancelEsc}
           </button>
         </div>
       )}
@@ -104,6 +108,7 @@ export function LandmarkPalette() {
         {LANDMARK_DEFINITIONS.map((def) => {
           const isPlaced = !!landmarks[def.name];
           const isActive = activeLandmark === def.name;
+          const meta = t.landmarks.definitions[def.name];
           return (
             <div
               key={def.name}
@@ -130,7 +135,7 @@ export function LandmarkPalette() {
                 }
                 className="flex-1 text-left font-medium"
               >
-                {def.label} — {def.fullName}
+                {def.label} — {meta.fullName}
               </button>
               {isPlaced ? (
                 <>
@@ -138,7 +143,7 @@ export function LandmarkPalette() {
                   <button
                     onClick={() => deleteLandmark(def.name as LandmarkName)}
                     className="text-red-400 hover:text-red-600 text-xs"
-                    title="Delete landmark"
+                    title={t.viewer.deleteLandmark}
                   >
                     ✕
                   </button>

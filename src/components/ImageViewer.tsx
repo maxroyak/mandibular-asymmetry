@@ -1,12 +1,9 @@
-// ── Image Viewer ─────────────────────────────────────────────
-// Container: image layer + SVG overlay layer + viewer controls.
-// Handles landmark placement clicks, landmark dragging, pan/zoom.
-
 import { useRef, useCallback, useEffect, useState } from "react";
 import { useStudyStore } from "../store/studyStore";
 import { LANDMARK_DEFINITIONS } from "../domain/types";
 import type { Point, LandmarkName, CalibrationStage } from "../domain/types";
 import { screenToNormalized as transformScreenToNormalized } from "../domain/coordinateTransform";
+import { getTranslations } from "../locales";
 
 // ── Interaction mode ────────────────────────────────────────
 // Tracks what the current pointer-down gesture is doing so that
@@ -51,6 +48,9 @@ export function ImageViewer() {
   const [showOverlay, setShowOverlay] = useState(true); // Item 9h: measurement overlay toggle
   const [containerSize, setContainerSize] = useState({ w: 0, h: 0 });
   const [isDraggingMarker, setIsDraggingMarker] = useState(false); // for cursor: grabbing
+
+  const language = useStudyStore((s) => s.language);
+  const t = getTranslations(language);
 
   const imageDataUrl = useStudyStore((s) => s.imageDataUrl);
   const imageNaturalWidth = useStudyStore((s) => s.imageNaturalWidth);
@@ -504,7 +504,7 @@ export function ImageViewer() {
       from: landmarks.CoR,
       to: landmarks.GoR,
       color: RIGHT_COLOR,
-      name: "R Ramus",
+      name: t.overlay.ramusR,
       mm: mandibularResult?.ramus.rightMm ?? null,
     },
     {
@@ -512,7 +512,7 @@ export function ImageViewer() {
       from: landmarks.CoL,
       to: landmarks.GoL,
       color: LEFT_COLOR,
-      name: "L Ramus",
+      name: t.overlay.ramusL,
       mm: mandibularResult?.ramus.leftMm ?? null,
     },
     {
@@ -520,7 +520,7 @@ export function ImageViewer() {
       from: landmarks.GoR,
       to: landmarks.Me,
       color: RIGHT_COLOR,
-      name: "R Body",
+      name: t.overlay.bodyR,
       mm: mandibularResult?.body.rightMm ?? null,
     },
     {
@@ -528,7 +528,7 @@ export function ImageViewer() {
       from: landmarks.GoL,
       to: landmarks.Me,
       color: LEFT_COLOR,
-      name: "L Body",
+      name: t.overlay.bodyL,
       mm: mandibularResult?.body.leftMm ?? null,
     },
   ];
@@ -561,26 +561,26 @@ export function ImageViewer() {
         <button
           onClick={() => setZoom(viewer.zoom * 1.2)}
           className="px-3 py-1 text-sm rounded border border-gray-300 hover:bg-gray-100"
-          title="Zoom in (+)"
+          title={t.viewer.zoomIn}
         >
           🔍+
         </button>
         <button
           onClick={() => setZoom(viewer.zoom * 0.8)}
           className="px-3 py-1 text-sm rounded border border-gray-300 hover:bg-gray-100"
-          title="Zoom out (-)"
+          title={t.viewer.zoomOut}
         >
           🔍−
         </button>
         <button
           onClick={fitToScreen}
-          className="px-3 py-1 text-sm rounded border border-gray-300 hover:bg-gray-100"
-          title="Fit to screen (0)"
+          className="px-3 py-1 text-sm rounded border border-gray-300 hover:bg-gray-100 text-xs font-medium"
+          title={t.viewer.fitScreen}
         >
-          Fit
+          {language === "ru" ? "Авто" : "Fit"}
         </button>
         <div className="mx-2 text-xs text-gray-400">|</div>
-        <label className="flex items-center gap-1 text-xs">
+        <label className="flex items-center gap-1 text-xs" title={t.viewer.brightness}>
           ☀
           <input
             type="range"
@@ -592,7 +592,7 @@ export function ImageViewer() {
             className="w-20"
           />
         </label>
-        <label className="flex items-center gap-1 text-xs">
+        <label className="flex items-center gap-1 text-xs" title={t.viewer.contrast}>
           ◐
           <input
             type="range"
@@ -608,22 +608,24 @@ export function ImageViewer() {
         {/* Item 9h: Show/hide measurement overlay toggle */}
         <button
           onClick={() => setShowOverlay(!showOverlay)}
-          className={`px-3 py-1 text-sm rounded border ${
+          className={`px-3 py-1 text-xs font-medium rounded border ${
             showOverlay
               ? "border-blue-400 bg-blue-50 text-blue-700"
-              : "border-gray-300 hover:bg-gray-100"
+              : "border-gray-300 hover:bg-gray-100 text-gray-600"
           }`}
-          title="Show/hide measurement overlay"
+          title={showOverlay ? t.viewer.hideOverlay : t.viewer.showOverlay}
         >
-          {showOverlay ? "📊 Overlay" : "📊 Off"}
+          {showOverlay
+            ? `📊 ${language === "ru" ? "Оверлей" : "Overlay"}`
+            : `📊 ${language === "ru" ? "Скрыт" : "Off"}`}
         </button>
         <div className="mx-2 text-xs text-gray-400">|</div>
         <button
           onClick={resetViewer}
-          className="px-3 py-1 text-sm rounded border border-gray-300 hover:bg-gray-100"
-          title="Reset all (R)"
+          className="px-3 py-1 text-xs rounded border border-gray-300 hover:bg-gray-100 text-gray-600"
+          title={t.viewer.resetView}
         >
-          Reset
+          {language === "ru" ? "Сброс" : "Reset"}
         </button>
         <div className="ml-auto text-xs text-gray-400">
           Zoom: {viewer.zoom.toFixed(1)}x
@@ -681,8 +683,8 @@ export function ImageViewer() {
             // Calibration gating: show mm only when calibrated and value available
             const showMm = isCalibrated && line.mm !== null;
             const label = showMm
-              ? `${line.name}: ${line.mm!.toFixed(1)} mm`
-              : `${line.name}: calibration required`;
+              ? `${line.name}: ${line.mm!.toFixed(1)} ${t.common.mm}`
+              : `${line.name}: ${t.overlay.calibrationRequired}`;
             return (
               <g key={line.id}>
                 <line
@@ -701,9 +703,9 @@ export function ImageViewer() {
                 />
                 {/* Label background for readability */}
                 <rect
-                  x={midX - 0.07}
+                  x={midX - 0.08}
                   y={midY - 0.025}
-                  width={0.14}
+                  width={0.16}
                   height={0.02}
                   fill="rgba(0,0,0,0.7)"
                   rx={0.003}
@@ -750,7 +752,7 @@ export function ImageViewer() {
                   className="select-none"
                   style={{ pointerEvents: "none", textShadow: "0 0 2px black" }}
                 >
-                  {calibration.realDistanceMm.toFixed(1)} mm
+                  {calibration.realDistanceMm.toFixed(1)} {t.common.mm}
                 </text>
               )}
             </g>

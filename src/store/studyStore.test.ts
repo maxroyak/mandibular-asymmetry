@@ -693,11 +693,56 @@ describe("Required spec — 9 calibration state machine tests", () => {
   });
 });
 
-// Tests 2, 4, and 7 are ALREADY COVERED by DevBot's existing tests:
-// - Test 2 (Place Point 1): "placeCalibrationPoint in placing-point-1 places
-//   only point1 and transitions to reviewing-point-1"
-// - Test 4 (Place Point 2): "placeCalibrationPoint in placing-point-2 places
-//   only point2 and transitions to reviewing-point-2"
-// - Test 7 (No accidental double placement): "placing point1 does NOT also set
-//   point2" + "placeCalibrationPoint in placing-point-1..." checks stage stays
-//   reviewing-point-1 (not placing-point-2 or reviewing-point-2)
+// ── Language / i18n store tests ──────────────────────────────
+
+describe("studyStore — language and i18n", () => {
+  beforeEach(() => {
+    useStudyStore.getState().newStudy();
+    useStudyStore.getState().setLanguage("en");
+  });
+
+  it("language defaults to 'en'", () => {
+    expect(useStudyStore.getState().language).toBe("en");
+  });
+
+  it("setLanguage('ru') updates store and persists to localStorage", () => {
+    useStudyStore.getState().setLanguage("ru");
+    expect(useStudyStore.getState().language).toBe("ru");
+    expect(localStorage.getItem("ma.language")).toBe("ru");
+  });
+
+  it("setLanguage switches conclusion and clinical interpretation between EN and RU", () => {
+    // Set up study with all 5 landmarks and calibration
+    useStudyStore.getState().createStudy("test-i18n", "data:image/png;base64,abc", 1000, 1000);
+    useStudyStore.getState().setLandmark("CoR", { x: 0.2, y: 0.2 });
+    useStudyStore.getState().setLandmark("GoR", { x: 0.2, y: 0.8 });
+    useStudyStore.getState().setLandmark("CoL", { x: 0.8, y: 0.22 });
+    useStudyStore.getState().setLandmark("GoL", { x: 0.8, y: 0.8 });
+    useStudyStore.getState().setLandmark("Me", { x: 0.5, y: 0.9 });
+
+    // Calibrate
+    useStudyStore.getState().startCalibration();
+    useStudyStore.getState().placeCalibrationPoint({ x: 0.1, y: 0.1 });
+    useStudyStore.getState().confirmPoint1();
+    useStudyStore.getState().placeCalibrationPoint({ x: 0.1, y: 0.2 });
+    useStudyStore.getState().confirmPoint2();
+    useStudyStore.getState().confirmCalibration(10); // 10mm for 0.1 distance
+
+    // Initially English
+    expect(useStudyStore.getState().language).toBe("en");
+    expect(useStudyStore.getState().mandibularResult?.conclusion).toContain("The right ramus measures");
+    expect(useStudyStore.getState().interpretation).toContain("CLINICAL MEASUREMENT REPORT");
+
+    // Switch to Russian
+    useStudyStore.getState().setLanguage("ru");
+    expect(useStudyStore.getState().language).toBe("ru");
+    expect(useStudyStore.getState().mandibularResult?.conclusion).toContain("Ветвь справа составляет");
+    expect(useStudyStore.getState().interpretation).toContain("ОТЧЕТ КЛИНИЧЕСКИХ ИЗМЕРЕНИЙ");
+
+    // Switch back to English
+    useStudyStore.getState().setLanguage("en");
+    expect(useStudyStore.getState().language).toBe("en");
+    expect(useStudyStore.getState().mandibularResult?.conclusion).toContain("The right ramus measures");
+    expect(useStudyStore.getState().interpretation).toContain("CLINICAL MEASUREMENT REPORT");
+  });
+});

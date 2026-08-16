@@ -9,22 +9,30 @@ import { LandmarkPalette } from "../components/LandmarkPalette";
 import { CalibrationPanel } from "../components/CalibrationPanel";
 import { ResultsPanel } from "../components/ResultsPanel";
 import { StudyManager } from "../components/StudyManager";
+import { LanguageSwitcher } from "../components/LanguageSwitcher";
+import { getTranslations } from "../locales";
 
 export function AnalysisPage() {
+  const language = useStudyStore((s) => s.language);
   const imageDataUrl = useStudyStore((s) => s.imageDataUrl);
   const imageNaturalWidth = useStudyStore((s) => s.imageNaturalWidth);
   const imageNaturalHeight = useStudyStore((s) => s.imageNaturalHeight);
 
+  const t = getTranslations(language);
+
   return (
     <div className="flex h-screen flex-col bg-white">
       {/* Header */}
-      <header className="border-b border-gray-200 bg-white px-6 py-3">
-        <h1 className="text-lg font-bold text-gray-800">
-          Mandibular Asymmetry Analysis
-        </h1>
-        <p className="text-xs text-gray-500">
-          2D measurement and comparative analysis — not a diagnostic system
-        </p>
+      <header className="flex items-center justify-between border-b border-gray-200 bg-white px-6 py-3">
+        <div>
+          <h1 className="text-lg font-bold text-gray-800">
+            {t.common.appName}
+          </h1>
+          <p className="text-xs text-gray-500">
+            {t.common.appSubtitle}
+          </p>
+        </div>
+        <LanguageSwitcher />
       </header>
 
       {/* Main content: two-column layout */}
@@ -45,21 +53,21 @@ export function AnalysisPage() {
               {/* Image Quality status */}
               <div className="border-b border-gray-200 p-4">
                 <h3 className="text-sm font-semibold text-gray-700 mb-1">
-                  Image Quality
+                  {t.imageQuality.title}
                 </h3>
                 <div className="text-xs text-gray-600">
                   <div className="flex items-center gap-1">
                     <span className="text-green-500">✓</span>
                     <span>
-                      Image loaded — {imageNaturalWidth} × {imageNaturalHeight} px
+                      {t.imageQuality.loadedText(imageNaturalWidth, imageNaturalHeight)}
                     </span>
                   </div>
                   {(imageNaturalWidth < 800 || imageNaturalWidth > 10000) && (
                     <div className="mt-1 text-amber-600">
                       ⚠ {" "}
                       {imageNaturalWidth < 800
-                        ? "Low resolution image — measurement precision may be affected."
-                        : "Very high resolution image — may affect performance."}
+                        ? t.imageQuality.lowResWarning
+                        : t.imageQuality.highResWarning}
                     </div>
                   )}
                 </div>
@@ -81,7 +89,7 @@ export function AnalysisPage() {
             </>
           ) : (
             <div className="p-4 text-sm text-gray-400">
-              Upload a radiograph to begin analysis.
+              {t.common.uploadToBegin}
             </div>
           )}
         </aside>

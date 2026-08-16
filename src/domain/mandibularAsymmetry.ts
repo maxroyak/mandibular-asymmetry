@@ -191,17 +191,24 @@ export function determineShorterSide(
  */
 export function generateRamusComparison(
   rightMm: number,
-  leftMm: number
+  leftMm: number,
+  locale: "en" | "ru" = "en"
 ): string {
   const longer = determineLongerSide(rightMm, leftMm);
   if (longer === "equal") {
-    return "Mandibular ramus lengths are approximately equal.";
+    return locale === "ru"
+      ? "Длина ветвей нижней челюсти приблизительно симметрична."
+      : "Mandibular ramus lengths are approximately equal.";
   }
   const absDiff = round(Math.abs(rightMm - leftMm), 1);
   if (longer === "right") {
-    return `The right mandibular ramus is ${absDiff.toFixed(1)} mm longer than the left.`;
+    return locale === "ru"
+      ? `Правая ветвь нижней челюсти на ${absDiff.toFixed(1)} мм длиннее левой.`
+      : `The right mandibular ramus is ${absDiff.toFixed(1)} mm longer than the left.`;
   }
-  return `The left mandibular ramus is ${absDiff.toFixed(1)} mm longer than the right.`;
+  return locale === "ru"
+    ? `Левая ветвь нижней челюсти на ${absDiff.toFixed(1)} мм длиннее правой.`
+    : `The left mandibular ramus is ${absDiff.toFixed(1)} mm longer than the right.`;
 }
 
 /**
@@ -210,17 +217,24 @@ export function generateRamusComparison(
  */
 export function generateBodyComparison(
   rightMm: number,
-  leftMm: number
+  leftMm: number,
+  locale: "en" | "ru" = "en"
 ): string {
   const longer = determineLongerSide(rightMm, leftMm);
   if (longer === "equal") {
-    return "Mandibular body lengths are approximately equal.";
+    return locale === "ru"
+      ? "Длина тела нижней челюсти приблизительно симметрична."
+      : "Mandibular body lengths are approximately equal.";
   }
   const absDiff = round(Math.abs(rightMm - leftMm), 1);
   if (longer === "right") {
-    return `The right mandibular body is ${absDiff.toFixed(1)} mm longer than the left.`;
+    return locale === "ru"
+      ? `Правая часть тела нижней челюсти на ${absDiff.toFixed(1)} мм длиннее левой.`
+      : `The right mandibular body is ${absDiff.toFixed(1)} mm longer than the left.`;
   }
-  return `The left mandibular body is ${absDiff.toFixed(1)} mm longer than the right.`;
+  return locale === "ru"
+    ? `Левая часть тела нижней челюсти на ${absDiff.toFixed(1)} мм длиннее правой.`
+    : `The left mandibular body is ${absDiff.toFixed(1)} mm longer than the right.`;
 }
 
 /**
@@ -233,14 +247,98 @@ export function generateMandibularAsymmetryConclusion(
   ramusRightMm: number,
   ramusLeftMm: number,
   bodyRightMm: number,
-  bodyLeftMm: number
+  bodyLeftMm: number,
+  locale: "en" | "ru" = "en"
 ): string {
   const ramusDiffers = Math.abs(ramusRightMm - ramusLeftMm) > 0.5;
   const bodyDiffers = Math.abs(bodyRightMm - bodyLeftMm) > 0.5;
 
-  // Build comparison sentences that include actual measured mm values.
-  // Example: "The right ramus measures 60.0 mm and is 2.0 mm longer than the
-  // left ramus, which measures 58.0 mm."
+  if (locale === "ru") {
+    const buildRamusSentenceRu = (): string => {
+      const longer = determineLongerSide(ramusRightMm, ramusLeftMm);
+      if (longer === "equal") {
+        return (
+          `Ветвь справа составляет ${ramusRightMm.toFixed(1)} мм, ветвь слева — ` +
+          `${ramusLeftMm.toFixed(1)} мм; длина ветвей приблизительно симметрична.`
+        );
+      }
+      const absDiff = Math.abs(ramusRightMm - ramusLeftMm).toFixed(1);
+      if (longer === "right") {
+        return (
+          `Ветвь справа составляет ${ramusRightMm.toFixed(1)} мм и на ${absDiff} мм ` +
+          `длиннее ветви слева (${ramusLeftMm.toFixed(1)} мм).`
+        );
+      }
+      return (
+        `Ветвь слева составляет ${ramusLeftMm.toFixed(1)} мм и на ${absDiff} мм ` +
+        `длиннее ветви справа (${ramusRightMm.toFixed(1)} мм).`
+      );
+    };
+
+    const buildBodySentenceRu = (): string => {
+      const longer = determineLongerSide(bodyRightMm, bodyLeftMm);
+      if (longer === "equal") {
+        return (
+          `Тело челюсти слева составляет ${bodyLeftMm.toFixed(1)} мм, тело челюсти справа — ` +
+          `${bodyRightMm.toFixed(1)} мм; длина тела челюсти приблизительно симметрична.`
+        );
+      }
+      const absDiff = Math.abs(bodyRightMm - bodyLeftMm).toFixed(1);
+      if (longer === "right") {
+        return (
+          `Тело челюсти справа составляет ${bodyRightMm.toFixed(1)} мм и на ${absDiff} мм ` +
+          `длиннее тела челюсти слева (${bodyLeftMm.toFixed(1)} мм).`
+        );
+      }
+      return (
+        `Тело челюсти слева составляет ${bodyLeftMm.toFixed(1)} мм и на ${absDiff} мм ` +
+        `длиннее тела челюсти справа (${bodyRightMm.toFixed(1)} мм).`
+      );
+    };
+
+    const ramusSentence = buildRamusSentenceRu();
+    const bodySentence = buildBodySentenceRu();
+
+    if (ramusDiffers && bodyDiffers) {
+      return (
+        "Текущие 2D измерения демонстрируют скелетную асимметрию нижней челюсти " +
+        "с вовлечением как ветви, так и тела челюсти. " +
+        ramusSentence +
+        " " +
+        bodySentence
+      );
+    }
+
+    if (ramusDiffers && !bodyDiffers) {
+      return (
+        "Текущие 2D измерения демонстрируют преимущественно асимметрию ветви нижней челюсти. " +
+        ramusSentence +
+        " " +
+        bodySentence.replace(/; длина тела челюсти\s+приблизительно симметрична\.$/, ".") +
+        " Длина тела челюсти приблизительно симметрична в текущей проекции."
+      );
+    }
+
+    if (!ramusDiffers && bodyDiffers) {
+      return (
+        "Текущие 2D измерения демонстрируют преимущественно асимметрию тела нижней челюсти. " +
+        bodySentence +
+        " " +
+        ramusSentence.replace(/; длина ветвей\s+приблизительно симметрична\.$/, ".") +
+        " Длина ветвей приблизительно симметрична в текущей проекции."
+      );
+    }
+
+    return (
+      "Текущие 2D измерения не демонстрируют выраженной скелетной асимметрии нижней челюсти. " +
+      ramusSentence.replace(/; длина ветвей приблизительно симметрична\.$/, ".") +
+      " " +
+      bodySentence.replace(/; длина тела челюсти приблизительно симметрична\.$/, ".") +
+      " Длина ветвей и тела челюсти приблизительно симметрична в текущей проекции."
+    );
+  }
+
+  // Build comparison sentences that include actual measured mm values (English).
   function buildRamusSentence(): string {
     const longer = determineLongerSide(ramusRightMm, ramusLeftMm);
     if (longer === "equal") {
@@ -342,6 +440,15 @@ export const LIMITATION_HEADER =
   "uses the Habets normalization formula. It does not reproduce the complete\n" +
   "original Habets tracing protocol.";
 
+export const LIMITATION_HEADER_RU =
+  "ОТЧЕТ КЛИНИЧЕСКИХ ИЗМЕРЕНИЙ — АНАЛИЗ АСИММЕТРИИ НИЖНЕЙ ЧЕЛЮСТИ\n\n" +
+  "⚠ Данный инструмент предназначен для сравнительного анализа и не является диагностической системой.\n" +
+  "Результаты получены на основе 2D проекции 3D анатомии и должны интерпретироваться\n" +
+  "в контексте клинического осмотра и дополнительных методов лучевой диагностики.\n\n" +
+  "В данном приложении выполняется упрощенный точечный анализ асимметрии нижней челюсти\n" +
+  "с использованием формулы нормализации Хабетса. Полный протокол ручной графической\n" +
+  "разметки Хабетса не воспроизводится.";
+
 export const LIMITATION_FOOTER =
   "LIMITATIONS\n\n" +
   "1. 2D PROJECTION: Measurements are derived from a 2D projection of 3D anatomy.\n" +
@@ -364,6 +471,21 @@ export const LIMITATION_FOOTER =
   "   distances, which are less reliable on panoramic radiographs than vertical\n" +
   "   measurements. Body length results should be interpreted with particular caution.";
 
+export const LIMITATION_FOOTER_RU =
+  "ОГРАНИЧЕНИЯ МЕТОДА\n\n" +
+  "1. 2D ПРОЕКЦИЯ: Измерения получены из 2D проекции трехмерной анатомии.\n" +
+  "   Панорамные рентгенограммы имеют неравномерное увеличение и проекционные искажения.\n\n" +
+  "2. ЧУВСТВИТЕЛЬНОСТЬ К УКЛАДКЕ: Измерения чувствительны к положению головы пациента.\n" +
+  "   Ротация головы может создавать видимость асимметрии при ее фактическом отсутствии.\n\n" +
+  "3. ИДЕНТИФИКАЦИЯ ТОЧЕК: Точность зависит от ручной расстановки анатомических ориентиров,\n" +
+  "   особенно при локализации суставных головок (Co).\n\n" +
+  "4. НЕ ЯВЛЯЕТСЯ ДИАГНОЗОМ: Инструмент предназначен только для сравнительных измерений.\n" +
+  "   Результаты оцениваются врачом в сочетании с клинической картиной и КЛКТ.\n\n" +
+  "5. ПОРОГОВЫЕ ЗНАЧЕНИЯ: Пороги отражают техническую погрешность панорамной рентгенографии\n" +
+  "   (Habets et al. 1987), а не валидированные диагностические критерии патологии.\n\n" +
+  "6. ГОРИЗОНТАЛЬНЫЕ ИЗМЕРЕНИЯ: Измерения длины тела челюсти менее надежны из-за\n" +
+  "   неравномерного горизонтального увеличения.";
+
 // ── Clinical Summary Generation ─────────────────────────────
 
 /**
@@ -372,16 +494,103 @@ export const LIMITATION_FOOTER =
  * absolute measurements (if calibrated), mandatory limitations footer.
  * Per protocol §8.1 template.
  * @param results - full results object
+ * @param locale - language ("en" | "ru")
  * @returns structured clinical text per protocol §8.1
  */
-export function generateClinicalSummary(results: FullResults): string {
+export function generateClinicalSummary(
+  results: FullResults,
+  locale: "en" | "ru" = "en"
+): string {
   const { ramusHeight, bodyLength, calibration, calibrationMode } = results;
 
   const lines: string[] = [];
-  lines.push(LIMITATION_HEADER);
+  lines.push(locale === "ru" ? LIMITATION_HEADER_RU : LIMITATION_HEADER);
   lines.push("");
 
-  // ── Ramus Length Proxy Analysis ──
+  if (locale === "ru") {
+    // ── Анализ ветви ──
+    lines.push("ОЦЕНКА ДЛИНЫ ВЕТВИ ЧЕЛЮСТИ (Основное измерение)");
+    lines.push("");
+
+    if (ramusHeight) {
+      const rh = ramusHeight;
+      const relDiffStr = rh.relativeDifferencePercent.toFixed(1);
+      const habetsStr = rh.asymmetryIndexPercent.toFixed(1);
+
+      if (rh.largerSide === "equal") {
+        lines.push("На данном снимке высота ветви справа и слева приблизительно одинакова.");
+      } else if (rh.largerSide === "right") {
+        lines.push(`На данном снимке высота ветви справа на ${relDiffStr}% больше, чем слева.`);
+      } else {
+        lines.push(`На данном снимке высота ветви слева на ${relDiffStr}% больше, чем справа.`);
+      }
+
+      lines.push("");
+      lines.push(`Индекс асимметрии Хабетса: ${habetsStr}% (${rh.largerSide === "equal" ? "симметрично" : rh.largerSide === "right" ? "справа больше" : "слева больше"})`);
+      lines.push(`Относительная разница: ${relDiffStr}%`);
+      lines.push(`Градация: ${UNCLASSIFIED_LABEL}`);
+      lines.push("");
+      lines.push("Для данного измерения отсутствуют валидированные классификационные пороги.");
+      lines.push("Числовые значения предназначены исключительно для сравнительного скрининга.");
+    } else {
+      lines.push("Точки не расставлены — измерение недоступно.");
+    }
+
+    lines.push("");
+
+    // ── Анализ тела ──
+    lines.push("ОЦЕНКА ДЛИНЫ ТЕЛА ЧЕЛЮСТИ (Вторичное измерение — меньшая надежность)");
+    lines.push("⚠ Горизонтальные измерения менее надежны из-за переменного горизонтального увеличения.");
+    lines.push("");
+
+    if (bodyLength) {
+      const bl = bodyLength;
+      const relDiffStr = bl.relativeDifferencePercent.toFixed(1);
+      const habetsStr = bl.asymmetryIndexPercent.toFixed(1);
+
+      if (bl.largerSide === "equal") {
+        lines.push("Длина тела нижней челюсти справа и слева приблизительно одинакова.");
+      } else if (bl.largerSide === "right") {
+        lines.push(`Длина тела нижней челюсти справа на ${relDiffStr}% больше, чем слева.`);
+      } else {
+        lines.push(`Длина тела нижней челюсти слева на ${relDiffStr}% больше, чем справа.`);
+      }
+
+      lines.push("");
+      lines.push(`Индекс асимметрии Хабетса: ${habetsStr}% (${bl.largerSide === "equal" ? "симметрично" : bl.largerSide === "right" ? "справа больше" : "слева больше"})`);
+      lines.push(`Относительная разница: ${relDiffStr}%`);
+      lines.push(`Градация: ${UNCLASSIFIED_LABEL}`);
+    } else {
+      lines.push("Точки не расставлены — измерение недоступно.");
+    }
+
+    lines.push("");
+
+    // ── Калибровка ──
+    if (calibrationMode === "B" && calibration) {
+      lines.push("Абсолютные измерения (калиброванные):");
+      if (ramusHeight && ramusHeight.rightMm !== null && ramusHeight.leftMm !== null) {
+        lines.push(`  Высота ветви справа: ${ramusHeight.rightMm.toFixed(1)} мм`);
+        lines.push(`  Высота ветви слева: ${ramusHeight.leftMm.toFixed(1)} мм`);
+      }
+      if (bodyLength && bodyLength.rightMm !== null && bodyLength.leftMm !== null) {
+        lines.push(`  Длина тела справа: ${bodyLength.rightMm.toFixed(1)} мм`);
+        lines.push(`  Длина тела слева: ${bodyLength.leftMm.toFixed(1)} мм`);
+      }
+      lines.push(`  Масштаб калибровки: ${calibration.mmPerPixel.toFixed(4)} мм/пиксель`);
+      lines.push("");
+      lines.push("Значения в мм рассчитаны на основе пользовательской калибровки и подвержены проекционным искажениям.");
+    } else {
+      lines.push("Калибровка не выполнена — абсолютные измерения в мм не отображаются.");
+      lines.push("Доступны относительные проценты асимметрии.");
+    }
+
+    lines.push("");
+    lines.push(LIMITATION_FOOTER_RU);
+    return lines.join("\n");
+  }
+
+  // ── Ramus Length Proxy Analysis (English) ──
   lines.push("RAMUS LENGTH PROXY ANALYSIS (Primary Measurement)");
   lines.push("");
 

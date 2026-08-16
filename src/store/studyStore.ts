@@ -28,10 +28,21 @@ import type {
   BilateralMeasurement,
   MandibularAsymmetryResult,
 } from "../domain/types";
+import type { Locale } from "../locales/types";
 import {
   studyRepository,
   type StoredStudy,
 } from "../persistence/studyRepository";
+
+function getInitialLanguage(): Locale {
+  try {
+    const stored = localStorage.getItem("ma.language");
+    if (stored === "ru" || stored === "en") return stored;
+  } catch {
+    // localStorage unavailable (e.g. test environments)
+  }
+  return "en";
+}
 
 // ── Store State ─────────────────────────────────────────────
 
@@ -79,11 +90,17 @@ interface StudyState {
   isSaved: boolean;
   hoveredLine: string | null;
 
+  // Language / i18n
+  language: Locale;
+
   // Study list
   studyList: StoredStudy[];
 }
 
 interface StudyActions {
+  // Language
+  setLanguage: (lang: Locale) => void;
+
   // Study lifecycle
   createStudy: (patientId: string, imageDataUrl: string, width: number, height: number) => void;
   loadStudy: (studyId: string) => Promise<void>;
@@ -262,7 +279,8 @@ function buildBilateralMeasurement(
 }
 
 function computeMandibularResult(
-  measurements: StudyMeasurements
+  measurements: StudyMeasurements,
+  locale: Locale = "en"
 ): MandibularAsymmetryResult | null {
   const ramus = buildBilateralMeasurement(measurements.ramusHeight);
   const body = buildBilateralMeasurement(measurements.bodyLength);
@@ -271,7 +289,8 @@ function computeMandibularResult(
     ramus.rightMm,
     ramus.leftMm,
     body.rightMm,
-    body.leftMm
+    body.leftMm,
+    locale
   );
   return { ramus, body, conclusion };
 }
@@ -310,7 +329,19 @@ export const useStudyStore = create<Store>()(
     viewer: { ...defaultViewer },
     isSaved: false,
     hoveredLine: null,
+    language: getInitialLanguage(),
     studyList: [],
+
+    // ── Language ──
+    setLanguage: (lang: Locale) => {
+      try {
+        localStorage.setItem("ma.language", lang);
+      } catch {
+        // ignore in test/restricted environments
+      }
+      set({ language: lang });
+      get().recalculate();
+    },
 
     // ── Study lifecycle ──
     createStudy: (patientId, imageDataUrl, width, height) => {
@@ -758,13 +789,16 @@ export const useStudyStore = create<Store>()(
         state.imageNaturalWidth,
         state.imageNaturalHeight
       );
-      const interpretation = generateClinicalSummary({
-        ramusHeight: measurements.ramusHeight,
-        bodyLength: measurements.bodyLength,
-        calibration: state.calibration,
-        calibrationMode: state.calibrationMode,
-      });
-      const mandibularResult = computeMandibularResult(measurements);
+      const interpretation = generateClinicalSummary(
+        {
+          ramusHeight: measurements.ramusHeight,
+          bodyLength: measurements.bodyLength,
+          calibration: state.calibration,
+          calibrationMode: state.calibrationMode,
+        },
+        state.language
+      );
+      const mandibularResult = computeMandibularResult(measurements, state.language);
       set({ measurements, interpretation, mandibularResult });
     },
   }))

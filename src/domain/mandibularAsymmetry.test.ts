@@ -1578,3 +1578,113 @@ describe("Conclusion includes actual measured mm values", () => {
     expect(conclusion).toContain("10.0 mm longer");
   });
 });
+
+// ── Russian Localization (i18n) Tests ───────────────────────
+
+describe("Russian Localization (i18n)", () => {
+  describe("generateRamusComparison (RU)", () => {
+    it("generates correct Russian sentence when right ramus is longer", () => {
+      const text = generateRamusComparison(62.0, 59.0, "ru");
+      expect(text).toBe("Правая ветвь нижней челюсти на 3.0 мм длиннее левой.");
+    });
+
+    it("generates correct Russian sentence when left ramus is longer", () => {
+      const text = generateRamusComparison(57.0, 61.5, "ru");
+      expect(text).toBe("Левая ветвь нижней челюсти на 4.5 мм длиннее правой.");
+    });
+
+    it("generates correct Russian sentence when ramus lengths are equal", () => {
+      const text = generateRamusComparison(60.0, 60.0, "ru");
+      expect(text).toBe("Длина ветвей нижней челюсти приблизительно симметрична.");
+    });
+  });
+
+  describe("generateBodyComparison (RU)", () => {
+    it("generates correct Russian sentence when right body is longer", () => {
+      const text = generateBodyComparison(82.0, 79.0, "ru");
+      expect(text).toBe("Правая часть тела нижней челюсти на 3.0 мм длиннее левой.");
+    });
+
+    it("generates correct Russian sentence when left body is longer", () => {
+      const text = generateBodyComparison(76.0, 80.0, "ru");
+      expect(text).toBe("Левая часть тела нижней челюсти на 4.0 мм длиннее правой.");
+    });
+
+    it("generates correct Russian sentence when body lengths are equal", () => {
+      const text = generateBodyComparison(78.0, 78.0, "ru");
+      expect(text).toBe("Длина тела нижней челюсти приблизительно симметрична.");
+    });
+  });
+
+  describe("generateMandibularAsymmetryConclusion (RU)", () => {
+    it("generates correct conclusion when both ramus and body differ", () => {
+      const text = generateMandibularAsymmetryConclusion(62.0, 58.0, 84.0, 80.0, "ru");
+      expect(text).toContain("Текущие 2D измерения демонстрируют скелетную асимметрию нижней челюсти с вовлечением как ветви, так и тела челюсти.");
+      expect(text).toContain("Ветвь справа составляет 62.0 мм и на 4.0 мм длиннее ветви слева (58.0 мм).");
+      expect(text).toContain("Тело челюсти справа составляет 84.0 мм и на 4.0 мм длиннее тела челюсти слева (80.0 мм).");
+    });
+
+    it("generates correct conclusion when predominantly ramus differs", () => {
+      const text = generateMandibularAsymmetryConclusion(62.0, 58.0, 80.0, 80.0, "ru");
+      expect(text).toContain("Текущие 2D измерения демонстрируют преимущественно асимметрию ветви нижней челюсти.");
+      expect(text).toContain("Длина тела челюсти приблизительно симметрична в текущей проекции.");
+    });
+
+    it("generates correct conclusion when predominantly body differs", () => {
+      const text = generateMandibularAsymmetryConclusion(60.0, 60.0, 85.0, 80.0, "ru");
+      expect(text).toContain("Текущие 2D измерения демонстрируют преимущественно асимметрию тела нижней челюсти.");
+      expect(text).toContain("Длина ветвей приблизительно симметрична в текущей проекции.");
+    });
+
+    it("generates correct conclusion when no significant asymmetry", () => {
+      const text = generateMandibularAsymmetryConclusion(60.0, 60.0, 80.0, 80.0, "ru");
+      expect(text).toContain("Текущие 2D измерения не демонстрируют выраженной скелетной асимметрии нижней челюсти.");
+      expect(text).toContain("Длина ветвей и тела челюсти приблизительно симметрична в текущей проекции.");
+    });
+  });
+
+  describe("generateClinicalSummary (RU)", () => {
+    it("includes Russian limitation header and footer", () => {
+      const results: FullResults = {
+        ramusHeight: {
+          right: 0.6,
+          left: 0.58,
+          rightMm: 60.0,
+          leftMm: 58.0,
+          difference: 0.02,
+          absoluteDifference: 0.02,
+          relativeDifferencePercent: 3.3,
+          asymmetryIndexPercent: 1.7,
+          largerSide: "right",
+          classification: null,
+        },
+        bodyLength: {
+          right: 0.8,
+          left: 0.8,
+          rightMm: 80.0,
+          leftMm: 80.0,
+          difference: 0.0,
+          absoluteDifference: 0.0,
+          relativeDifferencePercent: 0.0,
+          asymmetryIndexPercent: 0.0,
+          largerSide: "equal",
+          classification: null,
+        },
+        calibration: {
+          pixelDistance: 100,
+          realDistanceMm: 10,
+          mmPerPixel: 0.1,
+        },
+        calibrationMode: "B",
+      };
+
+      const summary = generateClinicalSummary(results, "ru");
+      expect(summary).toContain("ОТЧЕТ КЛИНИЧЕСКИХ ИЗМЕРЕНИЙ — АНАЛИЗ АСИММЕТРИИ НИЖНЕЙ ЧЕЛЮСТИ");
+      expect(summary).toContain("ОЦЕНКА ДЛИНЫ ВЕТВИ ЧЕЛЮСТИ (Основное измерение)");
+      expect(summary).toContain("ОЦЕНКА ДЛИНЫ ТЕЛА ЧЕЛЮСТИ (Вторичное измерение — меньшая надежность)");
+      expect(summary).toContain("ОГРАНИЧЕНИЯ МЕТОДА");
+      expect(summary).toContain("Индекс асимметрии Хабетса:");
+      expect(summary).toContain("Абсолютные измерения (калиброванные):");
+    });
+  });
+});

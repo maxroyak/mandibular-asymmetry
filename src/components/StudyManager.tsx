@@ -5,8 +5,10 @@
 import { useState, useEffect } from "react";
 import { useStudyStore } from "../store/studyStore";
 import type { StoredStudy } from "../persistence/studyRepository";
+import { getTranslations } from "../locales";
 
 export function StudyManager() {
+  const language = useStudyStore((s) => s.language);
   const studyId = useStudyStore((s) => s.studyId);
   const isSaved = useStudyStore((s) => s.isSaved);
   const studyList = useStudyStore((s) => s.studyList);
@@ -18,6 +20,8 @@ export function StudyManager() {
   const refreshStudyList = useStudyStore((s) => s.refreshStudyList);
   const getPersistenceError = useStudyStore((s) => s.getPersistenceError);
   const clearPersistenceError = useStudyStore((s) => s.clearPersistenceError);
+
+  const t = getTranslations(language);
 
   const [showList, setShowList] = useState(false);
   const [showPatientInput, setShowPatientInput] = useState(false);
@@ -49,21 +53,21 @@ export function StudyManager() {
     try {
       await loadStudy(id);
     } catch {
-      setPersistenceError("Failed to load study. The data may be corrupted.");
+      setPersistenceError(t.studyManager.loadFailedError);
     }
     setIsLoading(false);
     setShowList(false);
   };
 
   const handleDelete = async (id: string) => {
-    if (confirm("Delete this study permanently?")) {
+    if (confirm(t.studyManager.deleteStudyConfirm)) {
       await deleteStudy(id);
     }
   };
 
   const handleNew = () => {
     if (!isSaved && studyId) {
-      if (!confirm("Discard current study? Unsaved changes will be lost.")) {
+      if (!confirm(t.studyManager.discardStudyConfirm)) {
         return;
       }
     }
@@ -81,6 +85,7 @@ export function StudyManager() {
             <button
               onClick={() => setPersistenceError(null)}
               className="text-red-400 hover:text-red-600 shrink-0"
+              title={t.common.close}
             >
               ✕
             </button>
@@ -90,7 +95,7 @@ export function StudyManager() {
 
       {/* Loading indicator */}
       {isLoading && (
-        <div className="mb-2 text-xs text-blue-600">Loading study…</div>
+        <div className="mb-2 text-xs text-blue-600">{t.studyManager.loadingStudy}</div>
       )}
 
       <div className="mb-3 flex gap-2">
@@ -99,24 +104,24 @@ export function StudyManager() {
           disabled={!studyId}
           className="flex-1 rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-40"
         >
-          Save Study
+          {t.studyManager.saveStudy}
         </button>
         <button
           onClick={handleNew}
           className="flex-1 rounded border border-gray-300 px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50"
         >
-          New Study
+          {t.studyManager.newStudy}
         </button>
       </div>
 
       {/* Save status */}
       <div className="mb-2 text-xs text-gray-500">
         {isSaved ? (
-          <span className="text-green-600">✓ Saved</span>
+          <span className="text-green-600">{t.studyManager.saved}</span>
         ) : studyId ? (
-          <span className="text-amber-600">● Unsaved changes</span>
+          <span className="text-amber-600">{t.studyManager.unsavedChanges}</span>
         ) : (
-          <span>No study</span>
+          <span>{t.studyManager.noStudy}</span>
         )}
       </div>
 
@@ -128,7 +133,7 @@ export function StudyManager() {
               type="text"
               value={localPatientId}
               onChange={(e) => setLocalPatientId(e.target.value)}
-              placeholder="Patient ID (optional)"
+              placeholder={t.studyManager.patientIdPlaceholder}
               className="flex-1 rounded border border-gray-300 px-2 py-1 text-xs"
             />
             <button
@@ -138,7 +143,7 @@ export function StudyManager() {
               }}
               className="rounded bg-gray-200 px-2 py-1 text-xs"
             >
-              OK
+              {t.common.ok}
             </button>
           </div>
         ) : (
@@ -149,7 +154,7 @@ export function StudyManager() {
             }}
             className="text-xs text-gray-500 hover:text-gray-700"
           >
-            Patient: {patientId || "(unassigned)"} ✎
+            {t.studyManager.patient} {patientId || t.studyManager.unassigned} ✎
           </button>
         )}
       </div>
@@ -164,7 +169,7 @@ export function StudyManager() {
             }}
             className="text-xs font-medium text-blue-600 hover:underline"
           >
-            {showList ? "▼" : "▶"} Saved Studies ({studyList.length})
+            {showList ? "▼" : "▶"} {t.studyManager.savedStudiesCount(studyList.length)}
           </button>
           {showList && (
             <div className="mt-2 max-h-40 space-y-1 overflow-y-auto">
@@ -182,7 +187,7 @@ export function StudyManager() {
                     className="flex-1 text-left"
                   >
                     <span className="font-medium">
-                      {study.patientId || "Unassigned"}
+                      {study.patientId || t.studyManager.unassigned}
                     </span>
                     <span className="text-gray-400 ml-2">
                       {new Date(study.updatedAt).toLocaleDateString()}
@@ -191,6 +196,7 @@ export function StudyManager() {
                   <button
                     onClick={() => handleDelete(study.studyId)}
                     className="text-red-400 hover:text-red-600 ml-1"
+                    title={t.common.delete}
                   >
                     ✕
                   </button>
@@ -204,9 +210,7 @@ export function StudyManager() {
       {/* Local persistence note */}
       <div className="mt-3 border-t border-gray-100 pt-2">
         <p className="text-[10px] leading-tight text-gray-400">
-          Studies are stored locally in this browser (localStorage + IndexedDB).
-          They remain on this device only — clearing browser data may remove them.
-          No data is sent to any server.
+          {t.studyManager.localPersistenceNote}
         </p>
       </div>
     </div>

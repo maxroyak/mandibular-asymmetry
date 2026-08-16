@@ -1,18 +1,10 @@
 // ── Calibration Panel ────────────────────────────────────────
 // State-machine-driven calibration UI.
-//
-// Stages:
-//   idle             → "Calibration required" + [Calibrate image]
-//   placing-point-1  → "Step 1 of 3" + [Cancel calibration]
-//   reviewing-point-1 → "Point 1 placed" + [Confirm point 1] [Replace point 1] [Back] [Cancel calibration]
-//   placing-point-2  → "Step 2 of 3" + [Back] [Cancel calibration]
-//   reviewing-point-2 → "Point 2 placed" + [Confirm point 2] [Replace point 2] [Back] [Cancel calibration]
-//   entering-distance → "Step 3 of 3" + preview + [Apply calibration] [Back] [Cancel calibration]
-//   calibrated       → "Calibrated: X.XXXX mm/px" + [Recalibrate] [Remove]
 
 import { useState, useMemo } from "react";
 import { useStudyStore } from "../store/studyStore";
 import { calculateDistance } from "../domain/mandibularAsymmetry";
+import { getTranslations } from "../locales";
 
 // ── Step indicator component ────────────────────────────────
 function StepIndicator({ currentStep }: { currentStep: number }) {
@@ -46,6 +38,7 @@ function StepIndicator({ currentStep }: { currentStep: number }) {
 }
 
 export function CalibrationPanel() {
+  const language = useStudyStore((s) => s.language);
   const calibration = useStudyStore((s) => s.calibration);
   const calibrationStage = useStudyStore((s) => s.calibrationStage);
   const calibrationPoints = useStudyStore((s) => s.calibrationPoints);
@@ -62,8 +55,9 @@ export function CalibrationPanel() {
   const clearCalibration = useStudyStore((s) => s.clearCalibration);
   const goBackCalibration = useStudyStore((s) => s.goBackCalibration);
 
+  const t = getTranslations(language);
+
   // ── Back button support ──
-  // Go back one step in the calibration state machine without discarding progress.
   const handleBack = () => {
     goBackCalibration();
   };
@@ -101,15 +95,12 @@ export function CalibrationPanel() {
   const handleConfirmCalibration = () => {
     const mm = parseFloat(distanceInput);
     if (isNaN(mm) || !Number.isFinite(mm) || mm <= 0) {
-      setError("Distance must be a positive number.");
+      setError(t.calibration.invalidDistanceError);
       return;
     }
-    // Check minimum pixel distance (Item 4i)
+    // Check minimum pixel distance
     if (pixelDistancePreview !== null && pixelDistancePreview < MIN_PIXEL_DISTANCE) {
-      setError(
-        `Calibration points are too close (${pixelDistancePreview.toFixed(0)} px). ` +
-        `Minimum distance is ${MIN_PIXEL_DISTANCE} px. Please move the points further apart.`
-      );
+      setError(t.calibration.pointsTooCloseError(pixelDistancePreview, MIN_PIXEL_DISTANCE));
       return;
     }
     setError(null);
@@ -149,10 +140,10 @@ export function CalibrationPanel() {
   return (
     <div className="border-b border-gray-200 p-4">
       <div className="mb-2 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-gray-700">Calibration</h3>
+        <h3 className="text-sm font-semibold text-gray-700">{t.calibration.title}</h3>
         {calibration && (
           <span className="text-xs font-medium text-green-600">
-            {calibration.mmPerPixel.toFixed(4)} mm/px
+            {calibration.mmPerPixel.toFixed(4)} {t.common.mm}/px
           </span>
         )}
       </div>
@@ -161,16 +152,16 @@ export function CalibrationPanel() {
       {calibrationStage === "idle" && !calibration && (
         <div className="text-xs text-gray-500">
           <p className="mb-2 font-medium text-amber-700">
-            Calibration required to display millimeters
+            {t.calibration.calReqTitle}
           </p>
           <p className="text-xs text-gray-500 mb-1">
-            Currently showing relative percentages only.
+            {t.calibration.calReqDesc}
           </p>
           <button
             onClick={handleStart}
             className="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
           >
-            Calibrate image
+            {t.calibration.calibrateImage}
           </button>
         </div>
       )}
@@ -179,27 +170,27 @@ export function CalibrationPanel() {
       {calibrationStage === "placing-point-1" && (
         <div className="rounded border border-blue-200 bg-blue-50 p-3 text-xs">
           <p className="font-medium text-blue-700 mb-2">
-            Image Calibration
+            {t.calibration.title}
           </p>
           <StepIndicator currentStep={stepNumber} />
           <p className="text-gray-600 mb-2 font-medium">
-            Step 1 of 3 — Click the first endpoint of the known reference distance.
+            {t.calibration.step1Title}
           </p>
           <p className="text-gray-500 mb-2 italic">
-            Click directly on the radiograph to place Point 1.
+            {t.calibration.step1Desc}
           </p>
           <div className="flex gap-2">
             <button
               onClick={handleBack}
               className="rounded border border-gray-300 px-3 py-1 text-xs text-gray-600 hover:bg-gray-50"
             >
-              Back
+              {t.calibration.back}
             </button>
             <button
               onClick={handleCancel}
               className="rounded border border-gray-300 px-3 py-1 text-xs text-gray-600 hover:bg-gray-50"
             >
-              Cancel calibration
+              {t.calibration.cancelCalibration}
             </button>
           </div>
         </div>
@@ -209,37 +200,36 @@ export function CalibrationPanel() {
       {calibrationStage === "reviewing-point-1" && (
         <div className="rounded border border-blue-200 bg-blue-50 p-3 text-xs">
           <p className="font-medium text-blue-700 mb-2">
-            Image Calibration
+            {t.calibration.title}
           </p>
           <StepIndicator currentStep={stepNumber} />
           <p className="text-gray-600 mb-2">
-            <span className="font-medium">Point 1 placed.</span> Drag the point to
-            adjust its position if necessary, then confirm to proceed.
+            <span className="font-medium">{t.calibration.step1Review}.</span> {t.calibration.step1ReviewDesc}
           </p>
           <div className="flex flex-wrap gap-2">
             <button
               onClick={confirmPoint1}
               className="rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700"
             >
-              Confirm point 1
+              {t.calibration.confirmPoint1}
             </button>
             <button
               onClick={resetPoint1}
               className="rounded border border-gray-300 px-3 py-1 text-xs text-gray-600 hover:bg-gray-50"
             >
-              Replace point 1
+              {t.calibration.replacePoint1}
             </button>
             <button
               onClick={handleBack}
               className="rounded border border-gray-300 px-3 py-1 text-xs text-gray-600 hover:bg-gray-50"
             >
-              Back
+              {t.calibration.back}
             </button>
             <button
               onClick={handleCancel}
               className="rounded border border-gray-300 px-3 py-1 text-xs text-gray-600 hover:bg-gray-50"
             >
-              Cancel calibration
+              {t.calibration.cancelCalibration}
             </button>
           </div>
         </div>
@@ -249,27 +239,27 @@ export function CalibrationPanel() {
       {calibrationStage === "placing-point-2" && (
         <div className="rounded border border-blue-200 bg-blue-50 p-3 text-xs">
           <p className="font-medium text-blue-700 mb-2">
-            Image Calibration
+            {t.calibration.title}
           </p>
           <StepIndicator currentStep={stepNumber} />
           <p className="text-gray-600 mb-2 font-medium">
-            Step 2 of 3 — Click the second endpoint of the known reference distance.
+            {t.calibration.step2Title}
           </p>
           <p className="text-gray-500 mb-2 italic">
-            Click directly on the radiograph to place Point 2.
+            {t.calibration.step2Desc}
           </p>
           <div className="flex gap-2">
             <button
               onClick={handleBack}
               className="rounded border border-gray-300 px-3 py-1 text-xs text-gray-600 hover:bg-gray-50"
             >
-              Back
+              {t.calibration.back}
             </button>
             <button
               onClick={handleCancel}
               className="rounded border border-gray-300 px-3 py-1 text-xs text-gray-600 hover:bg-gray-50"
             >
-              Cancel calibration
+              {t.calibration.cancelCalibration}
             </button>
           </div>
         </div>
@@ -279,37 +269,36 @@ export function CalibrationPanel() {
       {calibrationStage === "reviewing-point-2" && (
         <div className="rounded border border-blue-200 bg-blue-50 p-3 text-xs">
           <p className="font-medium text-blue-700 mb-2">
-            Image Calibration
+            {t.calibration.title}
           </p>
           <StepIndicator currentStep={stepNumber} />
           <p className="text-gray-600 mb-2">
-            <span className="font-medium">Point 2 placed.</span> Drag the point to
-            adjust its position if necessary, then confirm to proceed.
+            <span className="font-medium">{t.calibration.step2Review}.</span> {t.calibration.step2ReviewDesc}
           </p>
           <div className="flex flex-wrap gap-2">
             <button
               onClick={confirmPoint2}
               className="rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700"
             >
-              Confirm point 2
+              {t.calibration.confirmPoint2}
             </button>
             <button
               onClick={resetPoint2}
               className="rounded border border-gray-300 px-3 py-1 text-xs text-gray-600 hover:bg-gray-50"
             >
-              Replace point 2
+              {t.calibration.replacePoint2}
             </button>
             <button
               onClick={handleBack}
               className="rounded border border-gray-300 px-3 py-1 text-xs text-gray-600 hover:bg-gray-50"
             >
-              Back
+              {t.calibration.back}
             </button>
             <button
               onClick={handleCancel}
               className="rounded border border-gray-300 px-3 py-1 text-xs text-gray-600 hover:bg-gray-50"
             >
-              Cancel calibration
+              {t.calibration.cancelCalibration}
             </button>
           </div>
         </div>
@@ -319,14 +308,14 @@ export function CalibrationPanel() {
       {calibrationStage === "entering-distance" && (
         <div className="rounded border border-blue-200 bg-blue-50 p-3 text-xs">
           <p className="font-medium text-blue-700 mb-2">
-            Image Calibration
+            {t.calibration.title}
           </p>
           <StepIndicator currentStep={stepNumber} />
           <p className="text-gray-600 mb-2">
-            Step 3 of 3 — Enter the known distance between Point 1 and Point 2 in millimeters.
+            {t.calibration.step3Desc}
           </p>
           <label className="block mb-2">
-            <span className="text-gray-600">Known distance:</span>
+            <span className="text-gray-600">{t.calibration.knownDistanceMm}</span>
             <input
               type="number"
               min={0}
@@ -337,35 +326,35 @@ export function CalibrationPanel() {
               className="ml-2 w-20 rounded border border-gray-300 px-2 py-0.5 text-xs"
               autoFocus
             />
-            <span className="ml-1 text-gray-500">mm</span>
+            <span className="ml-1 text-gray-500">{t.common.mm}</span>
           </label>
 
-          {/* Preview before applying (Item 5) */}
+          {/* Preview before applying */}
           {pixelDistancePreview !== null && (
             <div className="mb-3 rounded bg-gray-100 p-2 text-xs text-gray-700">
               <div className="grid grid-cols-3 gap-2 text-center">
                 <div>
-                  <div className="text-gray-500">Reference distance</div>
+                  <div className="text-gray-500">{t.calibration.point1} / {t.calibration.point2}</div>
                   <div className="font-mono font-bold">
                     {parseFloat(distanceInput) && !isNaN(parseFloat(distanceInput))
                       ? parseFloat(distanceInput).toFixed(1)
                       : "—"}{" "}
-                    mm
+                    {t.common.mm}
                   </div>
                 </div>
                 <div>
-                  <div className="text-gray-500">Pixel distance</div>
+                  <div className="text-gray-500">Pixels</div>
                   <div className="font-mono font-bold">
                     {pixelDistancePreview.toFixed(0)} px
                   </div>
                 </div>
                 <div>
-                  <div className="text-gray-500">Calculated scale</div>
+                  <div className="text-gray-500">Scale</div>
                   <div className="font-mono font-bold">
                     {scalePreview !== null
                       ? scalePreview.toFixed(4)
                       : "—"}{" "}
-                    mm/px
+                    {t.common.mm}/px
                   </div>
                 </div>
               </div>
@@ -380,19 +369,19 @@ export function CalibrationPanel() {
               onClick={handleConfirmCalibration}
               className="rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700"
             >
-              Apply calibration
+              {t.calibration.applyCalibration}
             </button>
             <button
               onClick={handleBack}
               className="rounded border border-gray-300 px-3 py-1 text-xs text-gray-600 hover:bg-gray-50"
             >
-              Back
+              {t.calibration.back}
             </button>
             <button
               onClick={handleCancel}
               className="rounded border border-gray-300 px-3 py-1 text-xs text-gray-600 hover:bg-gray-50"
             >
-              Cancel calibration
+              {t.calibration.cancelCalibration}
             </button>
           </div>
         </div>
@@ -401,35 +390,27 @@ export function CalibrationPanel() {
       {/* ── CALIBRATED ── */}
       {isCalibrated && (
         <div className="text-xs text-gray-600">
-          <p className="mb-1">
-            Calibrated: {calibration!.mmPerPixel.toFixed(4)} mm/pixel
-            <span className="ml-1 text-gray-500">
-              (user-marked reference distance)
+          <p className="mb-1 font-medium text-green-700">
+            {t.calibration.calibratedBanner(calibration!.mmPerPixel.toFixed(4))}
+            <span className="ml-1 text-gray-500 font-normal">
+              {t.calibration.calibratedDesc}
             </span>
           </p>
-          <p className="text-xs text-gray-500 italic mb-2">
-            Approximate calibrated value. Panoramic radiographs may contain
-            non-uniform magnification and projection distortion. Calibration
-            improves scaling but does not eliminate these limitations.
-          </p>
-          {/* Persistent limitation notice (Item 7b) */}
           <div className="mb-2 rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
-            Millimeter values are approximate. Panoramic radiographs may contain
-            non-uniform magnification and projection distortion. Calibration
-            improves scaling but does not eliminate these limitations.
+            <strong>{t.results.approximateValuesTitle}</strong> {t.results.approximateValuesText}
           </div>
           <div className="flex gap-2">
             <button
               onClick={handleStart}
               className="rounded border border-gray-300 px-2 py-0.5 text-xs hover:bg-gray-50"
             >
-              Recalibrate
+              {t.calibration.recalibrate}
             </button>
             <button
               onClick={handleClearCalibration}
               className="rounded border border-gray-300 px-2 py-0.5 text-xs text-red-500 hover:bg-red-50"
             >
-              Remove
+              {t.common.delete}
             </button>
           </div>
         </div>
