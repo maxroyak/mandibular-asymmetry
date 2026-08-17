@@ -81,10 +81,11 @@ PMBot performing implementation itself is explicitly prohibited.
 - Use comparative language, not diagnostic language
 - Recommend clinical correlation and 3D imaging when indicated
 
-## Git Rules
+## Git Rules & Mandatory Worklog Enforcement
 
 - Conventional Commits: feat:, fix:, refactor:, test:, docs:, chore:
-- Never commit: secrets, .env, node_modules, dist, worklog.md, TASKS.md, DECISIONS.md, tasks/
+- Never commit: secrets, .env, node_modules, dist, TASKS.md, DECISIONS.md, tasks/
+- **Mandatory Worklog Gate**: `worklog.md` MUST be synchronously updated with Date, Tag/Task ID, and change summary before every commit. No task is "DONE-DONE" without `worklog.md` updated and committed.
 
 ## User Shortcut Commands
 

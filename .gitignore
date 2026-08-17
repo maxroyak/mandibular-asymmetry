@@ -2,8 +2,8 @@ node_modules/
 dist/
 .env
 *.local
-worklog.md
 TASKS.md
 DECISIONS.md
 tasks/
 *.tsbuildinfo
+
