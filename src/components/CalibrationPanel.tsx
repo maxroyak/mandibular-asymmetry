@@ -18,7 +18,7 @@ function StepIndicator({ currentStep }: { currentStep: number }) {
               idx < currentStep
                 ? "bg-emerald-600 text-white shadow-xs"
                 : idx === currentStep
-                ? "bg-cyan-600 text-white ring-2 ring-cyan-400/50 ring-offset-1 ring-offset-slate-900 shadow-xs"
+                ? "bg-blue-600 text-white ring-2 ring-blue-400/50 ring-offset-1 ring-offset-slate-900 shadow-xs"
                 : "bg-slate-800 text-slate-500 border border-slate-700/60"
             }`}
           >
@@ -160,7 +160,7 @@ export function CalibrationPanel() {
           <button
             onClick={handleStart}
             type="button"
-            className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-cyan-600 px-3 py-2 text-xs font-semibold text-white shadow-md shadow-cyan-950/40 hover:bg-cyan-500 active:scale-[0.98] transition-all"
+            className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white shadow-md shadow-blue-950/40 hover:bg-blue-500 active:scale-[0.98] transition-all cursor-pointer"
           >
             <span>🎯</span>
             <span>{t.calibration.calibrateImage}</span>
@@ -170,7 +170,7 @@ export function CalibrationPanel() {
 
       {/* ── PLACING POINT 1 ── */}
       {calibrationStage === "placing-point-1" && (
-        <div className="rounded-xl border border-cyan-900/60 bg-slate-800/60 p-3.5 text-xs">
+        <div className="rounded-xl border border-blue-900/60 bg-slate-800/60 p-3.5 text-xs">
           <StepIndicator currentStep={stepNumber} />
           <p className="text-slate-100 mb-1 font-semibold">
             {t.calibration.step1Title}
@@ -199,7 +199,7 @@ export function CalibrationPanel() {
 
       {/* ── REVIEWING POINT 1 ── */}
       {calibrationStage === "reviewing-point-1" && (
-        <div className="rounded-xl border border-cyan-900/60 bg-slate-800/60 p-3.5 text-xs">
+        <div className="rounded-xl border border-blue-900/60 bg-slate-800/60 p-3.5 text-xs">
           <StepIndicator currentStep={stepNumber} />
           <p className="text-slate-100 mb-1 font-semibold">
             {t.calibration.step1Review}
@@ -211,7 +211,7 @@ export function CalibrationPanel() {
             <button
               onClick={confirmPoint1}
               type="button"
-              className="rounded-lg bg-cyan-600 px-3 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-cyan-500 transition-colors"
+              className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-blue-500 transition-colors cursor-pointer"
             >
               {t.calibration.confirmPoint1}
             </button>
@@ -242,7 +242,7 @@ export function CalibrationPanel() {
 
       {/* ── PLACING POINT 2 ── */}
       {calibrationStage === "placing-point-2" && (
-        <div className="rounded-xl border border-cyan-900/60 bg-slate-800/60 p-3.5 text-xs">
+        <div className="rounded-xl border border-blue-900/60 bg-slate-800/60 p-3.5 text-xs">
           <StepIndicator currentStep={stepNumber} />
           <p className="text-slate-100 mb-1 font-semibold">
             {t.calibration.step2Title}
@@ -271,7 +271,7 @@ export function CalibrationPanel() {
 
       {/* ── REVIEWING POINT 2 ── */}
       {calibrationStage === "reviewing-point-2" && (
-        <div className="rounded-xl border border-cyan-900/60 bg-slate-800/60 p-3.5 text-xs">
+        <div className="rounded-xl border border-blue-900/60 bg-slate-800/60 p-3.5 text-xs">
           <StepIndicator currentStep={stepNumber} />
           <p className="text-slate-100 mb-1 font-semibold">
             {t.calibration.step2Review}
@@ -283,7 +283,7 @@ export function CalibrationPanel() {
             <button
               onClick={confirmPoint2}
               type="button"
-              className="rounded-lg bg-cyan-600 px-3 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-cyan-500 transition-colors"
+              className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-blue-500 transition-colors cursor-pointer"
             >
               {t.calibration.confirmPoint2}
             </button>
@@ -314,7 +314,7 @@ export function CalibrationPanel() {
 
       {/* ── ENTERING DISTANCE ── */}
       {calibrationStage === "entering-distance" && (
-        <div className="rounded-xl border border-cyan-900/60 bg-slate-800/60 p-3.5 text-xs">
+        <div className="rounded-xl border border-blue-900/60 bg-slate-800/60 p-3.5 text-xs">
           <StepIndicator currentStep={stepNumber} />
           <p className="text-slate-100 mb-1 font-semibold">
             {t.calibration.step3Title}
@@ -333,7 +333,7 @@ export function CalibrationPanel() {
                 value={distanceInput}
                 onChange={(e) => setDistanceInput(e.target.value)}
                 placeholder="e.g. 10.0"
-                className="w-28 rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs font-mono text-slate-100 focus:border-cyan-500 focus:outline-none"
+                className="w-28 rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs font-mono text-slate-100 focus:border-blue-500 focus:outline-none"
                 autoFocus
               />
               <span className="text-slate-400 font-medium">{t.common.mm}</span>
@@ -361,7 +361,7 @@ export function CalibrationPanel() {
                 </div>
                 <div>
                   <div className="text-[10px] text-slate-400 font-medium">Scale</div>
-                  <div className="font-mono font-bold text-cyan-400">
+                  <div className="font-mono font-bold text-blue-400">
                     {scalePreview !== null
                       ? scalePreview.toFixed(4)
                       : "—"}{" "}
@@ -380,7 +380,7 @@ export function CalibrationPanel() {
             <button
               onClick={handleConfirmCalibration}
               type="button"
-              className="rounded-lg bg-cyan-600 px-3 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-cyan-500 transition-colors"
+              className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-blue-500 transition-colors cursor-pointer"
             >
               {t.calibration.applyCalibration}
             </button>

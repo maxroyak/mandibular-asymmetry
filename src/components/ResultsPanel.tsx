@@ -50,7 +50,7 @@ function CalibratedMmSection({
 
   return (
     <div className="mb-3.5 rounded-xl border border-slate-800 bg-slate-800/50 p-3.5">
-      {/* Header */}
+      {/* Card Header */}
       <div className="mb-2.5 flex items-center justify-between">
         <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider">{title}</h4>
         <span className="text-[11px] text-slate-400 font-mono">
@@ -58,11 +58,11 @@ function CalibratedMmSection({
         </span>
       </div>
 
-      {/* PRIMARY: 3-column mm values */}
+      {/* PRIMARY 3-COLUMN METRICS */}
       <div className="mb-3 grid grid-cols-3 gap-2">
-        {/* Right */}
+        {/* Right Side (Pure Blue) */}
         <div
-          className="rounded-lg border border-blue-900/60 bg-blue-950/40 p-2 text-center cursor-pointer transition-all hover:border-blue-700/80 hover:bg-blue-950/60 select-none"
+          className="rounded-lg border border-blue-900/60 bg-blue-950/30 p-2.5 text-center cursor-pointer transition-all hover:border-blue-700/80 hover:bg-blue-950/50 select-none"
           onMouseEnter={() => setHoveredLine(`${measurementId}R`)}
           onMouseLeave={() => setHoveredLine(null)}
         >
@@ -70,24 +70,24 @@ function CalibratedMmSection({
           <div className="font-mono text-lg font-bold text-blue-100 mt-0.5">
             {bilateral.rightMm.toFixed(1)}
           </div>
-          <div className="text-[10px] text-blue-300/70">{t.common.mm}</div>
+          <div className="text-[10px] text-blue-300/80">{t.common.mm}</div>
         </div>
 
-        {/* Left */}
+        {/* Left Side (Pure Red/Coral) */}
         <div
-          className="rounded-lg border border-emerald-900/60 bg-emerald-950/40 p-2 text-center cursor-pointer transition-all hover:border-emerald-700/80 hover:bg-emerald-950/60 select-none"
+          className="rounded-lg border border-red-900/60 bg-red-950/30 p-2.5 text-center cursor-pointer transition-all hover:border-red-700/80 hover:bg-red-950/50 select-none"
           onMouseEnter={() => setHoveredLine(`${measurementId}L`)}
           onMouseLeave={() => setHoveredLine(null)}
         >
-          <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">{t.common.left}</div>
-          <div className="font-mono text-lg font-bold text-emerald-100 mt-0.5">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-red-400">{t.common.left}</div>
+          <div className="font-mono text-lg font-bold text-red-100 mt-0.5">
             {bilateral.leftMm.toFixed(1)}
           </div>
-          <div className="text-[10px] text-emerald-300/70">{t.common.mm}</div>
+          <div className="text-[10px] text-red-300/80">{t.common.mm}</div>
         </div>
 
-        {/* Abs Diff */}
-        <div className="rounded-lg border border-slate-700/70 bg-slate-900/60 p-2 text-center select-none">
+        {/* Absolute Difference (Neutral Slate) */}
+        <div className="rounded-lg border border-slate-700/70 bg-slate-900/60 p-2.5 text-center select-none">
           <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{t.common.absDiff}</div>
           <div className="font-mono text-lg font-bold text-slate-100 mt-0.5">
             {bilateral.absoluteDifferenceMm.toFixed(1)}
@@ -96,11 +96,13 @@ function CalibratedMmSection({
         </div>
       </div>
 
-      {/* Comparison sentence */}
-      <p className="mb-2.5 text-xs text-slate-300 leading-relaxed font-medium">{comparisonSentence}</p>
+      {/* Comparative Clinical Summary */}
+      <p className="mb-2.5 text-xs text-slate-200 leading-relaxed font-medium">
+        {comparisonSentence}
+      </p>
 
-      {/* SECONDARY: relative %, Habets index */}
-      <div className="border-t border-slate-700/60 pt-2">
+      {/* SECONDARY: Relative % & Habets Index */}
+      <div className="border-t border-slate-700/60 pt-2.5">
         <div className="grid grid-cols-2 gap-2 text-xs">
           <div className="rounded-lg bg-slate-900/60 border border-slate-800/80 p-2">
             <div className="text-[10px] text-slate-400 font-medium">{t.common.relativeDifference}</div>
@@ -116,10 +118,10 @@ function CalibratedMmSection({
           </div>
         </div>
 
-        {/* Larger measured side */}
+        {/* Dominant Side */}
         <div className="mt-2 text-[11px] text-slate-400">
           <span className="font-medium">{t.common.largerSide}</span>{" "}
-          <span className="font-semibold text-slate-200">{largerSideLabel(result.largerSide, t)}</span>
+          <span className="font-semibold text-slate-100">{largerSideLabel(result.largerSide, t)}</span>
         </div>
       </div>
     </div>
@@ -143,7 +145,7 @@ function UncalibratedSection({
 
   return (
     <div className="mb-3.5 rounded-xl border border-slate-800 bg-slate-800/50 p-3.5">
-      {/* Header */}
+      {/* Card Header */}
       <div className="mb-2.5 flex items-center justify-between">
         <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider">{title}</h4>
         <span className="text-[11px] text-amber-400 font-medium">{t.common.uncalibratedUnit}</span>
@@ -152,32 +154,32 @@ function UncalibratedSection({
       {/* Uncalibrated placeholder */}
       <div className="mb-3 grid grid-cols-3 gap-2">
         <div
-          className="rounded-lg border border-blue-900/40 bg-blue-950/20 p-2 text-center cursor-pointer select-none"
+          className="rounded-lg border border-blue-900/60 bg-blue-950/30 p-2.5 text-center cursor-pointer select-none"
           onMouseEnter={() => setHoveredLine(`${measurementId}R`)}
           onMouseLeave={() => setHoveredLine(null)}
         >
-          <div className="text-[10px] font-bold text-blue-400">{t.common.right}</div>
-          <div className="font-mono text-lg font-bold text-slate-600">—</div>
+          <div className="text-[10px] font-bold uppercase tracking-wider text-blue-400">{t.common.right}</div>
+          <div className="font-mono text-lg font-bold text-slate-600 mt-0.5">—</div>
           <div className="text-[10px] text-slate-500">{t.common.mm}</div>
         </div>
         <div
-          className="rounded-lg border border-emerald-900/40 bg-emerald-950/20 p-2 text-center cursor-pointer select-none"
+          className="rounded-lg border border-red-900/60 bg-red-950/30 p-2.5 text-center cursor-pointer select-none"
           onMouseEnter={() => setHoveredLine(`${measurementId}L`)}
           onMouseLeave={() => setHoveredLine(null)}
         >
-          <div className="text-[10px] font-bold text-emerald-400">{t.common.left}</div>
-          <div className="font-mono text-lg font-bold text-slate-600">—</div>
+          <div className="text-[10px] font-bold uppercase tracking-wider text-red-400">{t.common.left}</div>
+          <div className="font-mono text-lg font-bold text-slate-600 mt-0.5">—</div>
           <div className="text-[10px] text-slate-500">{t.common.mm}</div>
         </div>
-        <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-2 text-center select-none">
-          <div className="text-[10px] font-bold text-slate-400">{t.common.absDiff}</div>
-          <div className="font-mono text-lg font-bold text-slate-600">—</div>
+        <div className="rounded-lg border border-slate-700/70 bg-slate-900/60 p-2.5 text-center select-none">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{t.common.absDiff}</div>
+          <div className="font-mono text-lg font-bold text-slate-600 mt-0.5">—</div>
           <div className="text-[10px] text-slate-500">{t.common.mm}</div>
         </div>
       </div>
 
-      {/* Relative % and Habets Index */}
-      <div className="border-t border-slate-700/60 pt-2">
+      {/* Relative % & Habets Index */}
+      <div className="border-t border-slate-700/60 pt-2.5">
         <div className="grid grid-cols-2 gap-2 text-xs">
           <div className="rounded-lg bg-slate-900/60 border border-slate-800/80 p-2">
             <div className="text-[10px] text-slate-400 font-medium">{t.common.relativeDifference}</div>
@@ -196,7 +198,7 @@ function UncalibratedSection({
         {/* Larger measured side */}
         <div className="mt-2 text-[11px] text-slate-400">
           <span className="font-medium">{t.common.largerSide}</span>{" "}
-          <span className="font-semibold text-slate-200">{largerSideLabel(result.largerSide, t)}</span>
+          <span className="font-semibold text-slate-100">{largerSideLabel(result.largerSide, t)}</span>
         </div>
       </div>
     </div>
@@ -336,10 +338,10 @@ export function ResultsPanel({ onJumpToCalibration }: ResultsPanelProps = {}) {
   return (
     <div className="p-4 select-none">
       {/* ── High-Impact Quantitative Habets Overview Card ── */}
-      <div className="mb-4 rounded-xl border border-cyan-900/60 bg-gradient-to-br from-slate-900 via-slate-900/90 to-slate-800/80 p-4 shadow-lg">
+      <div className="mb-4 rounded-xl border border-slate-700/80 bg-gradient-to-br from-slate-900 via-slate-900/95 to-slate-800/90 p-4 shadow-lg">
         <div className="flex items-start justify-between gap-2">
           <div>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-cyan-400">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-blue-400">
               {t.common.habetsIndex}
             </span>
             <div className="mt-1 flex items-baseline gap-2">
@@ -347,14 +349,24 @@ export function ResultsPanel({ onJumpToCalibration }: ResultsPanelProps = {}) {
                 {habetsIndex.toFixed(1)}%
               </span>
               {habetsIndex > 6.0 && (
+                <span className="rounded-md bg-red-500/20 text-red-300 border border-red-500/40 px-1.5 py-0.5 text-[10px] font-bold">
+                  &gt; 6% ({t.results.thresholdSignificant})
+                </span>
+              )}
+              {habetsIndex >= 3.0 && habetsIndex <= 6.0 && (
                 <span className="rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/40 px-1.5 py-0.5 text-[10px] font-bold">
-                  &gt; 6%
+                  3–6% ({t.results.thresholdMild})
+                </span>
+              )}
+              {habetsIndex < 3.0 && (
+                <span className="rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-1.5 py-0.5 text-[10px] font-bold">
+                  &lt; 3% ({t.results.thresholdNormal})
                 </span>
               )}
             </div>
           </div>
 
-          {/* Dominant Asymmetry Chip */}
+          {/* Dominant Asymmetry Pill */}
           {isCalibrated && longerSide && (
             <div className="text-right">
               <span
@@ -362,11 +374,11 @@ export function ResultsPanel({ onJumpToCalibration }: ResultsPanelProps = {}) {
                   longerSide === "right"
                     ? "bg-blue-600/30 text-blue-200 border border-blue-500/50"
                     : longerSide === "left"
-                    ? "bg-emerald-600/30 text-emerald-200 border border-emerald-500/50"
+                    ? "bg-red-600/30 text-red-200 border border-red-500/50"
                     : "bg-slate-800 text-slate-300 border border-slate-700"
                 }`}
               >
-                <span>{longerSide === "right" ? "🔵" : longerSide === "left" ? "🟢" : "⚪"}</span>
+                <span>{longerSide === "right" ? "🔵" : longerSide === "left" ? "🔴" : "⚪"}</span>
                 <span>
                   {longerSide === "right"
                     ? t.results.dominantRightRamus(ramusAbsDiffMm.toFixed(1))
@@ -379,35 +391,46 @@ export function ResultsPanel({ onJumpToCalibration }: ResultsPanelProps = {}) {
           )}
         </div>
 
-        {/* 6% Habets Baseline Reference Bar */}
+        {/* Clean 3-Tier Multi-Threshold Progress Gauge */}
         <div className="mt-3.5">
-          <div className="flex justify-between text-[10px] font-medium text-slate-400 mb-1">
+          <div className="flex justify-between text-[10px] font-medium text-slate-300 mb-1.5">
             <span>{t.results.habetsBaseline6Title}</span>
-            <span className="font-mono">6.0% Baseline</span>
+            <span className="font-mono text-slate-400">Habets (1987)</span>
           </div>
 
-          <div className="relative h-2 w-full rounded-full bg-slate-800 overflow-hidden">
-            {/* 6% marker line */}
+          {/* Gauge Track */}
+          <div className="relative h-2.5 w-full rounded-full bg-slate-950 border border-slate-700/80 overflow-hidden">
+            {/* 3% Marker Notch */}
             <div
-              className="absolute top-0 bottom-0 w-0.5 bg-amber-400 z-10"
-              style={{ left: "40%" }} // 6% of a 15% range is 40%
-              title="6% Habets baseline"
+              className="absolute top-0 bottom-0 w-0.5 bg-slate-500 z-10 opacity-75"
+              style={{ left: "20%" }} // 3% of 15% range = 20%
+              title="3% Threshold"
             />
-            {/* Progress fill */}
+            {/* 6% Baseline Notch */}
+            <div
+              className="absolute top-0 bottom-0 w-0.5 bg-amber-400 z-10 shadow-sm"
+              style={{ left: "40%" }} // 6% of 15% range = 40%
+              title="6% Habets Baseline Error Threshold"
+            />
+            {/* Dynamic Fill */}
             <div
               className={`h-full rounded-full transition-all duration-300 ${
                 habetsIndex > 6.0
-                  ? "bg-gradient-to-r from-cyan-500 to-amber-400 shadow-sm"
-                  : "bg-gradient-to-r from-cyan-600 to-cyan-400"
+                  ? "bg-gradient-to-r from-blue-500 via-amber-500 to-red-500"
+                  : habetsIndex >= 3.0
+                  ? "bg-gradient-to-r from-blue-500 to-amber-400"
+                  : "bg-blue-500"
               }`}
               style={{
                 width: `${Math.min(100, (habetsIndex / 15) * 100)}%`,
               }}
             />
           </div>
-          <div className="mt-1 flex justify-between text-[9px] text-slate-500 font-mono">
-            <span>0%</span>
-            <span>6% Baseline</span>
+
+          {/* Gauge Legend */}
+          <div className="mt-1.5 flex justify-between text-[9px] text-slate-400 font-mono">
+            <span>0% (Norm &lt;3%)</span>
+            <span className="text-amber-300 font-semibold">6% Baseline</span>
             <span>15%+</span>
           </div>
         </div>
@@ -423,7 +446,7 @@ export function ResultsPanel({ onJumpToCalibration }: ResultsPanelProps = {}) {
               <button
                 onClick={onJumpToCalibration}
                 type="button"
-                className="text-[11px] font-semibold text-cyan-400 hover:text-cyan-300 underline"
+                className="text-[11px] font-semibold text-blue-400 hover:text-blue-300 underline cursor-pointer"
               >
                 {t.results.jumpToCalibration}
               </button>
@@ -489,8 +512,8 @@ export function ResultsPanel({ onJumpToCalibration }: ResultsPanelProps = {}) {
 
       {/* ── Clinical Conclusion (calibrated only) ── */}
       {isCalibrated && mandibularResult && (
-        <div className="mb-4 rounded-xl border border-cyan-800/40 bg-slate-800/60 p-3.5">
-          <h4 className="mb-1.5 text-xs font-bold uppercase tracking-wider text-cyan-400">
+        <div className="mb-4 rounded-xl border border-blue-800/40 bg-slate-800/60 p-3.5">
+          <h4 className="mb-1.5 text-xs font-bold uppercase tracking-wider text-blue-400">
             {t.results.conclusion}
           </h4>
           <p className="text-xs text-slate-200 leading-relaxed font-medium">

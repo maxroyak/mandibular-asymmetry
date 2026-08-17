@@ -64,31 +64,31 @@ export function AnalysisPage() {
   return (
     <div className="flex h-screen flex-col bg-slate-950 text-slate-100 select-none overflow-hidden font-sans">
       {/* ── Top Navigation Bar ── */}
-      <header className="h-14 border-b border-slate-800 bg-slate-900/90 backdrop-blur-md px-4 sm:px-6 flex items-center justify-between gap-3 shrink-0 z-20 no-print">
-        {/* Brand Header & Medical Badge */}
-        <div className="flex items-center gap-2.5 min-w-[200px]">
-          <span className="text-xl">🩻</span>
-          <div>
+      <header className="h-14 border-b border-slate-800 bg-slate-900/95 backdrop-blur-md px-4 sm:px-6 flex items-center justify-between gap-4 shrink-0 z-20 select-none no-print">
+        {/* GROUP 1: BRAND & EDITION (Left) */}
+        <div className="flex items-center gap-3 shrink-0 min-w-0">
+          <span className="text-2xl" aria-hidden="true">🩻</span>
+          <div className="flex flex-col justify-center min-w-0">
             <div className="flex items-center gap-2">
-              <h1 className="text-sm font-bold tracking-tight text-slate-100">
+              <h1 className="text-sm font-bold tracking-tight text-slate-100 truncate">
                 {t.common.appName}
               </h1>
-              <span className="hidden sm:inline-block rounded-md bg-cyan-950/60 border border-cyan-800/60 px-2 py-0.5 text-[10px] font-bold text-cyan-400 tracking-wide">
+              <span className="shrink-0 rounded-md bg-blue-950/80 border border-blue-800/70 px-2 py-0.5 text-[10px] font-bold text-blue-400 tracking-wide">
                 {t.common.editionBadge}
               </span>
             </div>
-            <p className="text-[11px] text-slate-400 hidden md:block">
+            <p className="text-[11px] text-slate-400 truncate hidden 2xl:block max-w-md">
               {t.common.appSubtitle}
             </p>
           </div>
         </div>
 
-        {/* Center Study Metadata & Status Chips (Visible when radiograph is loaded) */}
+        {/* GROUP 2: CLINICAL STUDY METADATA & CALIBRATION STATUS (Center) */}
         {imageDataUrl && (
-          <div className="hidden md:flex items-center gap-2.5">
-            {/* Patient ID Chip / Inline Edit */}
+          <div className="hidden md:flex items-center gap-2.5 shrink-0">
+            {/* Patient ID Pill / Inline Quick-Edit */}
             {showPatientPopover ? (
-              <div className="flex items-center gap-1 bg-slate-800 border border-cyan-500/60 rounded-lg px-2 py-0.5">
+              <div className="flex items-center gap-1 bg-slate-800 border border-blue-500/60 rounded-lg px-2 py-0.5 shadow-sm">
                 <input
                   type="text"
                   value={localPatientId}
@@ -102,7 +102,7 @@ export function AnalysisPage() {
                     useStudyStore.setState({ patientId: localPatientId, isSaved: false });
                     setShowPatientPopover(false);
                   }}
-                  className="text-xs font-bold text-cyan-400 hover:text-cyan-300 px-1"
+                  className="text-xs font-bold text-blue-400 hover:text-blue-300 px-1 cursor-pointer"
                 >
                   ✓
                 </button>
@@ -113,11 +113,11 @@ export function AnalysisPage() {
                   setLocalPatientId(patientId);
                   setShowPatientPopover(true);
                 }}
-                className="flex items-center gap-1.5 rounded-lg border border-slate-700/80 bg-slate-800/80 px-2.5 py-1 text-xs text-slate-300 hover:border-slate-600 hover:text-slate-100 transition-colors"
-                title="Edit Patient ID"
+                className="flex items-center gap-1.5 rounded-lg border border-slate-700/80 bg-slate-800/80 px-2.5 py-1 text-xs text-slate-300 hover:border-slate-600 hover:text-slate-100 transition-colors cursor-pointer"
+                title={t.topBar.editPatient}
               >
-                <span className="text-slate-400">{t.topBar.patient}:</span>
-                <span className="font-mono font-semibold text-slate-200">
+                <span className="text-slate-400">{t.topBar.patient}</span>
+                <span className="font-mono font-semibold text-slate-100">
                   {patientId || t.studyManager.unassigned}
                 </span>
                 <span className="text-slate-400 text-[10px]">✎</span>
@@ -132,9 +132,9 @@ export function AnalysisPage() {
                   ? "bg-emerald-950/40 border-emerald-800/60 text-emerald-300 hover:bg-emerald-900/40"
                   : "bg-amber-950/40 border-amber-800/60 text-amber-300 hover:bg-amber-900/40"
               }`}
-              title="Click to manage calibration"
+              title={isCalibrated ? t.calibration.title : t.results.jumpToCalibration}
             >
-              <span>{isCalibrated ? "✓" : "⚠"}</span>
+              <span className={`w-2 h-2 rounded-full ${isCalibrated ? "bg-emerald-400" : "bg-amber-400 animate-pulse"}`} />
               <span>
                 {isCalibrated
                   ? t.topBar.calibratedChip(calibration!.mmPerPixel.toFixed(4))
@@ -144,46 +144,14 @@ export function AnalysisPage() {
           </div>
         )}
 
-        {/* Primary Study Actions & Utilities */}
-        <div className="flex items-center gap-2">
-          {/* Primary Save Button */}
-          <button
-            onClick={handleSaveStudy}
-            disabled={!imageDataUrl}
-            type="button"
-            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold shadow-sm transition-all ${
-              !imageDataUrl
-                ? "bg-slate-800 text-slate-500 border border-slate-700/60 cursor-not-allowed"
-                : isSaved
-                ? "bg-slate-800 text-emerald-400 border border-emerald-700/60 hover:bg-slate-700"
-                : "bg-cyan-600 text-white hover:bg-cyan-500 active:scale-[0.98] ring-2 ring-cyan-400/40 ring-offset-1 ring-offset-slate-900"
-            }`}
-            title={t.topBar.save}
-          >
-            <span>{isSaved ? "✓" : "💾"}</span>
-            <span>{isSaved ? t.topBar.saved : t.topBar.save}</span>
-            {!isSaved && imageDataUrl && (
-              <span className="h-1.5 w-1.5 rounded-full bg-amber-300 animate-pulse" />
-            )}
-          </button>
-
-          {/* New Study Button */}
-          <button
-            onClick={handleNewStudy}
-            type="button"
-            className="inline-flex items-center gap-1 rounded-lg border border-slate-700/80 bg-slate-800/80 px-2.5 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-700 hover:text-slate-100 transition-colors"
-            title={t.topBar.newStudy}
-          >
-            <span>➕</span>
-            <span className="hidden sm:inline">{t.topBar.newStudy}</span>
-          </button>
-
-          {/* Export Report Action Button */}
+        {/* GROUP 3: STUDY ACTIONS & LOCALIZATION (Right) */}
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Export Report (Primary Blue Accent Action) */}
           {imageDataUrl && (
             <button
               onClick={() => setIsReportOpen(true)}
               type="button"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-600/40 bg-cyan-950/40 px-3 py-1.5 text-xs font-semibold text-cyan-300 hover:bg-cyan-900/50 hover:border-cyan-500/60 transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 active:scale-[0.98] px-3 py-1.5 text-xs font-semibold text-white shadow-md shadow-blue-950/50 transition-all cursor-pointer"
               title={t.topBar.exportReport}
             >
               <span>📄</span>
@@ -191,7 +159,38 @@ export function AnalysisPage() {
             </button>
           )}
 
-          {/* Language Switcher Pill */}
+          {/* Save Study Action */}
+          {imageDataUrl && (
+            <button
+              onClick={handleSaveStudy}
+              type="button"
+              className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold border transition-all cursor-pointer ${
+                isSaved
+                  ? "bg-slate-800 text-emerald-400 border-emerald-700/60 hover:bg-slate-700"
+                  : "bg-slate-800 text-slate-300 border-slate-700/80 hover:bg-slate-700 hover:text-slate-100"
+              }`}
+              title={t.topBar.save}
+            >
+              <span>{isSaved ? "✓" : "💾"}</span>
+              <span className="hidden sm:inline">{isSaved ? t.topBar.saved : t.topBar.save}</span>
+              {!isSaved && (
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
+              )}
+            </button>
+          )}
+
+          {/* New Study (Secondary Ghost Action) */}
+          <button
+            onClick={handleNewStudy}
+            type="button"
+            className="inline-flex items-center gap-1 rounded-lg border border-slate-700/80 bg-slate-800/80 px-2.5 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-700 hover:text-slate-100 transition-colors cursor-pointer"
+            title={t.topBar.newStudy}
+          >
+            <span>➕</span>
+            <span className="hidden sm:inline">{t.topBar.newStudy}</span>
+          </button>
+
+          {/* Language Switcher */}
           <LanguageSwitcher />
         </div>
       </header>
@@ -213,9 +212,9 @@ export function AnalysisPage() {
                 <button
                   onClick={() => setActiveStep(1)}
                   type="button"
-                  className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+                  className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                     activeStep === 1
-                      ? "bg-slate-800 text-cyan-300 border border-slate-700 shadow-xs"
+                      ? "bg-slate-800 text-blue-400 border border-slate-700 shadow-xs"
                       : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
                   }`}
                 >
@@ -231,15 +230,15 @@ export function AnalysisPage() {
                 <button
                   onClick={() => setActiveStep(2)}
                   type="button"
-                  className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+                  className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                     activeStep === 2
-                      ? "bg-slate-800 text-cyan-300 border border-slate-700 shadow-xs"
+                      ? "bg-slate-800 text-blue-400 border border-slate-700 shadow-xs"
                       : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
                   }`}
                 >
                   <span
                     className={`w-2 h-2 rounded-full ${
-                      placedLandmarkCount === 5 ? "bg-emerald-400" : "bg-cyan-400"
+                      placedLandmarkCount === 5 ? "bg-emerald-400" : "bg-blue-400"
                     }`}
                   />
                   <span>{t.steps.landmarks}</span>
@@ -252,9 +251,9 @@ export function AnalysisPage() {
                 <button
                   onClick={() => setActiveStep(3)}
                   type="button"
-                  className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+                  className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                     activeStep === 3
-                      ? "bg-slate-800 text-cyan-300 border border-slate-700 shadow-xs"
+                      ? "bg-slate-800 text-blue-400 border border-slate-700 shadow-xs"
                       : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
                   }`}
                 >
@@ -270,9 +269,9 @@ export function AnalysisPage() {
                 <button
                   onClick={() => setActiveStep(4)}
                   type="button"
-                  className={`py-1.5 px-2.5 rounded-lg text-xs font-semibold flex items-center justify-center transition-all ${
+                  className={`py-1.5 px-2.5 rounded-lg text-xs font-semibold flex items-center justify-center transition-all cursor-pointer ${
                     activeStep === 4
-                      ? "bg-slate-800 text-cyan-300 border border-slate-700 shadow-xs"
+                      ? "bg-slate-800 text-blue-400 border border-slate-700 shadow-xs"
                       : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
                   }`}
                   title={t.steps.history}

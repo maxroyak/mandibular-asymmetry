@@ -2,14 +2,18 @@
 
 /* Custom theme tokens for clinical UI */
 @theme {
-  --color-ramus: #3b82f6;
-  --color-body: #8b5cf6;
+  --color-ramus-right: #3b82f6;
+  --color-ramus-left: #ef4444;
+  --color-body-right: #3b82f6;
+  --color-body-left: #ef4444;
   --color-warning: #f59e0b;
-  --color-danger: #f43f5e;
-  --color-landmark: #f43f5e;
+  --color-danger: #ef4444;
+  --color-landmark-right: #3b82f6;
+  --color-landmark-left: #ef4444;
+  --color-landmark-midline: #f59e0b;
   --color-landmark-active: #f97316;
   --color-calibration: #10b981;
-  --color-medical-cyan: #06b6d4;
+  --color-primary: #3b82f6;
 }
 
 /* Custom scrollbar for dark clinical panels */

@@ -171,6 +171,9 @@ export interface Translations {
     dominantRightRamus: (diffMm: string) => string;
     dominantLeftRamus: (diffMm: string) => string;
     dominantSymmetrical: string;
+    thresholdNormal: string;
+    thresholdMild: string;
+    thresholdSignificant: string;
     methodologyTitle: string;
     jumpToCalibration: string;
   };

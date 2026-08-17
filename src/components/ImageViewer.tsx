@@ -31,7 +31,6 @@ const CALIBRATION_HIT_AREA_PX = 12;   // 24px diameter hit area
 const LANDMARK_MARKER_PX = 5;         // 10px diameter visible marker
 const LANDMARK_HIT_AREA_PX = 12;      // 24px diameter hit area
 const LANDMARK_ACTIVE_RING_PX = 10;   // 20px diameter active ring
-const DELETE_BTN_PX = 5;             // 10px diameter delete button
 
 export function ImageViewer() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -113,7 +112,6 @@ export function ImageViewer() {
   const lmMarkerR = pxToViewBox(LANDMARK_MARKER_PX);
   const lmHitR = pxToViewBox(LANDMARK_HIT_AREA_PX);
   const lmActiveRingR = pxToViewBox(LANDMARK_ACTIVE_RING_PX);
-  const deleteBtnR = pxToViewBox(DELETE_BTN_PX);
 
   // ── One source of truth: mm values from the store ──────────
   const mandibularResult = useStudyStore((s) => s.mandibularResult);
@@ -245,43 +243,41 @@ export function ImageViewer() {
             if (ctm) {
               const svgPt = pt.matrixTransform(ctm.inverse());
 
-              // Check calibration points first
+              // Check calibration points first (only during active calibration workflow)
               const calHitRadius = pxToViewBox(CALIBRATION_HIT_AREA_PX);
-              for (const which of [1, 2] as const) {
-                const cp =
-                  which === 1 ? calibrationPoints?.point1 : calibrationPoints?.point2;
-                if (!cp) continue;
-                const canDrag =
-                  (which === 1 &&
-                    (stage === "reviewing-point-1" ||
-                      stage === "reviewing-point-2" ||
-                      stage === "entering-distance" ||
-                      stage === "calibrated" ||
-                      stage === "idle")) ||
-                  (which === 2 &&
-                    (stage === "reviewing-point-2" ||
-                      stage === "entering-distance" ||
-                      stage === "calibrated" ||
-                      stage === "idle"));
+              if (isCalibratingStage(stage)) {
+                for (const which of [1, 2] as const) {
+                  const cp =
+                    which === 1 ? calibrationPoints?.point1 : calibrationPoints?.point2;
+                  if (!cp) continue;
+                  const canDrag =
+                    (which === 1 &&
+                      (stage === "reviewing-point-1" ||
+                        stage === "reviewing-point-2" ||
+                        stage === "entering-distance")) ||
+                    (which === 2 &&
+                      (stage === "reviewing-point-2" ||
+                        stage === "entering-distance"));
 
-                if (!canDrag) continue;
+                  if (!canDrag) continue;
 
-                const dx = svgPt.x - cp.x;
-                const dy = svgPt.y - cp.y;
-                const dist = Math.sqrt(dx * dx + dy * dy);
-                if (dist < calHitRadius) {
-                  interactionMode.current = "drag-calibration";
-                  draggingCalibrationPoint.current = which;
-                  activePointerId.current = e.pointerId;
-                  isDraggingRef.current = true;
-                  setIsDraggingMarker(true);
-                  try {
-                    (e.currentTarget as Element).setPointerCapture(e.pointerId);
-                  } catch {
-                    /* noop */
+                  const dx = svgPt.x - cp.x;
+                  const dy = svgPt.y - cp.y;
+                  const dist = Math.sqrt(dx * dx + dy * dy);
+                  if (dist < calHitRadius) {
+                    interactionMode.current = "drag-calibration";
+                    draggingCalibrationPoint.current = which;
+                    activePointerId.current = e.pointerId;
+                    isDraggingRef.current = true;
+                    setIsDraggingMarker(true);
+                    try {
+                      (e.currentTarget as Element).setPointerCapture(e.pointerId);
+                    } catch {
+                      /* noop */
+                    }
+                    e.preventDefault();
+                    return;
                   }
-                  e.preventDefault();
-                  return;
                 }
               }
 
@@ -447,14 +443,14 @@ export function ImageViewer() {
   // Landmark colors
   const landmarkColor = (name: LandmarkName): string => {
     const def = LANDMARK_DEFINITIONS.find((l) => l.name === name);
-    if (!def) return "#f43f5e";
-    if (def.side === "right") return "#3b82f6"; // Blue
-    if (def.side === "left") return "#10b981";  // Emerald
-    return "#f59e0b"; // Amber
+    if (!def) return "#ef4444";
+    if (def.side === "right") return "#3b82f6"; // Pure Blue
+    if (def.side === "left") return "#ef4444";  // Pure Red / Coral
+    return "#f59e0b"; // Warm Amber
   };
 
-  const RIGHT_COLOR = "#3b82f6"; // Blue
-  const LEFT_COLOR = "#10b981";  // Emerald Green
+  const RIGHT_COLOR = "#3b82f6"; // Pure Blue
+  const LEFT_COLOR = "#ef4444";  // Pure Red / Coral
 
   const lineDefs = [
     {
@@ -491,6 +487,8 @@ export function ImageViewer() {
     },
   ];
 
+  const isCalibrating = isCalibratingStage(calibrationStage);
+
   const activeCalibrationPoint: 1 | 2 | null =
     calibrationStage === "placing-point-1" || calibrationStage === "reviewing-point-1"
       ? 1
@@ -519,7 +517,7 @@ export function ImageViewer() {
         <div className="flex items-center gap-1">
           <button
             onClick={() => setZoom(viewer.zoom * 0.85)}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-slate-800/80 active:bg-slate-700/80 text-xs font-semibold transition-colors"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-slate-800/80 active:bg-slate-700/80 text-xs font-semibold transition-colors cursor-pointer"
             title={t.hud.zoomOut}
             aria-label={t.hud.zoomOut}
           >
@@ -530,7 +528,7 @@ export function ImageViewer() {
           </span>
           <button
             onClick={() => setZoom(viewer.zoom * 1.15)}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-slate-800/80 active:bg-slate-700/80 text-xs font-semibold transition-colors"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-slate-800/80 active:bg-slate-700/80 text-xs font-semibold transition-colors cursor-pointer"
             title={t.hud.zoomIn}
             aria-label={t.hud.zoomIn}
           >
@@ -538,16 +536,16 @@ export function ImageViewer() {
           </button>
           <button
             onClick={fitToScreen}
-            className="px-2 py-1 rounded-lg text-xs font-semibold text-slate-300 hover:bg-slate-800/80 hover:text-slate-100 transition-colors"
+            className="px-2 py-1 rounded-lg text-xs font-semibold text-slate-300 hover:bg-slate-800/80 hover:text-slate-100 transition-colors cursor-pointer"
             title={t.hud.fit}
           >
             {t.hud.fit}
           </button>
           <button
             onClick={() => setPanMode(!panMode)}
-            className={`px-2 py-1 rounded-lg text-xs font-semibold transition-colors ${
+            className={`px-2 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
               panMode
-                ? "bg-cyan-600 text-white shadow-xs"
+                ? "bg-blue-600 text-white shadow-xs"
                 : "text-slate-400 hover:bg-slate-800/80 hover:text-slate-100"
             }`}
             title={t.hud.pan}
@@ -556,7 +554,7 @@ export function ImageViewer() {
           </button>
           <button
             onClick={resetViewer}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-slate-800/80 active:bg-slate-700/80 text-xs transition-colors"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-slate-800/80 active:bg-slate-700/80 text-xs transition-colors cursor-pointer"
             title={t.hud.reset}
             aria-label={t.hud.reset}
           >
@@ -572,7 +570,7 @@ export function ImageViewer() {
           {/* Grayscale Inversion */}
           <button
             onClick={() => setImageFilters({ invert: !filters.invert })}
-            className={`p-1.5 rounded-lg text-xs font-semibold transition-colors ${
+            className={`p-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
               filters.invert
                 ? "bg-amber-500/20 text-amber-300 border border-amber-500/50 shadow-xs"
                 : "text-slate-400 hover:bg-slate-800/80 hover:text-slate-100"
@@ -586,9 +584,9 @@ export function ImageViewer() {
           {/* Filter Popover Toggle */}
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className={`px-2 py-1 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition-colors ${
+            className={`px-2 py-1 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer ${
               showFilters || isFilterActive(filters)
-                ? "bg-cyan-600/30 text-cyan-200 border border-cyan-500/50 shadow-xs"
+                ? "bg-blue-600/30 text-blue-200 border border-blue-500/50 shadow-xs"
                 : "text-slate-400 hover:bg-slate-800/80 hover:text-slate-100"
             }`}
             title={t.filters.togglePanel}
@@ -596,7 +594,7 @@ export function ImageViewer() {
             <span>🎨</span>
             <span>{t.hud.filters}</span>
             {isFilterActive(filters) && (
-              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 inline-block" />
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-400 inline-block" />
             )}
           </button>
         </div>
@@ -608,9 +606,9 @@ export function ImageViewer() {
         <div className="flex items-center gap-1">
           <button
             onClick={() => setShowOverlay(!showOverlay)}
-            className={`px-2 py-1 rounded-lg text-xs font-semibold transition-colors ${
+            className={`px-2 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
               showOverlay
-                ? "bg-slate-800 text-cyan-300 border border-cyan-500/40"
+                ? "bg-slate-800 text-blue-400 border border-blue-500/40"
                 : "text-slate-500 hover:bg-slate-800/80 hover:text-slate-300"
             }`}
             title={t.hud.measurements}
@@ -619,9 +617,9 @@ export function ImageViewer() {
           </button>
           <button
             onClick={() => setShowLandmarks(!showLandmarks)}
-            className={`px-2 py-1 rounded-lg text-xs font-semibold transition-colors ${
+            className={`px-2 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
               showLandmarks
-                ? "bg-slate-800 text-cyan-300 border border-cyan-500/40"
+                ? "bg-slate-800 text-blue-400 border border-blue-500/40"
                 : "text-slate-500 hover:bg-slate-800/80 hover:text-slate-300"
             }`}
             title={t.hud.landmarks}
@@ -638,7 +636,7 @@ export function ImageViewer() {
           <button
             onClick={() => detectLandmarksAi()}
             disabled={isAiDetecting}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 border border-indigo-500/50 shadow-sm disabled:opacity-50 transition-colors"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg bg-blue-600/20 hover:bg-blue-600/30 text-blue-200 border border-blue-500/40 shadow-sm disabled:opacity-50 transition-colors cursor-pointer"
             title={t.ai.detectButton}
           >
             <span>{isAiDetecting ? "⏳" : "✨"}</span>
@@ -711,7 +709,7 @@ export function ImageViewer() {
             transformOrigin: "center",
           }}
         >
-          {/* Measurement lines with midpoint mm labels */}
+          {/* Measurement lines with midpoint mm labels (strokeWidth: 1.5px) */}
           {showOverlay && lineDefs.map((line) => {
             if (!line.from || !line.to) return null;
             const isHovered = hoveredLine === line.id;
@@ -721,6 +719,8 @@ export function ImageViewer() {
             const label = showMm
               ? `${line.name}: ${line.mm!.toFixed(1)} ${t.common.mm}`
               : `${line.name}: ${t.overlay.calibrationRequired}`;
+            const pillWidth = showMm ? 0.16 : 0.22;
+            const pillHalfWidth = pillWidth / 2;
 
             return (
               <g key={line.id}>
@@ -730,27 +730,27 @@ export function ImageViewer() {
                   x2={line.to.x}
                   y2={line.to.y}
                   stroke={line.color}
-                  strokeWidth={isHovered ? 0.006 : 0.0035}
+                  strokeWidth={isHovered ? 2.5 : 1.5}
                   opacity={hoveredLine && !isHovered ? 0.25 : 1}
                   vectorEffect="non-scaling-stroke"
                   style={{
                     filter: isHovered
-                      ? "drop-shadow(0 0 4px rgba(6,182,212,0.95))"
-                      : "drop-shadow(0 0 2px rgba(0,0,0,0.8))",
+                      ? `drop-shadow(0 0 5px ${line.color})`
+                      : "drop-shadow(0 0 2px rgba(0,0,0,0.85))",
                     transition: "stroke-width 0.15s, opacity 0.15s",
                   }}
                 />
-                {/* Glowing mid-point pill background */}
+                {/* Translucent glassmorphic dark pill badge */}
                 <rect
-                  x={midX - 0.075}
-                  y={midY - 0.022}
-                  width={0.15}
-                  height={0.022}
-                  fill="rgba(15,23,42,0.88)"
-                  stroke={isHovered ? "#06b6d4" : "rgba(51,65,85,0.85)"}
-                  strokeWidth={0.0015}
-                  rx={0.004}
-                  ry={0.004}
+                  x={midX - pillHalfWidth}
+                  y={midY - 0.024}
+                  width={pillWidth}
+                  height={0.024}
+                  fill="rgba(15, 23, 42, 0.88)"
+                  stroke={isHovered ? line.color : "rgba(51, 65, 85, 0.85)"}
+                  strokeWidth={pxToViewBox(1)}
+                  rx={0.005}
+                  ry={0.005}
                   style={{ pointerEvents: "none" }}
                 />
                 {/* Measurement text inside pill */}
@@ -761,8 +761,8 @@ export function ImageViewer() {
                   fontSize={0.011}
                   fontWeight="bold"
                   textAnchor="middle"
-                  dy="-0.005"
-                  className="select-none"
+                  dy="-0.006"
+                  className="select-none font-sans"
                   style={{ pointerEvents: "none" }}
                 >
                   {label}
@@ -771,8 +771,8 @@ export function ImageViewer() {
             );
           })}
 
-          {/* Calibration line */}
-          {showOverlay && calibrationPoints?.point1 && calibrationPoints?.point2 && (
+          {/* Calibration line (visible ONLY during active calibration stages) */}
+          {showOverlay && isCalibrating && calibrationPoints?.point1 && calibrationPoints?.point2 && (
             <g>
               <line
                 x1={calibrationPoints.point1.x}
@@ -780,30 +780,16 @@ export function ImageViewer() {
                 x2={calibrationPoints.point2.x}
                 y2={calibrationPoints.point2.y}
                 stroke="#10b981"
-                strokeWidth={0.004}
-                strokeDasharray="0.02 0.01"
+                strokeWidth={1.5}
+                strokeDasharray="4 2"
                 vectorEffect="non-scaling-stroke"
                 style={{ filter: "drop-shadow(0 0 2px rgba(0,0,0,0.8))" }}
               />
-              {calibrationStage === "calibrated" && calibration && (
-                <text
-                  x={(calibrationPoints.point1.x + calibrationPoints.point2.x) / 2}
-                  y={(calibrationPoints.point1.y + calibrationPoints.point2.y) / 2}
-                  fill="#34d399"
-                  fontSize={0.012}
-                  fontWeight="bold"
-                  textAnchor="middle"
-                  className="select-none"
-                  style={{ pointerEvents: "none", textShadow: "0 0 3px black" }}
-                >
-                  {calibration.realDistanceMm.toFixed(1)} {t.common.mm}
-                </text>
-              )}
             </g>
           )}
 
-          {/* Calibration point markers */}
-          {calibrationPoints?.point1 && (
+          {/* Calibration point markers (visible ONLY during active calibration stages) */}
+          {isCalibrating && calibrationPoints?.point1 && (
             <g>
               {activeCalibrationPoint === 1 && (
                 <circle
@@ -836,7 +822,7 @@ export function ImageViewer() {
                 r={calMarkerR}
                 fill={point1Confirmed ? "#10b981" : "#fbbf24"}
                 stroke="white"
-                strokeWidth={pxToViewBox(2)}
+                strokeWidth={pxToViewBox(1.5)}
                 strokeDasharray={point1Confirmed ? undefined : `${pxToViewBox(2)} ${pxToViewBox(1.5)}`}
                 vectorEffect="non-scaling-stroke"
                 style={{ pointerEvents: "none" }}
@@ -847,7 +833,7 @@ export function ImageViewer() {
                 fill={point1Confirmed ? "#34d399" : "#fbbf24"}
                 fontSize={0.011}
                 fontWeight="bold"
-                className="select-none"
+                className="select-none font-sans"
                 style={{ pointerEvents: "none", textShadow: "0 0 3px black" }}
               >
                 P1
@@ -855,7 +841,7 @@ export function ImageViewer() {
             </g>
           )}
 
-          {calibrationPoints?.point2 && (
+          {isCalibrating && calibrationPoints?.point2 && (
             <g>
               {activeCalibrationPoint === 2 && (
                 <circle
@@ -888,7 +874,7 @@ export function ImageViewer() {
                 r={calMarkerR}
                 fill={point2Confirmed ? "#10b981" : "#fbbf24"}
                 stroke="white"
-                strokeWidth={pxToViewBox(2)}
+                strokeWidth={pxToViewBox(1.5)}
                 strokeDasharray={point2Confirmed ? undefined : `${pxToViewBox(2)} ${pxToViewBox(1.5)}`}
                 vectorEffect="non-scaling-stroke"
                 style={{ pointerEvents: "none" }}
@@ -899,7 +885,7 @@ export function ImageViewer() {
                 fill={point2Confirmed ? "#34d399" : "#fbbf24"}
                 fontSize={0.011}
                 fontWeight="bold"
-                className="select-none"
+                className="select-none font-sans"
                 style={{ pointerEvents: "none", textShadow: "0 0 3px black" }}
               >
                 P2
@@ -907,7 +893,7 @@ export function ImageViewer() {
             </g>
           )}
 
-          {/* Landmark markers */}
+          {/* Landmark markers (Clean solid circle with subtle halo & text label) */}
           {showLandmarks && LANDMARK_DEFINITIONS.map((def) => {
             const lm = landmarks[def.name];
             if (!lm) return null;
@@ -925,7 +911,7 @@ export function ImageViewer() {
                     r={lmActiveRingR}
                     fill="none"
                     stroke="#f97316"
-                    strokeWidth={pxToViewBox(2.5)}
+                    strokeWidth={pxToViewBox(2)}
                     vectorEffect="non-scaling-stroke"
                     style={{ filter: "drop-shadow(0 0 4px #f97316)" }}
                   />
@@ -936,15 +922,28 @@ export function ImageViewer() {
                   <circle
                     cx={lm.x}
                     cy={lm.y}
-                    r={lmHitR * 1.3}
+                    r={lmHitR * 1.2}
                     fill="none"
                     stroke="#f59e0b"
-                    strokeWidth={pxToViewBox(2)}
+                    strokeWidth={pxToViewBox(1.5)}
                     strokeDasharray={`${pxToViewBox(3)} ${pxToViewBox(2)}`}
                     vectorEffect="non-scaling-stroke"
                     style={{ filter: "drop-shadow(0 0 3px #f59e0b)" }}
                   />
                 )}
+
+                {/* Subtle Anatomical Halo Ring */}
+                <circle
+                  cx={lm.x}
+                  cy={lm.y}
+                  r={lmMarkerR + pxToViewBox(2)}
+                  fill="none"
+                  stroke={color}
+                  strokeOpacity={0.4}
+                  strokeWidth={pxToViewBox(1)}
+                  vectorEffect="non-scaling-stroke"
+                  style={{ pointerEvents: "none" }}
+                />
 
                 {/* Interaction Hit Area */}
                 <circle
@@ -961,14 +960,14 @@ export function ImageViewer() {
                   }}
                 />
 
-                {/* Small Visible Marker */}
+                {/* High-Precision Solid Marker Circle */}
                 <circle
                   cx={lm.x}
                   cy={lm.y}
                   r={lmMarkerR}
                   fill={color}
                   stroke="white"
-                  strokeWidth={pxToViewBox(2)}
+                  strokeWidth={pxToViewBox(1.5)}
                   vectorEffect="non-scaling-stroke"
                   style={{
                     pointerEvents: "none",
@@ -979,51 +978,15 @@ export function ImageViewer() {
                 {/* Landmark Label */}
                 <text
                   x={lm.x + lmHitR}
-                  y={lm.y - lmHitR * 0.7}
+                  y={lm.y - lmHitR * 0.6}
                   fill={isAiCandidate ? "#fde047" : "#f8fafc"}
                   fontSize={0.011}
                   fontWeight="bold"
-                  className="select-none"
+                  className="select-none font-sans"
                   style={{ pointerEvents: "none", textShadow: "0 0 3px black" }}
                 >
                   {def.label}{isAiCandidate ? " (AI)" : ""}
                 </text>
-
-                {/* Delete Button Badge */}
-                <g
-                  className="delete-btn"
-                  data-delete={def.name}
-                  style={{ cursor: "pointer", pointerEvents: "all" }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    deleteLandmark(def.name);
-                  }}
-                  onPointerDown={(e) => {
-                    e.stopPropagation();
-                  }}
-                >
-                  <circle
-                    cx={lm.x + lmHitR * 0.7}
-                    cy={lm.y + lmHitR * 0.7}
-                    r={deleteBtnR}
-                    fill="#f43f5e"
-                    stroke="white"
-                    strokeWidth={pxToViewBox(1)}
-                    vectorEffect="non-scaling-stroke"
-                  />
-                  <text
-                    x={lm.x + lmHitR * 0.7}
-                    y={lm.y + lmHitR * 0.7}
-                    fill="white"
-                    fontSize={deleteBtnR * 1.4}
-                    textAnchor="middle"
-                    dominantBaseline="central"
-                    className="select-none font-bold"
-                    style={{ pointerEvents: "none" }}
-                  >
-                    ×
-                  </text>
-                </g>
               </g>
             );
           })}
