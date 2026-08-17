@@ -91,20 +91,20 @@ export function ClinicalReportModal({ isOpen, onClose }: ClinicalReportModalProp
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 overflow-y-auto no-print"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto no-print select-none"
       role="dialog"
       aria-modal="true"
       aria-labelledby="modal-title"
     >
       <div
         ref={modalRef}
-        className="flex max-h-[95vh] w-full max-w-4xl flex-col rounded-xl bg-gray-100 shadow-2xl overflow-hidden"
+        className="flex max-h-[95vh] w-full max-w-4xl flex-col rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl overflow-hidden"
       >
         {/* Modal Action Header (Screen only) */}
-        <div className="flex items-center justify-between border-b border-gray-200 bg-white px-6 py-3 shrink-0 print-hide">
+        <div className="flex items-center justify-between border-b border-slate-800 bg-slate-900/90 px-6 py-3.5 shrink-0 print-hide">
           <div className="flex items-center gap-2">
             <span className="text-xl">📄</span>
-            <h2 id="modal-title" className="text-base font-semibold text-gray-800">
+            <h2 id="modal-title" className="text-sm font-bold text-slate-100">
               {t.report.modalTitle}
             </h2>
           </div>
@@ -112,7 +112,7 @@ export function ClinicalReportModal({ isOpen, onClose }: ClinicalReportModalProp
             <button
               onClick={handlePrint}
               type="button"
-              className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-xs hover:bg-blue-700 active:bg-blue-800 transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-600 px-4 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-cyan-500 active:scale-[0.98] transition-all"
             >
               <span>🖨</span>
               <span>{t.report.printButton}</span>
@@ -120,7 +120,7 @@ export function ClinicalReportModal({ isOpen, onClose }: ClinicalReportModalProp
             <button
               onClick={onClose}
               type="button"
-              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 active:bg-gray-100 transition-colors"
+              className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-slate-700 hover:text-slate-100 transition-colors"
             >
               {t.common.close}
             </button>
@@ -128,10 +128,10 @@ export function ClinicalReportModal({ isOpen, onClose }: ClinicalReportModalProp
         </div>
 
         {/* Scrollable Report Body on Screen / Clean A4 Page in Print */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-950/60">
           <div
             id="clinical-print-root"
-            className="mx-auto max-w-[210mm] rounded-lg bg-white p-6 sm:p-8 shadow-sm border border-gray-200 text-gray-900"
+            className="mx-auto max-w-[210mm] rounded-lg bg-white p-6 sm:p-8 shadow-md border border-slate-700/60 text-gray-900 select-text"
           >
             {/* 1. Clinic & Report Header */}
             <div className="border-b-2 border-gray-800 pb-3 mb-4 flex items-start justify-between">

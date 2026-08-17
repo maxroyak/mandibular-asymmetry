@@ -8,15 +8,12 @@ import { getTranslations } from "../locales";
 
 export function LandmarkPalette() {
   const language = useStudyStore((s) => s.language);
-  const imageDataUrl = useStudyStore((s) => s.imageDataUrl);
   const landmarks = useStudyStore((s) => s.landmarks);
   const activeLandmark = useStudyStore((s) => s.activeLandmark);
-  const isAiDetecting = useStudyStore((s) => s.isAiDetecting);
   const aiCandidateLandmarks = useStudyStore((s) => s.aiCandidateLandmarks);
 
   const setActiveLandmark = useStudyStore((s) => s.setActiveLandmark);
   const deleteLandmark = useStudyStore((s) => s.deleteLandmark);
-  const detectLandmarksAi = useStudyStore((s) => s.detectLandmarksAi);
   const acceptAllAiProposals = useStudyStore((s) => s.acceptAllAiProposals);
   const clearAiProposals = useStudyStore((s) => s.clearAiProposals);
 
@@ -39,62 +36,44 @@ export function LandmarkPalette() {
   const allPlaced = placedCount === LANDMARK_DEFINITIONS.length;
 
   return (
-    <div className="border-b border-gray-200 p-4">
+    <div className="border-b border-slate-800/80 p-4 select-none">
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-gray-700">
+        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
           {t.landmarks.title}
         </h3>
-        <span className="text-xs font-medium text-gray-500">
+        <span
+          className={`font-mono text-xs font-semibold px-2 py-0.5 rounded-md border ${
+            allPlaced
+              ? "bg-emerald-950/60 text-emerald-400 border-emerald-800/60"
+              : "bg-slate-800 text-slate-300 border-slate-700"
+          }`}
+        >
           {t.landmarks.placedCount(placedCount)}
         </span>
       </div>
 
-      {/* AI Auto-Detect Trigger Button */}
-      {imageDataUrl && (
-        <div className="mb-3">
-          <button
-            onClick={() => detectLandmarksAi()}
-            disabled={isAiDetecting}
-            type="button"
-            className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white shadow-2xs hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-50 transition-colors"
-          >
-            {isAiDetecting ? (
-              <>
-                <span className="animate-spin text-sm">⏳</span>
-                <span>{t.ai.detecting}</span>
-              </>
-            ) : (
-              <>
-                <span>✨</span>
-                <span>{t.ai.detectButton}</span>
-              </>
-            )}
-          </button>
-        </div>
-      )}
-
       {/* AI Proposals Review Banner */}
       {candidateCount > 0 && (
-        <div className="mb-3 rounded-lg border border-amber-300 bg-amber-50 p-2.5 text-xs text-amber-900">
-          <div className="font-semibold flex items-center gap-1.5 mb-1">
-            <span className="text-amber-600">✨</span>
+        <div className="mb-3.5 rounded-xl border border-amber-500/50 bg-amber-950/30 p-3 text-xs text-amber-200">
+          <div className="font-semibold flex items-center gap-1.5 mb-1 text-amber-300">
+            <span>✨</span>
             <span>{t.ai.proposalsActive(candidateCount)}</span>
           </div>
-          <p className="text-[11px] text-amber-800 leading-snug mb-2">
+          <p className="text-[11px] text-amber-300/80 leading-relaxed mb-2.5">
             {t.ai.disclaimer}
           </p>
           <div className="flex gap-2">
             <button
               onClick={() => acceptAllAiProposals()}
               type="button"
-              className="flex-1 rounded bg-green-600 px-2 py-1 text-[11px] font-medium text-white hover:bg-green-700 transition-colors"
+              className="flex-1 rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-emerald-500 active:scale-[0.98] transition-all"
             >
               {t.ai.acceptAll}
             </button>
             <button
               onClick={() => clearAiProposals()}
               type="button"
-              className="rounded border border-gray-300 bg-white px-2 py-1 text-[11px] font-medium text-gray-700 hover:bg-gray-100 transition-colors"
+              className="rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1.5 text-xs font-medium text-slate-300 hover:bg-slate-700 transition-colors"
             >
               {t.ai.clearProposals}
             </button>
@@ -103,18 +82,18 @@ export function LandmarkPalette() {
       )}
 
       {/* Progress indicator */}
-      <div className="mb-3 flex gap-1">
+      <div className="mb-3.5 flex gap-1.5">
         {LANDMARK_DEFINITIONS.map((def, idx) => (
           <div
             key={def.name}
             className={`h-1.5 flex-1 rounded-full transition-colors ${
               landmarks[def.name]
                 ? aiCandidateLandmarks[def.name]
-                  ? "bg-amber-400"
-                  : "bg-green-500"
+                  ? "bg-amber-400 shadow-xs shadow-amber-500/50"
+                  : "bg-emerald-500 shadow-xs shadow-emerald-500/50"
                 : idx === currentStep
-                ? "bg-orange-400"
-                : "bg-gray-200"
+                ? "bg-cyan-500 ring-1 ring-cyan-400"
+                : "bg-slate-800"
             }`}
           />
         ))}
@@ -122,26 +101,28 @@ export function LandmarkPalette() {
 
       {/* Compact summary when all placed */}
       {allPlaced && !activeLandmark && candidateCount === 0 && (
-        <div className="mb-2 text-sm text-green-600 font-medium">
-          {t.landmarks.allPlaced}
+        <div className="mb-3 rounded-lg border border-emerald-900/60 bg-emerald-950/30 p-2 text-xs text-emerald-400 font-semibold flex items-center gap-1.5">
+          <span>✓</span>
+          <span>{t.landmarks.allPlaced}</span>
         </div>
       )}
 
       {/* Current step hint */}
       {!allPlaced && nextUnplaced && candidateCount === 0 && (
-        <div className="mb-3 rounded-md bg-orange-50 border border-orange-200 p-2">
-          <div className="text-xs font-medium text-orange-600">
+        <div className="mb-3.5 rounded-xl border border-cyan-900/60 bg-slate-800/60 p-3">
+          <div className="text-[11px] font-bold uppercase tracking-wider text-cyan-400">
             {t.landmarks.stepOf(currentStep + 1)}
           </div>
-          <div className="text-sm font-semibold text-gray-800 mt-0.5">
+          <div className="text-xs font-bold text-slate-100 mt-0.5">
             {t.landmarks.definitions[nextUnplaced.name].fullName} ({nextUnplaced.label})
           </div>
-          <div className="text-xs text-gray-600 mt-0.5">
+          <div className="text-[11px] text-slate-400 mt-1 leading-relaxed">
             {t.landmarks.definitions[nextUnplaced.name].hint}
           </div>
           <button
             onClick={() => setActiveLandmark(nextUnplaced.name)}
-            className="mt-1.5 text-xs font-medium text-orange-600 hover:underline"
+            type="button"
+            className="mt-2 text-xs font-semibold text-cyan-400 hover:text-cyan-300 hover:underline inline-flex items-center gap-1"
           >
             {t.landmarks.clickToPlace}
           </button>
@@ -150,19 +131,21 @@ export function LandmarkPalette() {
 
       {/* Active placement indicator */}
       {activeLandmark && (
-        <div className="mb-3 rounded-md bg-blue-50 border border-blue-200 p-2">
-          <div className="text-xs font-medium text-blue-600">
-            {t.landmarks.placing(t.landmarks.definitions[activeLandmark].fullName)}
+        <div className="mb-3.5 rounded-xl border border-orange-500/70 bg-orange-950/40 p-3">
+          <div className="text-xs font-bold text-orange-400 flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-orange-400 animate-ping" />
+            <span>{t.landmarks.placing(t.landmarks.definitions[activeLandmark].fullName)}</span>
           </div>
-          <div className="text-xs text-gray-600 mt-0.5">
+          <div className="text-[11px] text-orange-200/80 mt-1">
             {t.landmarks.definitions[activeLandmark].hint}
           </div>
-          <div className="text-xs text-gray-500 mt-1">
+          <div className="text-[11px] text-slate-400 mt-1 italic">
             {t.landmarks.clickOnRadiograph}
           </div>
           <button
             onClick={() => setActiveLandmark(null)}
-            className="mt-1.5 text-xs font-medium text-gray-500 hover:underline"
+            type="button"
+            className="mt-2 text-xs font-medium text-slate-400 hover:text-slate-200 hover:underline"
           >
             {t.landmarks.cancelEsc}
           </button>
@@ -170,61 +153,64 @@ export function LandmarkPalette() {
       )}
 
       {/* Landmark list */}
-      <div className="space-y-1">
+      <div className="space-y-1.5">
         {LANDMARK_DEFINITIONS.map((def) => {
           const isPlaced = !!landmarks[def.name];
           const isCandidate = !!aiCandidateLandmarks[def.name];
           const isActive = activeLandmark === def.name;
           const meta = t.landmarks.definitions[def.name];
+
           return (
             <div
               key={def.name}
-              className={`flex items-center gap-2 rounded px-2 py-1 text-xs ${
+              className={`flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs transition-all ${
                 isActive
-                  ? "bg-orange-100 border border-orange-300"
+                  ? "border border-orange-500/70 bg-orange-950/40 text-orange-100"
                   : isCandidate
-                  ? "bg-amber-50 border border-amber-200"
+                  ? "border border-amber-500/40 bg-amber-950/30 text-amber-200"
                   : isPlaced
-                  ? "bg-green-50"
-                  : "bg-gray-50"
+                  ? "border border-slate-700/60 bg-slate-800/60 text-slate-200"
+                  : "border border-slate-800/40 bg-slate-900/40 text-slate-400"
               }`}
             >
               <span
-                className={`inline-block h-3 w-3 rounded-full ${
+                className={`inline-block h-2.5 w-2.5 shrink-0 rounded-full ${
                   def.side === "right"
-                    ? "bg-blue-500"
+                    ? "bg-blue-400 shadow-xs shadow-blue-500/50"
                     : def.side === "left"
-                    ? "bg-green-600"
-                    : "bg-amber-500"
+                    ? "bg-emerald-400 shadow-xs shadow-emerald-500/50"
+                    : "bg-amber-400 shadow-xs shadow-amber-500/50"
                 }`}
               />
               <button
-                onClick={() =>
-                  setActiveLandmark(isActive ? null : def.name)
-                }
-                className="flex-1 text-left font-medium"
+                onClick={() => setActiveLandmark(isActive ? null : def.name)}
+                type="button"
+                className="flex-1 text-left font-medium hover:text-slate-100 truncate"
               >
-                {def.label} — {meta.fullName}
+                <span className="font-bold text-slate-200 mr-1">{def.label}</span>
+                <span className="text-slate-400">— {meta.fullName}</span>
               </button>
+
               {isPlaced ? (
-                <>
+                <div className="flex items-center gap-1.5">
                   {isCandidate ? (
-                    <span className="rounded bg-amber-200 px-1.5 py-0.2 text-[10px] font-semibold text-amber-900">
+                    <span className="rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 px-1.5 py-0.2 text-[10px] font-bold">
                       AI
                     </span>
                   ) : (
-                    <span className="text-green-600 text-xs">✓</span>
+                    <span className="text-emerald-400 font-bold text-xs">✓</span>
                   )}
                   <button
                     onClick={() => deleteLandmark(def.name as LandmarkName)}
-                    className="text-red-400 hover:text-red-600 text-xs"
+                    type="button"
+                    className="text-slate-500 hover:text-rose-400 text-xs px-1 transition-colors"
                     title={t.viewer.deleteLandmark}
                   >
                     ✕
                   </button>
-                </>
+                </div>
               ) : (
-                <span className="text-gray-400 text-xs">—</span>
+                <span className="text-slate-600 text-xs font-mono">—</span>
               )}
             </div>
           );

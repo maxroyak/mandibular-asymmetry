@@ -1,5 +1,5 @@
 // ── Calibration Panel ────────────────────────────────────────
-// State-machine-driven calibration UI.
+// State-machine-driven calibration UI with dark clinical theme.
 
 import { useState, useMemo } from "react";
 import { useStudyStore } from "../store/studyStore";
@@ -10,24 +10,24 @@ import { getTranslations } from "../locales";
 function StepIndicator({ currentStep }: { currentStep: number }) {
   const stepCount = 3;
   return (
-    <div className="mb-3 flex items-center gap-1">
+    <div className="mb-3.5 flex items-center gap-1.5">
       {Array.from({ length: stepCount }).map((_, idx) => (
         <div key={idx} className="flex items-center">
           <div
-            className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${
+            className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold transition-colors ${
               idx < currentStep
-                ? "bg-green-500 text-white"
+                ? "bg-emerald-600 text-white shadow-xs"
                 : idx === currentStep
-                ? "bg-blue-600 text-white ring-2 ring-blue-300 ring-offset-1"
-                : "bg-gray-200 text-gray-400"
+                ? "bg-cyan-600 text-white ring-2 ring-cyan-400/50 ring-offset-1 ring-offset-slate-900 shadow-xs"
+                : "bg-slate-800 text-slate-500 border border-slate-700/60"
             }`}
           >
             {idx < currentStep ? "✓" : idx + 1}
           </div>
           {idx < stepCount - 1 && (
             <div
-              className={`h-0.5 w-6 ${
-                idx < currentStep ? "bg-green-500" : "bg-gray-200"
+              className={`h-0.5 w-6 ml-1.5 transition-colors ${
+                idx < currentStep ? "bg-emerald-600" : "bg-slate-800"
               }`}
             />
           )}
@@ -57,7 +57,6 @@ export function CalibrationPanel() {
 
   const t = getTranslations(language);
 
-  // ── Back button support ──
   const handleBack = () => {
     goBackCalibration();
   };
@@ -98,7 +97,6 @@ export function CalibrationPanel() {
       setError(t.calibration.invalidDistanceError);
       return;
     }
-    // Check minimum pixel distance
     if (pixelDistancePreview !== null && pixelDistancePreview < MIN_PIXEL_DISTANCE) {
       setError(t.calibration.pointsTooCloseError(pixelDistancePreview, MIN_PIXEL_DISTANCE));
       return;
@@ -127,7 +125,6 @@ export function CalibrationPanel() {
 
   const isCalibrated = calibrationStage === "calibrated" && calibration !== null;
 
-  // ── Step number for indicator ──
   const stepNumber =
     calibrationStage === "placing-point-1" || calibrationStage === "reviewing-point-1"
       ? 0
@@ -138,11 +135,13 @@ export function CalibrationPanel() {
       : -1;
 
   return (
-    <div className="border-b border-gray-200 p-4">
-      <div className="mb-2 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-gray-700">{t.calibration.title}</h3>
+    <div className="border-b border-slate-800/80 p-4 select-none">
+      <div className="mb-2.5 flex items-center justify-between">
+        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+          {t.calibration.title}
+        </h3>
         {calibration && (
-          <span className="text-xs font-medium text-green-600">
+          <span className="font-mono text-xs font-semibold text-emerald-400 bg-emerald-950/60 border border-emerald-800/60 px-2 py-0.5 rounded-md">
             {calibration.mmPerPixel.toFixed(4)} {t.common.mm}/px
           </span>
         )}
@@ -150,45 +149,47 @@ export function CalibrationPanel() {
 
       {/* ── IDLE / UNCALIBRATED ── */}
       {calibrationStage === "idle" && !calibration && (
-        <div className="text-xs text-gray-500">
-          <p className="mb-2 font-medium text-amber-700">
-            {t.calibration.calReqTitle}
+        <div className="rounded-xl border border-slate-800 bg-slate-800/40 p-3.5 text-xs text-slate-300">
+          <p className="mb-1.5 font-semibold text-amber-400 flex items-center gap-1.5">
+            <span>⚠</span>
+            <span>{t.calibration.calReqTitle}</span>
           </p>
-          <p className="text-xs text-gray-500 mb-1">
+          <p className="text-xs text-slate-400 mb-3 leading-relaxed">
             {t.calibration.calReqDesc}
           </p>
           <button
             onClick={handleStart}
-            className="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
+            type="button"
+            className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-cyan-600 px-3 py-2 text-xs font-semibold text-white shadow-md shadow-cyan-950/40 hover:bg-cyan-500 active:scale-[0.98] transition-all"
           >
-            {t.calibration.calibrateImage}
+            <span>🎯</span>
+            <span>{t.calibration.calibrateImage}</span>
           </button>
         </div>
       )}
 
       {/* ── PLACING POINT 1 ── */}
       {calibrationStage === "placing-point-1" && (
-        <div className="rounded border border-blue-200 bg-blue-50 p-3 text-xs">
-          <p className="font-medium text-blue-700 mb-2">
-            {t.calibration.title}
-          </p>
+        <div className="rounded-xl border border-cyan-900/60 bg-slate-800/60 p-3.5 text-xs">
           <StepIndicator currentStep={stepNumber} />
-          <p className="text-gray-600 mb-2 font-medium">
+          <p className="text-slate-100 mb-1 font-semibold">
             {t.calibration.step1Title}
           </p>
-          <p className="text-gray-500 mb-2 italic">
+          <p className="text-slate-400 mb-3 leading-relaxed">
             {t.calibration.step1Desc}
           </p>
           <div className="flex gap-2">
             <button
               onClick={handleBack}
-              className="rounded border border-gray-300 px-3 py-1 text-xs text-gray-600 hover:bg-gray-50"
+              type="button"
+              className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-slate-700 transition-colors"
             >
               {t.calibration.back}
             </button>
             <button
               onClick={handleCancel}
-              className="rounded border border-gray-300 px-3 py-1 text-xs text-gray-600 hover:bg-gray-50"
+              type="button"
+              className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-700 transition-colors"
             >
               {t.calibration.cancelCalibration}
             </button>
@@ -198,36 +199,40 @@ export function CalibrationPanel() {
 
       {/* ── REVIEWING POINT 1 ── */}
       {calibrationStage === "reviewing-point-1" && (
-        <div className="rounded border border-blue-200 bg-blue-50 p-3 text-xs">
-          <p className="font-medium text-blue-700 mb-2">
-            {t.calibration.title}
-          </p>
+        <div className="rounded-xl border border-cyan-900/60 bg-slate-800/60 p-3.5 text-xs">
           <StepIndicator currentStep={stepNumber} />
-          <p className="text-gray-600 mb-2">
-            <span className="font-medium">{t.calibration.step1Review}.</span> {t.calibration.step1ReviewDesc}
+          <p className="text-slate-100 mb-1 font-semibold">
+            {t.calibration.step1Review}
+          </p>
+          <p className="text-slate-400 mb-3 leading-relaxed">
+            {t.calibration.step1ReviewDesc}
           </p>
           <div className="flex flex-wrap gap-2">
             <button
               onClick={confirmPoint1}
-              className="rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700"
+              type="button"
+              className="rounded-lg bg-cyan-600 px-3 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-cyan-500 transition-colors"
             >
               {t.calibration.confirmPoint1}
             </button>
             <button
               onClick={resetPoint1}
-              className="rounded border border-gray-300 px-3 py-1 text-xs text-gray-600 hover:bg-gray-50"
+              type="button"
+              className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-slate-700 transition-colors"
             >
               {t.calibration.replacePoint1}
             </button>
             <button
               onClick={handleBack}
-              className="rounded border border-gray-300 px-3 py-1 text-xs text-gray-600 hover:bg-gray-50"
+              type="button"
+              className="rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1.5 text-xs font-medium text-slate-300 hover:bg-slate-700 transition-colors"
             >
               {t.calibration.back}
             </button>
             <button
               onClick={handleCancel}
-              className="rounded border border-gray-300 px-3 py-1 text-xs text-gray-600 hover:bg-gray-50"
+              type="button"
+              className="rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1.5 text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-700 transition-colors"
             >
               {t.calibration.cancelCalibration}
             </button>
@@ -237,27 +242,26 @@ export function CalibrationPanel() {
 
       {/* ── PLACING POINT 2 ── */}
       {calibrationStage === "placing-point-2" && (
-        <div className="rounded border border-blue-200 bg-blue-50 p-3 text-xs">
-          <p className="font-medium text-blue-700 mb-2">
-            {t.calibration.title}
-          </p>
+        <div className="rounded-xl border border-cyan-900/60 bg-slate-800/60 p-3.5 text-xs">
           <StepIndicator currentStep={stepNumber} />
-          <p className="text-gray-600 mb-2 font-medium">
+          <p className="text-slate-100 mb-1 font-semibold">
             {t.calibration.step2Title}
           </p>
-          <p className="text-gray-500 mb-2 italic">
+          <p className="text-slate-400 mb-3 leading-relaxed">
             {t.calibration.step2Desc}
           </p>
           <div className="flex gap-2">
             <button
               onClick={handleBack}
-              className="rounded border border-gray-300 px-3 py-1 text-xs text-gray-600 hover:bg-gray-50"
+              type="button"
+              className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-slate-700 transition-colors"
             >
               {t.calibration.back}
             </button>
             <button
               onClick={handleCancel}
-              className="rounded border border-gray-300 px-3 py-1 text-xs text-gray-600 hover:bg-gray-50"
+              type="button"
+              className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-700 transition-colors"
             >
               {t.calibration.cancelCalibration}
             </button>
@@ -267,36 +271,40 @@ export function CalibrationPanel() {
 
       {/* ── REVIEWING POINT 2 ── */}
       {calibrationStage === "reviewing-point-2" && (
-        <div className="rounded border border-blue-200 bg-blue-50 p-3 text-xs">
-          <p className="font-medium text-blue-700 mb-2">
-            {t.calibration.title}
-          </p>
+        <div className="rounded-xl border border-cyan-900/60 bg-slate-800/60 p-3.5 text-xs">
           <StepIndicator currentStep={stepNumber} />
-          <p className="text-gray-600 mb-2">
-            <span className="font-medium">{t.calibration.step2Review}.</span> {t.calibration.step2ReviewDesc}
+          <p className="text-slate-100 mb-1 font-semibold">
+            {t.calibration.step2Review}
+          </p>
+          <p className="text-slate-400 mb-3 leading-relaxed">
+            {t.calibration.step2ReviewDesc}
           </p>
           <div className="flex flex-wrap gap-2">
             <button
               onClick={confirmPoint2}
-              className="rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700"
+              type="button"
+              className="rounded-lg bg-cyan-600 px-3 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-cyan-500 transition-colors"
             >
               {t.calibration.confirmPoint2}
             </button>
             <button
               onClick={resetPoint2}
-              className="rounded border border-gray-300 px-3 py-1 text-xs text-gray-600 hover:bg-gray-50"
+              type="button"
+              className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-slate-700 transition-colors"
             >
               {t.calibration.replacePoint2}
             </button>
             <button
               onClick={handleBack}
-              className="rounded border border-gray-300 px-3 py-1 text-xs text-gray-600 hover:bg-gray-50"
+              type="button"
+              className="rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1.5 text-xs font-medium text-slate-300 hover:bg-slate-700 transition-colors"
             >
               {t.calibration.back}
             </button>
             <button
               onClick={handleCancel}
-              className="rounded border border-gray-300 px-3 py-1 text-xs text-gray-600 hover:bg-gray-50"
+              type="button"
+              className="rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1.5 text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-700 transition-colors"
             >
               {t.calibration.cancelCalibration}
             </button>
@@ -306,55 +314,58 @@ export function CalibrationPanel() {
 
       {/* ── ENTERING DISTANCE ── */}
       {calibrationStage === "entering-distance" && (
-        <div className="rounded border border-blue-200 bg-blue-50 p-3 text-xs">
-          <p className="font-medium text-blue-700 mb-2">
-            {t.calibration.title}
-          </p>
+        <div className="rounded-xl border border-cyan-900/60 bg-slate-800/60 p-3.5 text-xs">
           <StepIndicator currentStep={stepNumber} />
-          <p className="text-gray-600 mb-2">
+          <p className="text-slate-100 mb-1 font-semibold">
+            {t.calibration.step3Title}
+          </p>
+          <p className="text-slate-400 mb-3 leading-relaxed">
             {t.calibration.step3Desc}
           </p>
-          <label className="block mb-2">
-            <span className="text-gray-600">{t.calibration.knownDistanceMm}</span>
-            <input
-              type="number"
-              min={0}
-              step={0.1}
-              value={distanceInput}
-              onChange={(e) => setDistanceInput(e.target.value)}
-              placeholder="mm"
-              className="ml-2 w-20 rounded border border-gray-300 px-2 py-0.5 text-xs"
-              autoFocus
-            />
-            <span className="ml-1 text-gray-500">{t.common.mm}</span>
+
+          <label className="block mb-3">
+            <span className="text-slate-300 font-medium">{t.calibration.knownDistanceMm}</span>
+            <div className="mt-1 flex items-center gap-2">
+              <input
+                type="number"
+                min={0}
+                step={0.1}
+                value={distanceInput}
+                onChange={(e) => setDistanceInput(e.target.value)}
+                placeholder="e.g. 10.0"
+                className="w-28 rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs font-mono text-slate-100 focus:border-cyan-500 focus:outline-none"
+                autoFocus
+              />
+              <span className="text-slate-400 font-medium">{t.common.mm}</span>
+            </div>
           </label>
 
-          {/* Preview before applying */}
+          {/* Scale Preview */}
           {pixelDistancePreview !== null && (
-            <div className="mb-3 rounded bg-gray-100 p-2 text-xs text-gray-700">
+            <div className="mb-3 rounded-lg bg-slate-900/90 border border-slate-700/70 p-2.5 text-xs text-slate-300">
               <div className="grid grid-cols-3 gap-2 text-center">
                 <div>
-                  <div className="text-gray-500">{t.calibration.point1} / {t.calibration.point2}</div>
-                  <div className="font-mono font-bold">
+                  <div className="text-[10px] text-slate-400 font-medium">Points</div>
+                  <div className="font-mono font-bold text-slate-200">
                     {parseFloat(distanceInput) && !isNaN(parseFloat(distanceInput))
                       ? parseFloat(distanceInput).toFixed(1)
                       : "—"}{" "}
-                    {t.common.mm}
+                    mm
                   </div>
                 </div>
                 <div>
-                  <div className="text-gray-500">Pixels</div>
-                  <div className="font-mono font-bold">
+                  <div className="text-[10px] text-slate-400 font-medium">Pixels</div>
+                  <div className="font-mono font-bold text-slate-200">
                     {pixelDistancePreview.toFixed(0)} px
                   </div>
                 </div>
                 <div>
-                  <div className="text-gray-500">Scale</div>
-                  <div className="font-mono font-bold">
+                  <div className="text-[10px] text-slate-400 font-medium">Scale</div>
+                  <div className="font-mono font-bold text-cyan-400">
                     {scalePreview !== null
                       ? scalePreview.toFixed(4)
                       : "—"}{" "}
-                    {t.common.mm}/px
+                    mm/px
                   </div>
                 </div>
               </div>
@@ -362,24 +373,28 @@ export function CalibrationPanel() {
           )}
 
           {error && (
-            <p className="mb-2 text-xs text-red-600 font-medium">{error}</p>
+            <p className="mb-3 text-xs text-rose-400 font-medium">⚠ {error}</p>
           )}
+
           <div className="flex flex-wrap gap-2">
             <button
               onClick={handleConfirmCalibration}
-              className="rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700"
+              type="button"
+              className="rounded-lg bg-cyan-600 px-3 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-cyan-500 transition-colors"
             >
               {t.calibration.applyCalibration}
             </button>
             <button
               onClick={handleBack}
-              className="rounded border border-gray-300 px-3 py-1 text-xs text-gray-600 hover:bg-gray-50"
+              type="button"
+              className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-slate-700 transition-colors"
             >
               {t.calibration.back}
             </button>
             <button
               onClick={handleCancel}
-              className="rounded border border-gray-300 px-3 py-1 text-xs text-gray-600 hover:bg-gray-50"
+              type="button"
+              className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-700 transition-colors"
             >
               {t.calibration.cancelCalibration}
             </button>
@@ -389,26 +404,27 @@ export function CalibrationPanel() {
 
       {/* ── CALIBRATED ── */}
       {isCalibrated && (
-        <div className="text-xs text-gray-600">
-          <p className="mb-1 font-medium text-green-700">
-            {t.calibration.calibratedBanner(calibration!.mmPerPixel.toFixed(4))}
-            <span className="ml-1 text-gray-500 font-normal">
-              {t.calibration.calibratedDesc}
-            </span>
-          </p>
-          <div className="mb-2 rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
-            <strong>{t.results.approximateValuesTitle}</strong> {t.results.approximateValuesText}
+        <div className="rounded-xl border border-emerald-900/60 bg-emerald-950/30 p-3 text-xs text-slate-300">
+          <div className="flex items-center gap-1.5 font-semibold text-emerald-400 mb-1">
+            <span>✓</span>
+            <span>{t.calibration.calibratedBanner(calibration!.mmPerPixel.toFixed(4))}</span>
           </div>
+          <p className="text-[11px] text-emerald-300/80 mb-3 leading-relaxed">
+            {t.calibration.calibratedDesc}
+          </p>
+
           <div className="flex gap-2">
             <button
               onClick={handleStart}
-              className="rounded border border-gray-300 px-2 py-0.5 text-xs hover:bg-gray-50"
+              type="button"
+              className="rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1 text-xs font-medium text-slate-200 hover:bg-slate-700 transition-colors"
             >
               {t.calibration.recalibrate}
             </button>
             <button
               onClick={handleClearCalibration}
-              className="rounded border border-gray-300 px-2 py-0.5 text-xs text-red-500 hover:bg-red-50"
+              type="button"
+              className="rounded-lg border border-rose-900/60 bg-rose-950/30 px-2.5 py-1 text-xs font-medium text-rose-300 hover:bg-rose-900/40 transition-colors"
             >
               {t.common.delete}
             </button>

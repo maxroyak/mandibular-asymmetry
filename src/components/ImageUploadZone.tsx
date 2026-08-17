@@ -108,12 +108,12 @@ export function ImageUploadZone() {
   );
 
   return (
-    <div className="flex h-full items-center justify-center p-8">
+    <div className="flex h-full items-center justify-center p-6 sm:p-10 select-none">
       <div
-        className={`w-full max-w-2xl rounded-lg border-2 border-dashed p-12 text-center transition-colors ${
+        className={`w-full max-w-2xl rounded-2xl border-2 border-dashed p-10 sm:p-14 text-center transition-all ${
           isDragging
-            ? "border-blue-500 bg-blue-50"
-            : "border-gray-300 bg-gray-50"
+            ? "border-cyan-400 bg-cyan-950/30 scale-[1.01] shadow-2xl shadow-cyan-950/40"
+            : "border-slate-800 bg-slate-900/50 hover:border-cyan-500/50 hover:bg-slate-900/80 shadow-xl"
         } ${isLoading ? "opacity-60 cursor-wait" : "cursor-pointer"}`}
         onDragOver={(e) => {
           e.preventDefault();
@@ -148,16 +148,36 @@ export function ImageUploadZone() {
             if (file) handleFile(file);
           }}
         />
-        <div className="text-6xl mb-4">{isLoading ? "⏳" : "🩻"}</div>
-        <p className="text-lg font-semibold text-gray-700">
+        <div className="text-6xl mb-4 transform transition-transform group-hover:scale-110">
+          {isLoading ? (
+            <span className="inline-block animate-spin text-5xl">⏳</span>
+          ) : (
+            "🩻"
+          )}
+        </div>
+        <p className="text-lg font-bold text-slate-100 tracking-tight">
           {isLoading ? t.studyManager.loadingStudy : t.upload.dragDropTitle}
         </p>
-        <p className="text-sm text-gray-500 mt-1">{t.upload.dragDropSubtitle}</p>
-        <p className="text-xs text-gray-400 mt-4">
-          {t.upload.supportedFormats}
+        <p className="text-sm text-slate-400 mt-1.5 leading-relaxed">
+          {t.upload.dragDropSubtitle}
         </p>
+
+        {/* Format Badges */}
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
+          {["DICOM (.dcm)", "PNG", "JPEG", "TIFF", "Max 50 MB"].map((badge) => (
+            <span
+              key={badge}
+              className="rounded-md border border-slate-800 bg-slate-800/80 px-2.5 py-1 text-[11px] font-medium text-slate-300"
+            >
+              {badge}
+            </span>
+          ))}
+        </div>
+
         {error && (
-          <p className="text-sm text-red-600 mt-4 font-medium">{error}</p>
+          <div className="mt-5 rounded-lg border border-rose-800/60 bg-rose-950/40 p-3 text-xs font-medium text-rose-300">
+            ⚠ {error}
+          </div>
         )}
       </div>
     </div>

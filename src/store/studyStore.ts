@@ -27,7 +27,13 @@ import type {
   MeasurementResult,
   BilateralMeasurement,
   MandibularAsymmetryResult,
+  ImageFilterState,
+  FilterPresetType,
 } from "../domain/types";
+import {
+  createDefaultFilters,
+  applyFilterPreset,
+} from "../domain/imageFilters";
 import type { Locale } from "../locales/types";
 import {
   studyRepository,
@@ -86,6 +92,9 @@ interface StudyState {
 
   // Image viewer transform
   viewer: ViewerState;
+
+  // Radiograph image filters
+  filters: ImageFilterState;
 
   // Persistence status
   isSaved: boolean;
@@ -157,6 +166,11 @@ interface StudyActions {
   confirmCalibration: (knownDistanceMm: number) => void;
   moveCalibrationPoint: (which: 1 | 2, point: Point) => void;
   goBackCalibration: () => void;
+
+  // Radiograph Image Filters
+  setImageFilters: (partial: Partial<ImageFilterState>) => void;
+  resetImageFilters: () => void;
+  setFilterPreset: (preset: FilterPresetType) => void;
 
   // Viewer transform
   setZoom: (zoom: number) => void;
@@ -343,6 +357,7 @@ export const useStudyStore = create<Store>()(
     interpretation: "",
     mandibularResult: null,
     viewer: { ...defaultViewer },
+    filters: createDefaultFilters(),
     isSaved: false,
     hoveredLine: null,
     language: getInitialLanguage(),
@@ -386,6 +401,7 @@ export const useStudyStore = create<Store>()(
         interpretation: "",
         mandibularResult: null,
         viewer: { ...defaultViewer },
+        filters: createDefaultFilters(),
         isSaved: false,
         createdAt: now,
         updatedAt: now,
@@ -427,6 +443,7 @@ export const useStudyStore = create<Store>()(
         interpretation: study.interpretation,
         mandibularResult: null, // recomputed in recalculate() below
         viewer: { ...defaultViewer },
+        filters: study.filters ? { ...createDefaultFilters(), ...study.filters } : createDefaultFilters(),
         isSaved: true,
         createdAt: study.createdAt,
         updatedAt: study.updatedAt,
@@ -467,6 +484,7 @@ export const useStudyStore = create<Store>()(
         calibrationPoints: state.calibrationPoints,
         measurements: state.measurements ?? { ramusHeight: null, bodyLength: null },
         interpretation: state.interpretation,
+        filters: state.filters,
         createdAt: state.createdAt,
         updatedAt: new Date().toISOString(),
       };
@@ -511,6 +529,7 @@ export const useStudyStore = create<Store>()(
         interpretation: "",
         mandibularResult: null,
         viewer: { ...defaultViewer },
+        filters: createDefaultFilters(),
         isSaved: false,
         createdAt: "",
         updatedAt: "",
@@ -953,6 +972,43 @@ export const useStudyStore = create<Store>()(
         previousCalibration: null,
       });
       get().recalculate();
+      debouncedSave();
+    },
+
+    // ── Radiograph Image Filters ──
+    setImageFilters: (partial) => {
+      set((state) => {
+        const newFilters: ImageFilterState = {
+          ...state.filters,
+          ...partial,
+        };
+        if (partial.preset === undefined) {
+          newFilters.preset = "custom";
+        }
+        return {
+          filters: newFilters,
+          isSaved: false,
+          updatedAt: new Date().toISOString(),
+        };
+      });
+      debouncedSave();
+    },
+
+    resetImageFilters: () => {
+      set({
+        filters: createDefaultFilters(),
+        isSaved: false,
+        updatedAt: new Date().toISOString(),
+      });
+      debouncedSave();
+    },
+
+    setFilterPreset: (preset) => {
+      set({
+        filters: applyFilterPreset(preset),
+        isSaved: false,
+        updatedAt: new Date().toISOString(),
+      });
       debouncedSave();
     },
 

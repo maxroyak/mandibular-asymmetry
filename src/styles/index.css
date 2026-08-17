@@ -2,13 +2,37 @@
 
 /* Custom theme tokens for clinical UI */
 @theme {
-  --color-ramus: #2563eb;
-  --color-body: #7c3aed;
+  --color-ramus: #3b82f6;
+  --color-body: #8b5cf6;
   --color-warning: #f59e0b;
-  --color-danger: #dc2626;
-  --color-landmark: #ef4444;
+  --color-danger: #f43f5e;
+  --color-landmark: #f43f5e;
   --color-landmark-active: #f97316;
   --color-calibration: #10b981;
+  --color-medical-cyan: #06b6d4;
+}
+
+/* Custom scrollbar for dark clinical panels */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.6);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(51, 65, 85, 0.8);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 1);
+}
+
+/* Radiograph workspace background grid */
+.radiograph-grid-bg {
+  background-color: #020617;
+  background-image: radial-gradient(rgba(51, 65, 85, 0.35) 1px, transparent 1px);
+  background-size: 24px 24px;
 }
 
 /* Print Styles for Clinical PDF / Print Export */
