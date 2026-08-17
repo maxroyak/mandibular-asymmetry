@@ -1,9 +1,12 @@
-import { useRef, useCallback, useEffect, useState } from "react";
+import { useRef, useCallback, useEffect, useState, useMemo } from "react";
 import { useStudyStore } from "../store/studyStore";
 import { RadiographOverlay } from "./RadiographOverlay";
 import { LANDMARK_DEFINITIONS } from "../domain/types";
 import type { Point, LandmarkName, CalibrationStage } from "../domain/types";
-import { screenToNormalized as transformScreenToNormalized } from "../domain/coordinateTransform";
+import {
+  screenToNormalized as transformScreenToNormalized,
+  computeFittedImageRect,
+} from "../domain/coordinateTransform";
 import { getTranslations } from "../locales";
 
 // ── Interaction mode ────────────────────────────────────────
@@ -87,18 +90,25 @@ export function ImageViewer() {
     return () => observer.disconnect();
   }, []);
 
+  // ── Compute fitted image bounding box inside the container ──
+  const fitted = useMemo(() => {
+    if (!containerSize.w || !containerSize.h || !imageNaturalWidth || !imageNaturalHeight) {
+      return { left: 0, top: 0, width: containerSize.w || 1000, height: containerSize.h || 600 };
+    }
+    return computeFittedImageRect(
+      { left: 0, top: 0, width: containerSize.w, height: containerSize.h },
+      { naturalWidth: imageNaturalWidth, naturalHeight: imageNaturalHeight }
+    );
+  }, [containerSize.w, containerSize.h, imageNaturalWidth, imageNaturalHeight]);
+
   // ── Convert CSS pixel size to SVG viewBox units ─────────────
-  // The SVG has viewBox="0 0 1 1" with preserveAspectRatio="xMidYMid meet".
-  // With the meet rule, 1 viewBox unit = min(containerW, containerH) CSS px
-  // (before the zoom transform). After scale(zoom), it's min(w,h)*zoom.
-  // So: viewBoxUnits = cssPx / (min(containerW, containerH) * zoom)
   const pxToViewBox = useCallback(
     (px: number): number => {
-      const base = Math.min(containerSize.w, containerSize.h);
+      const base = Math.min(fitted.width, fitted.height);
       if (base <= 0 || viewer.zoom <= 0) return px / 1000; // fallback
       return px / (base * viewer.zoom);
     },
-    [containerSize.w, containerSize.h, viewer.zoom]
+    [fitted.width, fitted.height, viewer.zoom]
   );
 
   // ── Screen → normalized coordinate conversion ──────────────
@@ -585,34 +595,42 @@ export function ImageViewer() {
             : "default",
         }}
       >
-        {/* Image Layer */}
+        {/* Synchronized Image & SVG Overlay Frame */}
         {imageDataUrl && (
-          <img
-            src={imageDataUrl}
-            alt="Panoramic radiograph"
-            className="absolute inset-0 h-full w-full object-contain"
+          <div
+            className="absolute select-none"
             style={{
-              filter: `brightness(${viewer.brightness}) contrast(${viewer.contrast})`,
+              left: `${fitted.left}px`,
+              top: `${fitted.top}px`,
+              width: `${fitted.width}px`,
+              height: `${fitted.height}px`,
               transform: `translate(${viewer.panX}px, ${viewer.panY}px) scale(${viewer.zoom})`,
               transformOrigin: "center",
-              pointerEvents: "none",
-              userSelect: "none",
             }}
-            draggable={false}
-          />
-        )}
+          >
+            {/* Image Layer */}
+            <img
+              src={imageDataUrl}
+              alt="Panoramic radiograph"
+              className="block w-full h-full object-fill pointer-events-none"
+              style={{
+                filter: `brightness(${viewer.brightness}) contrast(${viewer.contrast})`,
+                userSelect: "none",
+              }}
+              draggable={false}
+            />
 
-        {/* Overlay Layer (SVG) */}
-        <RadiographOverlay
-          showOverlay={showOverlay}
-          pxToViewBox={pxToViewBox}
-          isDraggingMarker={isDraggingMarker}
-          onClick={handleOverlayClick}
-          style={{
-            transform: `translate(${viewer.panX}px, ${viewer.panY}px) scale(${viewer.zoom})`,
-            transformOrigin: "center",
-          }}
-        />
+            {/* Overlay Layer (SVG) */}
+            <RadiographOverlay
+              showOverlay={showOverlay}
+              pxToViewBox={pxToViewBox}
+              isDraggingMarker={isDraggingMarker}
+              onClick={handleOverlayClick}
+              preserveAspectRatio="none"
+              className="absolute inset-0 h-full w-full overlay-svg pointer-events-all"
+            />
+          </div>
+        )}
       </div>
     </div>
   );

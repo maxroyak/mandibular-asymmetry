@@ -5,6 +5,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { useStudyStore } from "../store/studyStore";
 import { getTranslations, en, ru } from "../locales";
 import { LANDMARK_DEFINITIONS } from "../domain/types";
+import { computeFittedImageRect } from "../domain/coordinateTransform";
 
 // Mock localStorage for test environment
 const storageMap = new Map<string, string>();
@@ -105,8 +106,8 @@ describe("Clinical Report Export & i18n", () => {
     });
   });
 
-  describe("Overlay Coordinate Scaling & Natural Aspect Ratio Alignment", () => {
-    it("maps normalized landmarks to exact natural image pixel coordinates", () => {
+  describe("Overlay Coordinate Scaling & Strict Image Bounding Box Binding", () => {
+    it("maps normalized landmarks to exact natural image pixel coordinates without drift", () => {
       const natW = 2400;
       const natH = 1200;
       useStudyStore.getState().createStudy("PATIENT-ALIGNED", "data:image/png;base64,mock", natW, natH);
@@ -120,7 +121,7 @@ describe("Clinical Report Export & i18n", () => {
       expect(state.imageNaturalWidth).toBe(2400);
       expect(state.imageNaturalHeight).toBe(1200);
 
-      // Verify coordinate transformation matching ClinicalReportModal logic
+      // Verify coordinate transformation matching exact image pixel boundaries
       for (const def of LANDMARK_DEFINITIONS) {
         const pt = state.landmarks[def.name];
         expect(pt).toBeDefined();
@@ -134,27 +135,29 @@ describe("Clinical Report Export & i18n", () => {
         }
       }
 
-      // Verify exact expected pixel values for CoR and Me
-      expect(state.landmarks.CoR!.x * natW).toBe(360);
-      expect(state.landmarks.CoR!.y * natH).toBe(300);
-      expect(state.landmarks.Me!.x * natW).toBe(1200);
-      expect(state.landmarks.Me!.y * natH).toBe(1080);
+      // Verify exact expected pixel values for condyles and gonions
+      expect(state.landmarks.CoR!.x * natW).toBeCloseTo(360, 2);
+      expect(state.landmarks.CoR!.y * natH).toBeCloseTo(300, 2);
+      expect(state.landmarks.GoR!.x * natW).toBeCloseTo(432, 2);
+      expect(state.landmarks.GoR!.y * natH).toBeCloseTo(900, 2);
+      expect(state.landmarks.CoL!.x * natW).toBeCloseTo(2040, 2);
+      expect(state.landmarks.CoL!.y * natH).toBeCloseTo(288, 2);
+      expect(state.landmarks.GoL!.x * natW).toBeCloseTo(1968, 2);
+      expect(state.landmarks.GoL!.y * natH).toBeCloseTo(912, 2);
+      expect(state.landmarks.Me!.x * natW).toBeCloseTo(1200, 2);
+      expect(state.landmarks.Me!.y * natH).toBeCloseTo(1080, 2);
     });
 
-    it("calculates proportional visual styling sizes for report overlay", () => {
-      const natW = 2000;
-      const natH = 1000;
-      const strokeWidth = Math.max(2, natW * 0.0035);
-      const dotRadius = Math.max(5, natW * 0.008);
-      const fontSize = Math.max(11, natW * 0.013);
-      const badgeHeight = Math.max(18, natH * 0.048);
-      const badgeWidth = Math.max(65, natW * 0.17);
+    it("verifies computeFittedImageRect provides exact aspect ratio frame matching image bounds", () => {
+      const containerRect = { left: 0, top: 0, width: 1000, height: 600 };
+      const image = { naturalWidth: 2400, naturalHeight: 1200 }; // 2:1 aspect ratio
+      const fitted = computeFittedImageRect(containerRect, image);
 
-      expect(strokeWidth).toBe(7);
-      expect(dotRadius).toBe(16);
-      expect(fontSize).toBe(26);
-      expect(badgeHeight).toBe(48);
-      expect(badgeWidth).toBe(340);
+      expect(fitted.width).toBe(1000);
+      expect(fitted.height).toBe(500); // 1000 / 2
+      expect(fitted.left).toBe(0);
+      expect(fitted.top).toBe(50); // (600 - 500) / 2
+      expect(fitted.width / fitted.height).toBe(image.naturalWidth / image.naturalHeight);
     });
   });
 });

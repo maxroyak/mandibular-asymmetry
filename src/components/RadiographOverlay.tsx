@@ -24,6 +24,8 @@ export interface RadiographOverlayProps {
   style?: React.CSSProperties;
   /** SVG element reference */
   svgRef?: React.RefObject<SVGSVGElement | null>;
+  /** SVG aspect ratio preservation behavior. Default: 'none' for 1:1 normalized image space. */
+  preserveAspectRatio?: string;
 }
 
 const RIGHT_COLOR = "#2563eb"; // Blue
@@ -47,6 +49,7 @@ export function RadiographOverlay({
   className = "absolute inset-0 h-full w-full overlay-svg",
   style,
   svgRef,
+  preserveAspectRatio = "none",
 }: RadiographOverlayProps) {
   const language = useStudyStore((s) => s.language);
   const landmarks = useStudyStore((s) => s.landmarks);
@@ -130,7 +133,7 @@ export function RadiographOverlay({
       ref={svgRef}
       className={className}
       viewBox="0 0 1 1"
-      preserveAspectRatio="xMidYMid meet"
+      preserveAspectRatio={preserveAspectRatio}
       onClick={onClick}
       style={{
         pointerEvents: readOnly ? "none" : "all",
