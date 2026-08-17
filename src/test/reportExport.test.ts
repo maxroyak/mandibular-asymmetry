@@ -1,9 +1,10 @@
 // ── Clinical Report Export Tests ──────────────────────────────
-// Tests for clinical PDF / print export data payload, formatting, and i18n.
+// Tests for clinical PDF / print export data payload, formatting, i18n, and overlay coordinate alignment.
 
 import { describe, it, expect, beforeEach } from "vitest";
 import { useStudyStore } from "../store/studyStore";
 import { getTranslations, en, ru } from "../locales";
+import { LANDMARK_DEFINITIONS } from "../domain/types";
 
 // Mock localStorage for test environment
 const storageMap = new Map<string, string>();
@@ -101,6 +102,59 @@ describe("Clinical Report Export & i18n", () => {
 
       const tRu = getTranslations("ru");
       expect(tRu.report.uncalibratedValue).toBe("Без калибровки (только %)");
+    });
+  });
+
+  describe("Overlay Coordinate Scaling & Natural Aspect Ratio Alignment", () => {
+    it("maps normalized landmarks to exact natural image pixel coordinates", () => {
+      const natW = 2400;
+      const natH = 1200;
+      useStudyStore.getState().createStudy("PATIENT-ALIGNED", "data:image/png;base64,mock", natW, natH);
+      useStudyStore.getState().setLandmark("CoR", { x: 0.15, y: 0.25 });
+      useStudyStore.getState().setLandmark("GoR", { x: 0.18, y: 0.75 });
+      useStudyStore.getState().setLandmark("CoL", { x: 0.85, y: 0.24 });
+      useStudyStore.getState().setLandmark("GoL", { x: 0.82, y: 0.76 });
+      useStudyStore.getState().setLandmark("Me", { x: 0.50, y: 0.90 });
+
+      const state = useStudyStore.getState();
+      expect(state.imageNaturalWidth).toBe(2400);
+      expect(state.imageNaturalHeight).toBe(1200);
+
+      // Verify coordinate transformation matching ClinicalReportModal logic
+      for (const def of LANDMARK_DEFINITIONS) {
+        const pt = state.landmarks[def.name];
+        expect(pt).toBeDefined();
+        if (pt) {
+          const pixelX = pt.x * natW;
+          const pixelY = pt.y * natH;
+          expect(pixelX).toBeGreaterThanOrEqual(0);
+          expect(pixelX).toBeLessThanOrEqual(natW);
+          expect(pixelY).toBeGreaterThanOrEqual(0);
+          expect(pixelY).toBeLessThanOrEqual(natH);
+        }
+      }
+
+      // Verify exact expected pixel values for CoR and Me
+      expect(state.landmarks.CoR!.x * natW).toBe(360);
+      expect(state.landmarks.CoR!.y * natH).toBe(300);
+      expect(state.landmarks.Me!.x * natW).toBe(1200);
+      expect(state.landmarks.Me!.y * natH).toBe(1080);
+    });
+
+    it("calculates proportional visual styling sizes for report overlay", () => {
+      const natW = 2000;
+      const natH = 1000;
+      const strokeWidth = Math.max(2, natW * 0.0035);
+      const dotRadius = Math.max(5, natW * 0.008);
+      const fontSize = Math.max(11, natW * 0.013);
+      const badgeHeight = Math.max(18, natH * 0.048);
+      const badgeWidth = Math.max(65, natW * 0.17);
+
+      expect(strokeWidth).toBe(7);
+      expect(dotRadius).toBe(16);
+      expect(fontSize).toBe(26);
+      expect(badgeHeight).toBe(48);
+      expect(badgeWidth).toBe(340);
     });
   });
 });

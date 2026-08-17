@@ -107,7 +107,7 @@ export function AnalysisPage() {
       </header>
 
       {/* Main content: two-column layout */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden no-print">
         {/* Left / Center — Radiograph Viewer */}
         <div className="flex-1 overflow-hidden">
           {imageDataUrl ? (

@@ -54,6 +54,16 @@ export function ClinicalReportModal({ isOpen, onClose }: ClinicalReportModalProp
     window.print();
   };
 
+  const natW = imageNaturalWidth || 1200;
+  const natH = imageNaturalHeight || 800;
+
+  // Scale visual elements proportionally with natural dimensions
+  const strokeWidth = Math.max(2, natW * 0.0035);
+  const dotRadius = Math.max(5, natW * 0.008);
+  const fontSize = Math.max(11, natW * 0.013);
+  const badgeHeight = Math.max(18, natH * 0.048);
+  const badgeWidth = Math.max(65, natW * 0.17);
+
   const lineDefs = [
     {
       id: "ramusR",
@@ -91,14 +101,14 @@ export function ClinicalReportModal({ isOpen, onClose }: ClinicalReportModalProp
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 overflow-y-auto no-print"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 overflow-y-auto report-modal-backdrop"
       role="dialog"
       aria-modal="true"
       aria-labelledby="modal-title"
     >
       <div
         ref={modalRef}
-        className="flex max-h-[95vh] w-full max-w-4xl flex-col rounded-xl bg-gray-100 shadow-2xl overflow-hidden"
+        className="flex max-h-[95vh] w-full max-w-4xl flex-col rounded-xl bg-gray-100 shadow-2xl overflow-hidden report-modal-content"
       >
         {/* Modal Action Header (Screen only) */}
         <div className="flex items-center justify-between border-b border-gray-200 bg-white px-6 py-3 shrink-0 print-hide">
@@ -128,7 +138,7 @@ export function ClinicalReportModal({ isOpen, onClose }: ClinicalReportModalProp
         </div>
 
         {/* Scrollable Report Body on Screen / Clean A4 Page in Print */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 report-modal-body">
           <div
             id="clinical-print-root"
             className="mx-auto max-w-[210mm] rounded-lg bg-white p-6 sm:p-8 shadow-sm border border-gray-200 text-gray-900"
@@ -181,27 +191,28 @@ export function ClinicalReportModal({ isOpen, onClose }: ClinicalReportModalProp
                 <div
                   className="relative w-full overflow-hidden rounded border border-gray-300 bg-black"
                   style={{
-                    aspectRatio: imageNaturalWidth && imageNaturalHeight
-                      ? `${imageNaturalWidth} / ${imageNaturalHeight}`
-                      : "16 / 9",
-                    maxHeight: "320px",
+                    aspectRatio: `${natW} / ${natH}`,
                   }}
                 >
                   <img
                     src={imageDataUrl}
                     alt="Panoramic Radiograph"
-                    className="absolute inset-0 h-full w-full object-contain"
+                    className="block w-full h-full object-fill"
                   />
                   <svg
                     className="absolute inset-0 h-full w-full"
-                    viewBox="0 0 1 1"
-                    preserveAspectRatio="xMidYMid meet"
+                    viewBox={`0 0 ${natW} ${natH}`}
+                    preserveAspectRatio="none"
                   >
                     {/* Measurement Lines */}
                     {lineDefs.map((line) => {
                       if (!line.from || !line.to) return null;
-                      const midX = (line.from.x + line.to.x) / 2;
-                      const midY = (line.from.y + line.to.y) / 2;
+                      const x1 = line.from.x * natW;
+                      const y1 = line.from.y * natH;
+                      const x2 = line.to.x * natW;
+                      const y2 = line.to.y * natH;
+                      const midX = (x1 + x2) / 2;
+                      const midY = (y1 + y2) / 2;
                       const showMm = isCalibrated && line.mm !== null;
                       const label = showMm
                         ? `${line.name}: ${line.mm!.toFixed(1)} ${t.common.mm}`
@@ -210,29 +221,31 @@ export function ClinicalReportModal({ isOpen, onClose }: ClinicalReportModalProp
                       return (
                         <g key={line.id}>
                           <line
-                            x1={line.from.x}
-                            y1={line.from.y}
-                            x2={line.to.x}
-                            y2={line.to.y}
+                            x1={x1}
+                            y1={y1}
+                            x2={x2}
+                            y2={y2}
                             stroke={line.color}
-                            strokeWidth={0.005}
+                            strokeWidth={strokeWidth}
                           />
                           <rect
-                            x={midX - 0.08}
-                            y={midY - 0.025}
-                            width={0.16}
-                            height={0.022}
+                            x={midX - badgeWidth / 2}
+                            y={midY - badgeHeight / 2}
+                            width={badgeWidth}
+                            height={badgeHeight}
                             fill="rgba(0,0,0,0.75)"
-                            rx={0.004}
-                            ry={0.004}
+                            rx={badgeHeight * 0.25}
+                            ry={badgeHeight * 0.25}
                           />
                           <text
                             x={midX}
                             y={midY}
                             fill="#ffffff"
-                            fontSize={0.012}
+                            fontSize={fontSize}
+                            fontWeight="600"
                             textAnchor="middle"
-                            dy="-0.006"
+                            dominantBaseline="central"
+                            style={{ textShadow: "0 0 2px black" }}
                           >
                             {label}
                           </text>
@@ -243,13 +256,13 @@ export function ClinicalReportModal({ isOpen, onClose }: ClinicalReportModalProp
                     {/* Calibration Reference Line */}
                     {calibrationPoints?.point1 && calibrationPoints?.point2 && (
                       <line
-                        x1={calibrationPoints.point1.x}
-                        y1={calibrationPoints.point1.y}
-                        x2={calibrationPoints.point2.x}
-                        y2={calibrationPoints.point2.y}
+                        x1={calibrationPoints.point1.x * natW}
+                        y1={calibrationPoints.point1.y * natH}
+                        x2={calibrationPoints.point2.x * natW}
+                        y2={calibrationPoints.point2.y * natH}
                         stroke="#10b981"
-                        strokeWidth={0.004}
-                        strokeDasharray="0.02 0.01"
+                        strokeWidth={strokeWidth * 0.9}
+                        strokeDasharray={`${natW * 0.015} ${natW * 0.008}`}
                       />
                     )}
 
@@ -257,6 +270,8 @@ export function ClinicalReportModal({ isOpen, onClose }: ClinicalReportModalProp
                     {LANDMARK_DEFINITIONS.map((def) => {
                       const pt = landmarks[def.name];
                       if (!pt) return null;
+                      const px = pt.x * natW;
+                      const py = pt.y * natH;
                       const color =
                         def.side === "right"
                           ? RIGHT_COLOR
@@ -266,18 +281,18 @@ export function ClinicalReportModal({ isOpen, onClose }: ClinicalReportModalProp
                       return (
                         <g key={def.name}>
                           <circle
-                            cx={pt.x}
-                            cy={pt.y}
-                            r={0.008}
+                            cx={px}
+                            cy={py}
+                            r={dotRadius}
                             fill={color}
                             stroke="#ffffff"
-                            strokeWidth={0.002}
+                            strokeWidth={strokeWidth * 0.5}
                           />
                           <text
-                            x={pt.x}
-                            y={pt.y - 0.015}
+                            x={px}
+                            y={py - dotRadius * 1.4}
                             fill="#ffffff"
-                            fontSize={0.013}
+                            fontSize={fontSize}
                             fontWeight="bold"
                             textAnchor="middle"
                             style={{ textShadow: "0 0 3px black" }}

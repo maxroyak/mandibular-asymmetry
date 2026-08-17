@@ -13,22 +13,62 @@
 
 /* Print Styles for Clinical PDF / Print Export */
 @media print {
+  html,
   body {
     background: #ffffff !important;
     color: #111827 !important;
     margin: 0 !important;
     padding: 0 !important;
+    height: auto !important;
+    overflow: visible !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
 
   /* Hide screen-only interactive UI */
   .no-print,
+  .print-hide,
   header,
   aside,
-  button,
-  .print-hide {
+  button {
     display: none !important;
+  }
+
+  /* Flatten modal wrapper for print */
+  .report-modal-backdrop {
+    position: static !important;
+    display: block !important;
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    box-shadow: none !important;
+    border: none !important;
+    inset: auto !important;
+    z-index: auto !important;
+  }
+
+  .report-modal-content {
+    position: static !important;
+    display: block !important;
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: none !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  .report-modal-body {
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
   }
 
   /* Make clinical report root fill page cleanly */
@@ -38,7 +78,7 @@
     width: 100% !important;
     max-width: 100% !important;
     margin: 0 !important;
-    padding: 4mm !important;
+    padding: 2mm !important;
     box-shadow: none !important;
     border: none !important;
     background: #ffffff !important;
@@ -47,6 +87,6 @@
 
   @page {
     size: A4 portrait;
-    margin: 8mm;
+    margin: 6mm;
   }
 }
