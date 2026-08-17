@@ -1,6 +1,6 @@
 // ── Radiograph SVG Overlay Component ──────────────────────────
 // Single Source of Truth for Radiograph Visual Overlays (WYSIWYG).
-// Shared between interactive viewport (ImageViewer) and print report (ClinicalReportModal).
+// Uses isotropic pixel-space viewBox={`0 0 ${natW} ${natH}`} to ensure 100% round circles.
 
 import React, { useMemo } from "react";
 import { useStudyStore } from "../store/studyStore";
@@ -24,7 +24,7 @@ export interface RadiographOverlayProps {
   style?: React.CSSProperties;
   /** SVG element reference */
   svgRef?: React.RefObject<SVGSVGElement | null>;
-  /** SVG aspect ratio preservation behavior. Default: 'none' for 1:1 normalized image space. */
+  /** SVG aspect ratio preservation behavior. Default: 'none' */
   preserveAspectRatio?: string;
 }
 
@@ -43,7 +43,6 @@ export function landmarkColor(name: string): string {
 export function RadiographOverlay({
   readOnly = false,
   showOverlay = true,
-  pxToViewBox,
   isDraggingMarker = false,
   onClick,
   className = "absolute inset-0 h-full w-full overlay-svg",
@@ -52,6 +51,8 @@ export function RadiographOverlay({
   preserveAspectRatio = "none",
 }: RadiographOverlayProps) {
   const language = useStudyStore((s) => s.language);
+  const imageNaturalWidth = useStudyStore((s) => s.imageNaturalWidth);
+  const imageNaturalHeight = useStudyStore((s) => s.imageNaturalHeight);
   const landmarks = useStudyStore((s) => s.landmarks);
   const aiCandidateLandmarks = useStudyStore((s) => s.aiCandidateLandmarks);
   const activeLandmark = useStudyStore((s) => s.activeLandmark);
@@ -62,6 +63,9 @@ export function RadiographOverlay({
   const mandibularResult = useStudyStore((s) => s.mandibularResult);
   const hoveredLine = useStudyStore((s) => s.hoveredLine);
 
+  const natW = imageNaturalWidth || 1200;
+  const natH = imageNaturalHeight || 800;
+
   const activeCalibrationPoint: 1 | 2 | null =
     calibrationStage === "placing-point-1" || calibrationStage === "reviewing-point-1"
       ? 1
@@ -70,9 +74,6 @@ export function RadiographOverlay({
       : null;
 
   const t = getTranslations(language);
-
-  // Fallback px-to-viewBox converter (normalized 0..1 space based on standard 600px viewport)
-  const p2v = pxToViewBox || ((px: number) => px / 600);
 
   const isCalibrated = calibration !== null;
   const point1Confirmed =
@@ -83,12 +84,17 @@ export function RadiographOverlay({
     calibrationStage === "entering-distance" ||
     calibrationStage === "calibrated";
 
-  const calMarkerR = p2v(5);
-  const calHitR = p2v(14);
-  const lmMarkerR = p2v(5);
-  const lmHitR = p2v(14);
-  const lmActiveRingR = p2v(18);
-  const deleteBtnR = p2v(7);
+  // Isotropic dimension calculations based on pixel viewBox
+  const lineBaseStroke = Math.max(2, natW * 0.003);
+  const lineHoverStroke = Math.max(3.5, natW * 0.005);
+  const markerRadius = Math.max(6, natW * 0.0075);
+  const hitAreaRadius = Math.max(16, natW * 0.018);
+  const activeRingRadius = Math.max(20, natW * 0.024);
+  const fontSize = Math.max(12, natW * 0.012);
+  const labelOffset = Math.max(18, natW * 0.02);
+  const badgeWidth = Math.max(110, natW * 0.13);
+  const badgeHeight = Math.max(22, natH * 0.035);
+  const deleteBtnRadius = Math.max(8, natW * 0.009);
 
   const lineDefs = useMemo(
     () => [
@@ -132,7 +138,7 @@ export function RadiographOverlay({
     <svg
       ref={svgRef}
       className={className}
-      viewBox="0 0 1 1"
+      viewBox={`0 0 ${natW} ${natH}`}
       preserveAspectRatio={preserveAspectRatio}
       onClick={onClick}
       style={{
@@ -145,8 +151,12 @@ export function RadiographOverlay({
         lineDefs.map((line) => {
           if (!line.from || !line.to) return null;
           const isHovered = !readOnly && hoveredLine === line.id;
-          const midX = (line.from.x + line.to.x) / 2;
-          const midY = (line.from.y + line.to.y) / 2;
+          const x1 = line.from.x * natW;
+          const y1 = line.from.y * natH;
+          const x2 = line.to.x * natW;
+          const y2 = line.to.y * natH;
+          const midX = (x1 + x2) / 2;
+          const midY = (y1 + y2) / 2;
           const showMm = isCalibrated && line.mm !== null;
           const label = showMm
             ? `${line.name}: ${line.mm!.toFixed(1)} ${t.common.mm}`
@@ -155,39 +165,39 @@ export function RadiographOverlay({
           return (
             <g key={line.id}>
               <line
-                x1={line.from.x}
-                y1={line.from.y}
-                x2={line.to.x}
-                y2={line.to.y}
+                x1={x1}
+                y1={y1}
+                x2={x2}
+                y2={y2}
                 stroke={line.color}
-                strokeWidth={isHovered ? 0.006 : 0.0035}
+                strokeWidth={isHovered ? lineHoverStroke : lineBaseStroke}
                 opacity={!readOnly && hoveredLine && !isHovered ? 0.3 : 1}
-                vectorEffect="non-scaling-stroke"
                 style={{
-                  filter: isHovered ? "drop-shadow(0 0 3px rgba(255,255,255,0.8))" : "none",
+                  filter: isHovered ? "drop-shadow(0 0 4px rgba(255,255,255,0.9))" : "none",
                   transition: "stroke-width 0.15s, opacity 0.15s",
                 }}
               />
               {/* Dark pill label background */}
               <rect
-                x={midX - 0.08}
-                y={midY - 0.025}
-                width={0.16}
-                height={0.022}
+                x={midX - badgeWidth / 2}
+                y={midY - badgeHeight / 2}
+                width={badgeWidth}
+                height={badgeHeight}
                 fill="rgba(0,0,0,0.75)"
-                rx={0.004}
-                ry={0.004}
+                rx={badgeHeight * 0.25}
+                ry={badgeHeight * 0.25}
                 style={{ pointerEvents: "none" }}
               />
-              {/* Measurement name + mm value text */}
+              {/* Measurement text */}
               <text
                 x={midX}
                 y={midY}
                 fill={showMm ? "#ffffff" : "#fbbf24"}
-                fontSize={0.012}
+                fontSize={fontSize}
+                fontWeight="600"
                 textAnchor="middle"
-                dy="-0.005"
-                className="select-none font-sans font-medium"
+                dominantBaseline="central"
+                className="select-none font-sans"
                 style={{ pointerEvents: "none", textShadow: "0 0 2px black" }}
               >
                 {label}
@@ -200,24 +210,25 @@ export function RadiographOverlay({
       {showOverlay && calibrationPoints?.point1 && calibrationPoints?.point2 && (
         <g>
           <line
-            x1={calibrationPoints.point1.x}
-            y1={calibrationPoints.point1.y}
-            x2={calibrationPoints.point2.x}
-            y2={calibrationPoints.point2.y}
+            x1={calibrationPoints.point1.x * natW}
+            y1={calibrationPoints.point1.y * natH}
+            x2={calibrationPoints.point2.x * natW}
+            y2={calibrationPoints.point2.y * natH}
             stroke="#10b981"
-            strokeWidth={0.004}
-            strokeDasharray="0.02 0.01"
-            vectorEffect="non-scaling-stroke"
+            strokeWidth={lineBaseStroke * 1.1}
+            strokeDasharray={`${natW * 0.015} ${natW * 0.008}`}
           />
           {calibrationStage === "calibrated" && calibration && (
             <text
-              x={(calibrationPoints.point1.x + calibrationPoints.point2.x) / 2}
-              y={(calibrationPoints.point1.y + calibrationPoints.point2.y) / 2}
+              x={((calibrationPoints.point1.x + calibrationPoints.point2.x) / 2) * natW}
+              y={((calibrationPoints.point1.y + calibrationPoints.point2.y) / 2) * natH}
               fill="#10b981"
-              fontSize={0.012}
+              fontSize={fontSize}
+              fontWeight="bold"
               textAnchor="middle"
-              className="select-none font-bold"
-              style={{ pointerEvents: "none", textShadow: "0 0 2px black" }}
+              dominantBaseline="central"
+              className="select-none"
+              style={{ pointerEvents: "none", textShadow: "0 0 3px black" }}
             >
               {calibration.realDistanceMm.toFixed(1)} {t.common.mm}
             </text>
@@ -231,14 +242,13 @@ export function RadiographOverlay({
           {/* Active highlight ring (interactive mode only) */}
           {!readOnly && activeCalibrationPoint === 1 && (
             <circle
-              cx={calibrationPoints.point1.x}
-              cy={calibrationPoints.point1.y}
-              r={calHitR * 1.3}
+              cx={calibrationPoints.point1.x * natW}
+              cy={calibrationPoints.point1.y * natH}
+              r={hitAreaRadius * 1.3}
               fill="none"
               stroke="#fbbf24"
-              strokeWidth={p2v(2)}
-              vectorEffect="non-scaling-stroke"
-              style={{ pointerEvents: "none", opacity: 0.8 }}
+              strokeWidth={lineBaseStroke}
+              style={{ pointerEvents: "none", opacity: 0.85 }}
             />
           )}
 
@@ -247,9 +257,9 @@ export function RadiographOverlay({
             <circle
               className="calibration-marker"
               data-calibration-point="1"
-              cx={calibrationPoints.point1.x}
-              cy={calibrationPoints.point1.y}
-              r={calHitR}
+              cx={calibrationPoints.point1.x * natW}
+              cy={calibrationPoints.point1.y * natH}
+              r={hitAreaRadius}
               fill="white"
               fillOpacity={0.001}
               style={{
@@ -268,29 +278,29 @@ export function RadiographOverlay({
             />
           )}
 
-          {/* Small visible marker */}
+          {/* Small visible marker (TRUE CIRCLE) */}
           <circle
-            cx={calibrationPoints.point1.x}
-            cy={calibrationPoints.point1.y}
-            r={calMarkerR}
+            cx={calibrationPoints.point1.x * natW}
+            cy={calibrationPoints.point1.y * natH}
+            r={markerRadius}
             fill={point1Confirmed ? "#10b981" : "#fbbf24"}
             stroke="white"
-            strokeWidth={p2v(2)}
+            strokeWidth={lineBaseStroke * 0.7}
             strokeDasharray={
-              point1Confirmed ? undefined : `${p2v(2)} ${p2v(1.5)}`
+              point1Confirmed ? undefined : `${natW * 0.005} ${natW * 0.003}`
             }
-            vectorEffect="non-scaling-stroke"
             style={{ pointerEvents: "none" }}
           />
 
           {/* Label offset from marker */}
           <text
-            x={calibrationPoints.point1.x + calHitR}
-            y={calibrationPoints.point1.y - calHitR * 0.7}
+            x={calibrationPoints.point1.x * natW + labelOffset}
+            y={calibrationPoints.point1.y * natH - labelOffset * 0.7}
             fill={point1Confirmed ? "#10b981" : "#fbbf24"}
-            fontSize={0.01}
-            className="select-none font-bold"
-            style={{ pointerEvents: "none", textShadow: "0 0 2px black" }}
+            fontSize={fontSize * 0.9}
+            fontWeight="bold"
+            className="select-none"
+            style={{ pointerEvents: "none", textShadow: "0 0 3px black" }}
           >
             P1
           </text>
@@ -303,14 +313,13 @@ export function RadiographOverlay({
           {/* Active highlight ring (interactive mode only) */}
           {!readOnly && activeCalibrationPoint === 2 && (
             <circle
-              cx={calibrationPoints.point2.x}
-              cy={calibrationPoints.point2.y}
-              r={calHitR * 1.3}
+              cx={calibrationPoints.point2.x * natW}
+              cy={calibrationPoints.point2.y * natH}
+              r={hitAreaRadius * 1.3}
               fill="none"
               stroke="#fbbf24"
-              strokeWidth={p2v(2)}
-              vectorEffect="non-scaling-stroke"
-              style={{ pointerEvents: "none", opacity: 0.8 }}
+              strokeWidth={lineBaseStroke}
+              style={{ pointerEvents: "none", opacity: 0.85 }}
             />
           )}
 
@@ -319,9 +328,9 @@ export function RadiographOverlay({
             <circle
               className="calibration-marker"
               data-calibration-point="2"
-              cx={calibrationPoints.point2.x}
-              cy={calibrationPoints.point2.y}
-              r={calHitR}
+              cx={calibrationPoints.point2.x * natW}
+              cy={calibrationPoints.point2.y * natH}
+              r={hitAreaRadius}
               fill="white"
               fillOpacity={0.001}
               style={{
@@ -339,29 +348,29 @@ export function RadiographOverlay({
             />
           )}
 
-          {/* Small visible marker */}
+          {/* Small visible marker (TRUE CIRCLE) */}
           <circle
-            cx={calibrationPoints.point2.x}
-            cy={calibrationPoints.point2.y}
-            r={calMarkerR}
+            cx={calibrationPoints.point2.x * natW}
+            cy={calibrationPoints.point2.y * natH}
+            r={markerRadius}
             fill={point2Confirmed ? "#10b981" : "#fbbf24"}
             stroke="white"
-            strokeWidth={p2v(2)}
+            strokeWidth={lineBaseStroke * 0.7}
             strokeDasharray={
-              point2Confirmed ? undefined : `${p2v(2)} ${p2v(1.5)}`
+              point2Confirmed ? undefined : `${natW * 0.005} ${natW * 0.003}`
             }
-            vectorEffect="non-scaling-stroke"
             style={{ pointerEvents: "none" }}
           />
 
           {/* Label offset from marker */}
           <text
-            x={calibrationPoints.point2.x + calHitR}
-            y={calibrationPoints.point2.y - calHitR * 0.7}
+            x={calibrationPoints.point2.x * natW + labelOffset}
+            y={calibrationPoints.point2.y * natH - labelOffset * 0.7}
             fill={point2Confirmed ? "#10b981" : "#fbbf24"}
-            fontSize={0.01}
-            className="select-none font-bold"
-            style={{ pointerEvents: "none", textShadow: "0 0 2px black" }}
+            fontSize={fontSize * 0.9}
+            fontWeight="bold"
+            className="select-none"
+            style={{ pointerEvents: "none", textShadow: "0 0 3px black" }}
           >
             P2
           </text>
@@ -375,33 +384,33 @@ export function RadiographOverlay({
         const color = landmarkColor(def.name);
         const isActive = !readOnly && activeLandmark === def.name;
         const isAiCandidate = !!aiCandidateLandmarks[def.name];
+        const px = lm.x * natW;
+        const py = lm.y * natH;
 
         return (
           <g key={def.name}>
-            {/* Active placement ring */}
+            {/* Active placement ring (TRUE CIRCLE) */}
             {isActive && (
               <circle
-                cx={lm.x}
-                cy={lm.y}
-                r={lmActiveRingR}
+                cx={px}
+                cy={py}
+                r={activeRingRadius}
                 fill="none"
                 stroke="#f97316"
-                strokeWidth={p2v(2)}
-                vectorEffect="non-scaling-stroke"
+                strokeWidth={lineBaseStroke}
               />
             )}
 
-            {/* AI Candidate Dashed Halo */}
+            {/* AI Candidate Dashed Halo (TRUE CIRCLE) */}
             {isAiCandidate && !isActive && (
               <circle
-                cx={lm.x}
-                cy={lm.y}
-                r={lmHitR * 1.3}
+                cx={px}
+                cy={py}
+                r={hitAreaRadius * 1.3}
                 fill="none"
                 stroke="#f59e0b"
-                strokeWidth={p2v(2)}
-                strokeDasharray={`${p2v(3)} ${p2v(2)}`}
-                vectorEffect="non-scaling-stroke"
+                strokeWidth={lineBaseStroke}
+                strokeDasharray={`${natW * 0.006} ${natW * 0.004}`}
               />
             )}
 
@@ -410,9 +419,9 @@ export function RadiographOverlay({
               <circle
                 className="landmark-marker"
                 data-landmark={def.name}
-                cx={lm.x}
-                cy={lm.y}
-                r={lmHitR}
+                cx={px}
+                cy={py}
+                r={hitAreaRadius}
                 fill="white"
                 fillOpacity={0.001}
                 style={{
@@ -422,26 +431,26 @@ export function RadiographOverlay({
               />
             )}
 
-            {/* Small visible marker */}
+            {/* Small visible marker (TRUE CIRCLE) */}
             <circle
-              cx={lm.x}
-              cy={lm.y}
-              r={lmMarkerR}
+              cx={px}
+              cy={py}
+              r={markerRadius}
               fill={color}
               stroke="white"
-              strokeWidth={p2v(2)}
-              vectorEffect="non-scaling-stroke"
+              strokeWidth={lineBaseStroke * 0.7}
               style={{ pointerEvents: "none" }}
             />
 
             {/* Landmark Label */}
             <text
-              x={lm.x + lmHitR}
-              y={lm.y - lmHitR * 0.7}
+              x={px + labelOffset}
+              y={py - labelOffset * 0.7}
               fill={isAiCandidate ? "#fde047" : "white"}
-              fontSize={0.01}
+              fontSize={fontSize * 0.9}
+              fontWeight="bold"
               className="select-none font-bold"
-              style={{ pointerEvents: "none", textShadow: "0 0 2px black" }}
+              style={{ pointerEvents: "none", textShadow: "0 0 3px black" }}
             >
               {def.label}
               {isAiCandidate ? " (AI)" : ""}
@@ -462,19 +471,19 @@ export function RadiographOverlay({
                 }}
               >
                 <circle
-                  cx={lm.x + lmHitR * 0.7}
-                  cy={lm.y + lmHitR * 0.7}
-                  r={deleteBtnR}
+                  cx={px + labelOffset * 0.7}
+                  cy={py + labelOffset * 0.7}
+                  r={deleteBtnRadius}
                   fill="#dc2626"
                   stroke="white"
-                  strokeWidth={p2v(1)}
-                  vectorEffect="non-scaling-stroke"
+                  strokeWidth={lineBaseStroke * 0.5}
                 />
                 <text
-                  x={lm.x + lmHitR * 0.7}
-                  y={lm.y + lmHitR * 0.7}
+                  x={px + labelOffset * 0.7}
+                  y={py + labelOffset * 0.7}
                   fill="white"
-                  fontSize={deleteBtnR * 1.4}
+                  fontSize={deleteBtnRadius * 1.3}
+                  fontWeight="bold"
                   textAnchor="middle"
                   dominantBaseline="central"
                   className="select-none font-bold"

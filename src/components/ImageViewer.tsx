@@ -273,7 +273,9 @@ export function ImageViewer() {
             const ctm = svg.getScreenCTM();
             if (ctm) {
               const svgPt = pt.matrixTransform(ctm.inverse());
-              // svgPt.x and svgPt.y are in viewBox coordinates (0-1)
+              const natW = imageNaturalWidth || 1200;
+              const natH = imageNaturalHeight || 800;
+              const normPt = { x: svgPt.x / natW, y: svgPt.y / natH };
 
               // Check calibration points first (higher priority than landmarks)
               const calHitRadius = pxToViewBox(CALIBRATION_HIT_AREA_PX);
@@ -296,8 +298,8 @@ export function ImageViewer() {
 
                 if (!canDrag) continue;
 
-                const dx = svgPt.x - cp.x;
-                const dy = svgPt.y - cp.y;
+                const dx = normPt.x - cp.x;
+                const dy = normPt.y - cp.y;
                 const dist = Math.sqrt(dx * dx + dy * dy);
                 if (dist < calHitRadius) {
                   interactionMode.current = "drag-calibration";
@@ -322,8 +324,8 @@ export function ImageViewer() {
               for (const def of LANDMARK_DEFINITIONS) {
                 const lm = landmarks[def.name];
                 if (!lm) continue;
-                const dx = svgPt.x - lm.x;
-                const dy = svgPt.y - lm.y;
+                const dx = normPt.x - lm.x;
+                const dy = normPt.y - lm.y;
                 const dist = Math.sqrt(dx * dx + dy * dy);
                 if (dist < lmHitRadius && dist < closestDist) {
                   closest = def.name;

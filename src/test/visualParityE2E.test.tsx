@@ -1,6 +1,7 @@
 // ── Visual E2E Quality Gate & Bounding Box Parity Test ──────────
-// Verifies 100% WYSIWYG parity and strict bounding box alignment
-// between workspace viewport (ImageViewer) and clinical report preview (ClinicalReportModal).
+// Verifies 100% WYSIWYG parity, strict bounding box alignment,
+// and isotropic un-distorted circular marker rendering between
+// workspace viewport (ImageViewer) and clinical report preview (ClinicalReportModal).
 
 import { describe, it, expect, beforeEach } from "vitest";
 import React from "react";
@@ -89,7 +90,7 @@ describe("Visual E2E Quality Gate: Radiograph Canvas & Overlay Parity", () => {
 
       const svg = container.querySelector("svg.overlay-svg") as SVGSVGElement;
       expect(svg).toBeTruthy();
-      expect(svg.getAttribute("viewBox")).toBe("0 0 1 1");
+      expect(svg.getAttribute("viewBox")).toBe(`0 0 ${NAT_WIDTH} ${NAT_HEIGHT}`);
       expect(svg.getAttribute("preserveAspectRatio")).toBe("none");
       expect(svg.style.position).toBe("absolute");
       expect(svg.style.top).toBe("0px");
@@ -126,7 +127,7 @@ describe("Visual E2E Quality Gate: Radiograph Canvas & Overlay Parity", () => {
   });
 
   describe("2. Coordinate Parity & E2E Bounding Box Verification", () => {
-    it("renders identical landmark coordinate positions in ImageViewer and ClinicalReportModal", () => {
+    it("renders identical landmark pixel coordinate positions and true circular markers in ImageViewer and ClinicalReportModal", () => {
       // Render Workspace ImageViewer
       const { container: viewerContainer } = render(<ImageViewer />);
       const viewerSvg = viewerContainer.querySelector("svg.overlay-svg") as SVGSVGElement;
@@ -139,26 +140,27 @@ describe("Visual E2E Quality Gate: Radiograph Canvas & Overlay Parity", () => {
       const modalSvg = modalContainer.querySelector("svg.overlay-svg") as SVGSVGElement;
       expect(modalSvg).toBeTruthy();
 
-      // Both views must have viewBox="0 0 1 1" and preserveAspectRatio="none"
-      expect(viewerSvg.getAttribute("viewBox")).toBe("0 0 1 1");
-      expect(modalSvg.getAttribute("viewBox")).toBe("0 0 1 1");
+      // Both views must have pixel-matched isotropic viewBox and preserveAspectRatio="none"
+      expect(viewerSvg.getAttribute("viewBox")).toBe(`0 0 ${NAT_WIDTH} ${NAT_HEIGHT}`);
+      expect(modalSvg.getAttribute("viewBox")).toBe(`0 0 ${NAT_WIDTH} ${NAT_HEIGHT}`);
       expect(viewerSvg.getAttribute("preserveAspectRatio")).toBe("none");
       expect(modalSvg.getAttribute("preserveAspectRatio")).toBe("none");
 
-      // Verify all 5 anatomical landmarks have identical normalized coordinates (< 0.0001 delta / < 0.1px drift)
+      // Verify all 5 anatomical landmarks have identical pixel coordinates (0-pixel drift)
       const landmarks = useStudyStore.getState().landmarks;
       for (const def of LANDMARK_DEFINITIONS) {
         const expectedPt = landmarks[def.name];
         expect(expectedPt).toBeDefined();
         if (!expectedPt) continue;
 
+        const pixelX = expectedPt.x * NAT_WIDTH;
+        const pixelY = expectedPt.y * NAT_HEIGHT;
+
         // Find landmark circles in both SVGs
-        // In ImageViewer (interactive), there are hit area circles and visible marker circles
-        const viewerMarkerCircles = viewerContainer.querySelectorAll(`circle[cx="${expectedPt.x}"][cy="${expectedPt.y}"]`);
+        const viewerMarkerCircles = viewerContainer.querySelectorAll(`circle[cx="${pixelX}"][cy="${pixelY}"]`);
         expect(viewerMarkerCircles.length).toBeGreaterThanOrEqual(1);
 
-        // In ClinicalReportModal (readOnly), there is the visible marker circle
-        const modalMarkerCircles = modalContainer.querySelectorAll(`circle[cx="${expectedPt.x}"][cy="${expectedPt.y}"]`);
+        const modalMarkerCircles = modalContainer.querySelectorAll(`circle[cx="${pixelX}"][cy="${pixelY}"]`);
         expect(modalMarkerCircles.length).toBeGreaterThanOrEqual(1);
 
         // Check def.label exists in both
@@ -172,13 +174,17 @@ describe("Visual E2E Quality Gate: Radiograph Canvas & Overlay Parity", () => {
       expect(calPoints?.point2).toBeDefined();
 
       if (calPoints?.point1 && calPoints?.point2) {
-        const viewerP1 = viewerContainer.querySelectorAll(`circle[cx="${calPoints.point1.x}"][cy="${calPoints.point1.y}"]`);
-        const modalP1 = modalContainer.querySelectorAll(`circle[cx="${calPoints.point1.x}"][cy="${calPoints.point1.y}"]`);
+        const p1X = calPoints.point1.x * NAT_WIDTH;
+        const p1Y = calPoints.point1.y * NAT_HEIGHT;
+        const viewerP1 = viewerContainer.querySelectorAll(`circle[cx="${p1X}"][cy="${p1Y}"]`);
+        const modalP1 = modalContainer.querySelectorAll(`circle[cx="${p1X}"][cy="${p1Y}"]`);
         expect(viewerP1.length).toBeGreaterThanOrEqual(1);
         expect(modalP1.length).toBeGreaterThanOrEqual(1);
 
-        const viewerP2 = viewerContainer.querySelectorAll(`circle[cx="${calPoints.point2.x}"][cy="${calPoints.point2.y}"]`);
-        const modalP2 = modalContainer.querySelectorAll(`circle[cx="${calPoints.point2.x}"][cy="${calPoints.point2.y}"]`);
+        const p2X = calPoints.point2.x * NAT_WIDTH;
+        const p2Y = calPoints.point2.y * NAT_HEIGHT;
+        const viewerP2 = viewerContainer.querySelectorAll(`circle[cx="${p2X}"][cy="${p2Y}"]`);
+        const modalP2 = modalContainer.querySelectorAll(`circle[cx="${p2X}"][cy="${p2Y}"]`);
         expect(viewerP2.length).toBeGreaterThanOrEqual(1);
         expect(modalP2.length).toBeGreaterThanOrEqual(1);
       }
