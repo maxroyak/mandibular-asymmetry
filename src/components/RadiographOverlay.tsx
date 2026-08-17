@@ -1,6 +1,6 @@
 // ── Radiograph SVG Overlay Component ──────────────────────────
 // Single Source of Truth for Radiograph Visual Overlays (WYSIWYG).
-// Uses isotropic pixel-space viewBox={`0 0 ${natW} ${natH}`} to ensure 100% round circles.
+// Uses isotropic pixel-space viewBox={`0 0 ${natW} ${natH}`} with precision 3.5px markers.
 
 import React, { useMemo } from "react";
 import { useStudyStore } from "../store/studyStore";
@@ -84,17 +84,18 @@ export function RadiographOverlay({
     calibrationStage === "entering-distance" ||
     calibrationStage === "calibrated";
 
-  // Isotropic dimension calculations based on pixel viewBox
-  const lineBaseStroke = Math.max(2, natW * 0.003);
-  const lineHoverStroke = Math.max(3.5, natW * 0.005);
-  const markerRadius = Math.max(6, natW * 0.0075);
-  const hitAreaRadius = Math.max(16, natW * 0.018);
-  const activeRingRadius = Math.max(20, natW * 0.024);
-  const fontSize = Math.max(12, natW * 0.012);
-  const labelOffset = Math.max(18, natW * 0.02);
-  const badgeWidth = Math.max(110, natW * 0.13);
-  const badgeHeight = Math.max(22, natH * 0.035);
-  const deleteBtnRadius = Math.max(8, natW * 0.009);
+  // Precision dimension calculations based on pixel viewBox
+  const lineBaseStroke = Math.max(1.8, natW * 0.0025);
+  const lineHoverStroke = Math.max(3, natW * 0.0045);
+  const markerRadius = Math.max(3.5, natW * 0.0038);     // Precision 3.5px-4px visible dot
+  const focalDotRadius = Math.max(1, natW * 0.001);       // 1px center focal pinpoint
+  const hitAreaRadius = Math.max(14, natW * 0.016);       // Large 14px-16px drag target
+  const activeRingRadius = Math.max(16, natW * 0.018);
+  const fontSize = Math.max(11, natW * 0.011);
+  const labelOffset = Math.max(20, natW * 0.022);         // Safe offset avoiding anatomy overlap
+  const badgeWidth = Math.max(105, natW * 0.125);
+  const badgeHeight = Math.max(20, natH * 0.032);
+  const deleteBtnRadius = Math.max(7, natW * 0.0075);
 
   const lineDefs = useMemo(
     () => [
@@ -244,7 +245,7 @@ export function RadiographOverlay({
             <circle
               cx={calibrationPoints.point1.x * natW}
               cy={calibrationPoints.point1.y * natH}
-              r={hitAreaRadius * 1.3}
+              r={activeRingRadius}
               fill="none"
               stroke="#fbbf24"
               strokeWidth={lineBaseStroke}
@@ -278,24 +279,30 @@ export function RadiographOverlay({
             />
           )}
 
-          {/* Small visible marker (TRUE CIRCLE) */}
+          {/* Small precision visible marker (TRUE CIRCLE, 3.5px) */}
           <circle
             cx={calibrationPoints.point1.x * natW}
             cy={calibrationPoints.point1.y * natH}
             r={markerRadius}
             fill={point1Confirmed ? "#10b981" : "#fbbf24"}
             stroke="white"
-            strokeWidth={lineBaseStroke * 0.7}
-            strokeDasharray={
-              point1Confirmed ? undefined : `${natW * 0.005} ${natW * 0.003}`
-            }
+            strokeWidth={Math.max(1, natW * 0.001)}
+            style={{ pointerEvents: "none" }}
+          />
+
+          {/* Precision inner center focal pinpoint */}
+          <circle
+            cx={calibrationPoints.point1.x * natW}
+            cy={calibrationPoints.point1.y * natH}
+            r={focalDotRadius}
+            fill="#ffffff"
             style={{ pointerEvents: "none" }}
           />
 
           {/* Label offset from marker */}
           <text
             x={calibrationPoints.point1.x * natW + labelOffset}
-            y={calibrationPoints.point1.y * natH - labelOffset * 0.7}
+            y={calibrationPoints.point1.y * natH - labelOffset * 0.6}
             fill={point1Confirmed ? "#10b981" : "#fbbf24"}
             fontSize={fontSize * 0.9}
             fontWeight="bold"
@@ -315,7 +322,7 @@ export function RadiographOverlay({
             <circle
               cx={calibrationPoints.point2.x * natW}
               cy={calibrationPoints.point2.y * natH}
-              r={hitAreaRadius * 1.3}
+              r={activeRingRadius}
               fill="none"
               stroke="#fbbf24"
               strokeWidth={lineBaseStroke}
@@ -348,24 +355,30 @@ export function RadiographOverlay({
             />
           )}
 
-          {/* Small visible marker (TRUE CIRCLE) */}
+          {/* Small precision visible marker (TRUE CIRCLE, 3.5px) */}
           <circle
             cx={calibrationPoints.point2.x * natW}
             cy={calibrationPoints.point2.y * natH}
             r={markerRadius}
             fill={point2Confirmed ? "#10b981" : "#fbbf24"}
             stroke="white"
-            strokeWidth={lineBaseStroke * 0.7}
-            strokeDasharray={
-              point2Confirmed ? undefined : `${natW * 0.005} ${natW * 0.003}`
-            }
+            strokeWidth={Math.max(1, natW * 0.001)}
+            style={{ pointerEvents: "none" }}
+          />
+
+          {/* Precision inner center focal pinpoint */}
+          <circle
+            cx={calibrationPoints.point2.x * natW}
+            cy={calibrationPoints.point2.y * natH}
+            r={focalDotRadius}
+            fill="#ffffff"
             style={{ pointerEvents: "none" }}
           />
 
           {/* Label offset from marker */}
           <text
             x={calibrationPoints.point2.x * natW + labelOffset}
-            y={calibrationPoints.point2.y * natH - labelOffset * 0.7}
+            y={calibrationPoints.point2.y * natH - labelOffset * 0.6}
             fill={point2Confirmed ? "#10b981" : "#fbbf24"}
             fontSize={fontSize * 0.9}
             fontWeight="bold"
@@ -406,11 +419,11 @@ export function RadiographOverlay({
               <circle
                 cx={px}
                 cy={py}
-                r={hitAreaRadius * 1.3}
+                r={hitAreaRadius * 1.2}
                 fill="none"
                 stroke="#f59e0b"
-                strokeWidth={lineBaseStroke}
-                strokeDasharray={`${natW * 0.006} ${natW * 0.004}`}
+                strokeWidth={lineBaseStroke * 0.8}
+                strokeDasharray={`${natW * 0.005} ${natW * 0.003}`}
               />
             )}
 
@@ -431,21 +444,30 @@ export function RadiographOverlay({
               />
             )}
 
-            {/* Small visible marker (TRUE CIRCLE) */}
+            {/* Small precision visible marker (TRUE CIRCLE, 3.5px) */}
             <circle
               cx={px}
               cy={py}
               r={markerRadius}
               fill={color}
               stroke="white"
-              strokeWidth={lineBaseStroke * 0.7}
+              strokeWidth={Math.max(1, natW * 0.001)}
+              style={{ pointerEvents: "none" }}
+            />
+
+            {/* Precision center focal pinpoint dot */}
+            <circle
+              cx={px}
+              cy={py}
+              r={focalDotRadius}
+              fill="#ffffff"
               style={{ pointerEvents: "none" }}
             />
 
             {/* Landmark Label */}
             <text
               x={px + labelOffset}
-              y={py - labelOffset * 0.7}
+              y={py - labelOffset * 0.6}
               fill={isAiCandidate ? "#fde047" : "white"}
               fontSize={fontSize * 0.9}
               fontWeight="bold"
@@ -471,16 +493,16 @@ export function RadiographOverlay({
                 }}
               >
                 <circle
-                  cx={px + labelOffset * 0.7}
-                  cy={py + labelOffset * 0.7}
+                  cx={px + labelOffset * 0.75}
+                  cy={py + labelOffset * 0.75}
                   r={deleteBtnRadius}
                   fill="#dc2626"
                   stroke="white"
                   strokeWidth={lineBaseStroke * 0.5}
                 />
                 <text
-                  x={px + labelOffset * 0.7}
-                  y={py + labelOffset * 0.7}
+                  x={px + labelOffset * 0.75}
+                  y={py + labelOffset * 0.75}
                   fill="white"
                   fontSize={deleteBtnRadius * 1.3}
                   fontWeight="bold"
