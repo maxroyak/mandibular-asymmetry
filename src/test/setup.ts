@@ -1,6 +1,11 @@
 import "@testing-library/jest-dom";
 
 // ── Test environment setup ──────────────────────────────────
-// IndexedDB and localStorage mocks are handled per-test-file
-// using vi.mock or inline mocks as needed. This file provides
-// the shared jest-dom matchers for all tests.
+// Polyfill ResizeObserver for JSDOM
+if (typeof globalThis.ResizeObserver === "undefined") {
+  globalThis.ResizeObserver = class ResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+}

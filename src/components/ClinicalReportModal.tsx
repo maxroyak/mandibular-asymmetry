@@ -6,7 +6,7 @@
 import { useEffect, useRef } from "react";
 import { useStudyStore } from "../store/studyStore";
 import { getTranslations } from "../locales";
-import { RadiographOverlay } from "./RadiographOverlay";
+import { RadiographCanvasContainer } from "./RadiographCanvasContainer";
 
 interface ClinicalReportModalProps {
   isOpen: boolean;
@@ -131,42 +131,17 @@ export function ClinicalReportModal({ isOpen, onClose }: ClinicalReportModalProp
               </div>
             </div>
 
-            {/* 3. Radiograph Visual Overlay Section (Strict Bounding Box Parity) */}
+            {/* 3. Radiograph Visual Overlay Section (Unified Canvas Container) */}
             {imageDataUrl && (
               <div className="mb-4">
                 <div className="text-xs font-semibold text-gray-700 mb-1.5 uppercase tracking-wide">
                   {t.report.overlayTitle}
                 </div>
-                <div
-                  className="relative inline-block w-full overflow-hidden rounded border border-gray-300 bg-black leading-none"
-                  style={{
-                    display: "inline-block",
-                    width: "100%",
-                    position: "relative",
-                  }}
-                >
-                  <img
-                    src={imageDataUrl}
-                    alt="Panoramic Radiograph"
-                    className="block w-full h-auto"
-                    style={{
-                      display: "block",
-                      width: "100%",
-                      height: "auto",
-                    }}
-                  />
-                  <RadiographOverlay
-                    readOnly={true}
-                    preserveAspectRatio="none"
-                    className="absolute inset-0 w-full h-full overlay-svg pointer-events-none"
-                    style={{
-                      position: "absolute",
-                      inset: 0,
-                      width: "100%",
-                      height: "100%",
-                    }}
-                  />
-                </div>
+                <RadiographCanvasContainer
+                  mode="aspect"
+                  readOnly={true}
+                  className="rounded border border-gray-300 bg-black shadow-xs"
+                />
               </div>
             )}
 

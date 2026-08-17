@@ -1,6 +1,6 @@
 import { useRef, useCallback, useEffect, useState, useMemo } from "react";
 import { useStudyStore } from "../store/studyStore";
-import { RadiographOverlay } from "./RadiographOverlay";
+import { RadiographCanvasContainer } from "./RadiographCanvasContainer";
 import { LANDMARK_DEFINITIONS } from "../domain/types";
 import type { Point, LandmarkName, CalibrationStage } from "../domain/types";
 import {
@@ -595,10 +595,10 @@ export function ImageViewer() {
             : "default",
         }}
       >
-        {/* Synchronized Image & SVG Overlay Frame */}
+        {/* Synchronized Image & SVG Overlay Frame via Unified RadiographCanvasContainer */}
         {imageDataUrl && (
-          <div
-            className="absolute select-none"
+          <RadiographCanvasContainer
+            mode="fitted"
             style={{
               left: `${fitted.left}px`,
               top: `${fitted.top}px`,
@@ -607,29 +607,13 @@ export function ImageViewer() {
               transform: `translate(${viewer.panX}px, ${viewer.panY}px) scale(${viewer.zoom})`,
               transformOrigin: "center",
             }}
-          >
-            {/* Image Layer */}
-            <img
-              src={imageDataUrl}
-              alt="Panoramic radiograph"
-              className="block w-full h-full object-fill pointer-events-none"
-              style={{
-                filter: `brightness(${viewer.brightness}) contrast(${viewer.contrast})`,
-                userSelect: "none",
-              }}
-              draggable={false}
-            />
-
-            {/* Overlay Layer (SVG) */}
-            <RadiographOverlay
-              showOverlay={showOverlay}
-              pxToViewBox={pxToViewBox}
-              isDraggingMarker={isDraggingMarker}
-              onClick={handleOverlayClick}
-              preserveAspectRatio="none"
-              className="absolute inset-0 h-full w-full overlay-svg pointer-events-all"
-            />
-          </div>
+            imageFilter={`brightness(${viewer.brightness}) contrast(${viewer.contrast})`}
+            showOverlay={showOverlay}
+            pxToViewBox={pxToViewBox}
+            isDraggingMarker={isDraggingMarker}
+            onOverlayClick={handleOverlayClick}
+            readOnly={false}
+          />
         )}
       </div>
     </div>
