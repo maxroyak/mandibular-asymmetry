@@ -1,5 +1,6 @@
 import { useRef, useCallback, useEffect, useState } from "react";
 import { useStudyStore } from "../store/studyStore";
+import { RadiographOverlay } from "./RadiographOverlay";
 import { LANDMARK_DEFINITIONS } from "../domain/types";
 import type { Point, LandmarkName, CalibrationStage } from "../domain/types";
 import { screenToNormalized as transformScreenToNormalized } from "../domain/coordinateTransform";
@@ -23,13 +24,9 @@ function isCalibratingStage(stage: CalibrationStage): boolean {
 }
 
 // ── Fixed pixel size constants ───────────────────────────────
-// Marker sizes in CSS pixels (not scaled by zoom).
-const CALIBRATION_MARKER_PX = 5;      // 10px diameter visible marker
+// Marker hit area sizes in CSS pixels (not scaled by zoom).
 const CALIBRATION_HIT_AREA_PX = 12;   // 24px diameter hit area
-const LANDMARK_MARKER_PX = 5;         // 10px diameter visible marker
 const LANDMARK_HIT_AREA_PX = 12;      // 24px diameter hit area
-const LANDMARK_ACTIVE_RING_PX = 10;   // 20px diameter active ring
-const DELETE_BTN_PX = 5;             // 10px diameter delete button
 
 export function ImageViewer() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -59,11 +56,8 @@ export function ImageViewer() {
   const landmarks = useStudyStore((s) => s.landmarks);
   const activeLandmark = useStudyStore((s) => s.activeLandmark);
   const calibrationPoints = useStudyStore((s) => s.calibrationPoints);
-  const calibrationMode = useStudyStore((s) => s.calibrationMode);
   const calibrationStage = useStudyStore((s) => s.calibrationStage);
-  const hoveredLine = useStudyStore((s) => s.hoveredLine);
   const isAiDetecting = useStudyStore((s) => s.isAiDetecting);
-  const aiCandidateLandmarks = useStudyStore((s) => s.aiCandidateLandmarks);
   const detectLandmarksAi = useStudyStore((s) => s.detectLandmarksAi);
 
   const setLandmark = useStudyStore((s) => s.setLandmark);
@@ -106,21 +100,6 @@ export function ImageViewer() {
     },
     [containerSize.w, containerSize.h, viewer.zoom]
   );
-
-  // Pre-compute commonly used sizes
-  const calMarkerR = pxToViewBox(CALIBRATION_MARKER_PX);
-  const calHitR = pxToViewBox(CALIBRATION_HIT_AREA_PX);
-  const lmMarkerR = pxToViewBox(LANDMARK_MARKER_PX);
-  const lmHitR = pxToViewBox(LANDMARK_HIT_AREA_PX);
-  const lmActiveRingR = pxToViewBox(LANDMARK_ACTIVE_RING_PX);
-  const deleteBtnR = pxToViewBox(DELETE_BTN_PX);
-
-  // ── One source of truth: mm values from the store ──────────
-  // The overlay reads mandibularResult from the same store state that
-  // the ResultsPanel uses. No recalculation in the UI layer.
-  const mandibularResult = useStudyStore((s) => s.mandibularResult);
-  const calibration = useStudyStore((s) => s.calibration);
-  const isCalibrated = calibrationMode === "B" && calibration !== null;
 
   // ── Screen → normalized coordinate conversion ──────────────
   // Delegates to the pure domain function in coordinateTransform.ts,
@@ -498,78 +477,6 @@ export function ImageViewer() {
     };
   }, [viewer.zoom, setZoom, fitToScreen, resetViewer, setActiveLandmark]);
 
-  // Landmark colors
-  const landmarkColor = (name: LandmarkName): string => {
-    const def = LANDMARK_DEFINITIONS.find((l) => l.name === name);
-    if (!def) return "#ef4444";
-    if (def.side === "right") return "#2563eb";
-    if (def.side === "left") return "#16a34a";
-    return "#d97706";
-  };
-
-  // Measurement line definitions
-  // mm values come from mandibularResult (the store's single source of truth).
-  // Colors: blue for right side, red/orange (#dc2626) for left side.
-  // When uncalibrated, labels show "calibration required" instead of mm.
-  const RIGHT_COLOR = "#2563eb"; // blue
-  const LEFT_COLOR = "#dc2626";  // red
-
-  const lineDefs = [
-    {
-      id: "ramusR",
-      from: landmarks.CoR,
-      to: landmarks.GoR,
-      color: RIGHT_COLOR,
-      name: t.overlay.ramusR,
-      mm: mandibularResult?.ramus.rightMm ?? null,
-    },
-    {
-      id: "ramusL",
-      from: landmarks.CoL,
-      to: landmarks.GoL,
-      color: LEFT_COLOR,
-      name: t.overlay.ramusL,
-      mm: mandibularResult?.ramus.leftMm ?? null,
-    },
-    {
-      id: "bodyR",
-      from: landmarks.GoR,
-      to: landmarks.Me,
-      color: RIGHT_COLOR,
-      name: t.overlay.bodyR,
-      mm: mandibularResult?.body.rightMm ?? null,
-    },
-    {
-      id: "bodyL",
-      from: landmarks.GoL,
-      to: landmarks.Me,
-      color: LEFT_COLOR,
-      name: t.overlay.bodyL,
-      mm: mandibularResult?.body.leftMm ?? null,
-    },
-  ];
-
-  // ── Determine active calibration point (Item 6d) ──
-  // The "active" point is the one currently being placed or reviewed.
-  const activeCalibrationPoint: 1 | 2 | null =
-    calibrationStage === "placing-point-1" || calibrationStage === "reviewing-point-1"
-      ? 1
-      : calibrationStage === "placing-point-2" || calibrationStage === "reviewing-point-2"
-      ? 2
-      : null;
-
-  // ── Determine if a calibration point is confirmed (Item 6e) ──
-  // Point 1 is "confirmed" once we've moved past reviewing-point-1.
-  // Point 2 is "confirmed" once we've moved past reviewing-point-2.
-  const point1Confirmed =
-    calibrationStage === "placing-point-2" ||
-    calibrationStage === "reviewing-point-2" ||
-    calibrationStage === "entering-distance" ||
-    calibrationStage === "calibrated";
-  const point2Confirmed =
-    calibrationStage === "entering-distance" ||
-    calibrationStage === "calibrated";
-
   return (
     <div className="flex h-full flex-col">
       {/* Viewer Toolbar */}
@@ -695,336 +602,17 @@ export function ImageViewer() {
           />
         )}
 
-        {/* Overlay Layer (SVG) — receives the SAME transform as the image
-            so landmarks, lines, and markers stay aligned with the radiograph
-            at all zoom levels and pan offsets. */}
-        <svg
-          className="absolute inset-0 h-full w-full overlay-svg"
-          viewBox="0 0 1 1"
-          preserveAspectRatio="xMidYMid meet"
+        {/* Overlay Layer (SVG) */}
+        <RadiographOverlay
+          showOverlay={showOverlay}
+          pxToViewBox={pxToViewBox}
+          isDraggingMarker={isDraggingMarker}
           onClick={handleOverlayClick}
           style={{
-            pointerEvents: "all",
             transform: `translate(${viewer.panX}px, ${viewer.panY}px) scale(${viewer.zoom})`,
             transformOrigin: "center",
           }}
-        >
-          {/* Measurement lines with mm labels — only when overlay is visible */}
-          {showOverlay && lineDefs.map((line) => {
-            if (!line.from || !line.to) return null;
-            const isHovered = hoveredLine === line.id;
-            const midX = (line.from.x + line.to.x) / 2;
-            const midY = (line.from.y + line.to.y) / 2;
-            // Calibration gating: show mm only when calibrated and value available
-            const showMm = isCalibrated && line.mm !== null;
-            const label = showMm
-              ? `${line.name}: ${line.mm!.toFixed(1)} ${t.common.mm}`
-              : `${line.name}: ${t.overlay.calibrationRequired}`;
-            return (
-              <g key={line.id}>
-                <line
-                  x1={line.from.x}
-                  y1={line.from.y}
-                  x2={line.to.x}
-                  y2={line.to.y}
-                  stroke={line.color}
-                  strokeWidth={isHovered ? 0.006 : 0.003}
-                  opacity={hoveredLine && !isHovered ? 0.3 : 1}
-                  vectorEffect="non-scaling-stroke"
-                  style={{
-                    filter: isHovered ? "drop-shadow(0 0 3px rgba(255,255,255,0.8))" : "none",
-                    transition: "stroke-width 0.15s, opacity 0.15s",
-                  }}
-                />
-                {/* Label background for readability */}
-                <rect
-                  x={midX - 0.08}
-                  y={midY - 0.025}
-                  width={0.16}
-                  height={0.02}
-                  fill="rgba(0,0,0,0.7)"
-                  rx={0.003}
-                  ry={0.003}
-                  style={{ pointerEvents: "none" }}
-                />
-                {/* Measurement name + mm value at midpoint */}
-                <text
-                  x={midX}
-                  y={midY}
-                  fill={showMm ? "#ffffff" : "#fbbf24"}
-                  fontSize={0.012}
-                  textAnchor="middle"
-                  dy="-0.005"
-                  className="select-none"
-                  style={{ pointerEvents: "none" }}
-                >
-                  {label}
-                </text>
-              </g>
-            );
-          })}
-
-          {/* Calibration line — show when both points exist, with distance label when calibrated */}
-          {showOverlay && calibrationPoints?.point1 && calibrationPoints?.point2 && (
-            <g>
-              <line
-                x1={calibrationPoints.point1.x}
-                y1={calibrationPoints.point1.y}
-                x2={calibrationPoints.point2.x}
-                y2={calibrationPoints.point2.y}
-                stroke="#10b981"
-                strokeWidth={0.004}
-                strokeDasharray="0.02 0.01"
-                vectorEffect="non-scaling-stroke"
-              />
-              {calibrationStage === "calibrated" && calibration && (
-                <text
-                  x={(calibrationPoints.point1.x + calibrationPoints.point2.x) / 2}
-                  y={(calibrationPoints.point1.y + calibrationPoints.point2.y) / 2}
-                  fill="#10b981"
-                  fontSize={0.012}
-                  textAnchor="middle"
-                  className="select-none"
-                  style={{ pointerEvents: "none", textShadow: "0 0 2px black" }}
-                >
-                  {calibration.realDistanceMm.toFixed(1)} {t.common.mm}
-                </text>
-              )}
-            </g>
-          )}
-
-          {/* ── Calibration point markers (Item 6) ──
-              Fixed pixel sizes (not scaled by zoom).
-              - Small visible marker: ~10px diameter
-              - Large invisible hit area: ~24px diameter
-              - Active point highlighted with ring
-              - Unconfirmed: dashed border
-              - Confirmed: solid border
-              - Cursor: grab/grabbing for draggable points */}
-
-          {calibrationPoints?.point1 && (
-            <g>
-              {/* Active highlight ring (Item 6d) */}
-              {activeCalibrationPoint === 1 && (
-                <circle
-                  cx={calibrationPoints.point1.x}
-                  cy={calibrationPoints.point1.y}
-                  r={calHitR * 1.3}
-                  fill="none"
-                  stroke="#fbbf24"
-                  strokeWidth={pxToViewBox(2)}
-                  vectorEffect="non-scaling-stroke"
-                  style={{ pointerEvents: "none", opacity: 0.8 }}
-                />
-              )}
-              {/* Large transparent interaction circle (drag hit area) */}
-              <circle
-                className="calibration-marker"
-                data-calibration-point="1"
-                cx={calibrationPoints.point1.x}
-                cy={calibrationPoints.point1.y}
-                r={calHitR}
-                fill="white" fillOpacity={0.001}
-                style={{
-                  pointerEvents: "none",
-                  cursor: (calibrationStage === "reviewing-point-1" || calibrationStage === "reviewing-point-2" || calibrationStage === "entering-distance" || calibrationStage === "calibrated" || calibrationStage === "idle")
-                    ? (isDraggingMarker ? "grabbing" : "grab")
-                    : "default",
-                }}
-              />
-              {/* Small visible marker (Item 6a, 6e, 6f) */}
-              <circle
-                cx={calibrationPoints.point1.x}
-                cy={calibrationPoints.point1.y}
-                r={calMarkerR}
-                fill={point1Confirmed ? "#10b981" : "#fbbf24"}
-                stroke="white"
-                strokeWidth={pxToViewBox(2)}
-                strokeDasharray={point1Confirmed ? undefined : `${pxToViewBox(2)} ${pxToViewBox(1.5)}`}
-                vectorEffect="non-scaling-stroke"
-                style={{ pointerEvents: "none" }}
-              />
-              {/* Small label offset from marker */}
-              <text
-                x={calibrationPoints.point1.x + calHitR}
-                y={calibrationPoints.point1.y - calHitR * 0.7}
-                fill={point1Confirmed ? "#10b981" : "#fbbf24"}
-                fontSize={0.01}
-                className="select-none"
-                style={{ pointerEvents: "none", textShadow: "0 0 2px black" }}
-              >
-                P1
-              </text>
-            </g>
-          )}
-
-          {calibrationPoints?.point2 && (
-            <g>
-              {/* Active highlight ring (Item 6d) */}
-              {activeCalibrationPoint === 2 && (
-                <circle
-                  cx={calibrationPoints.point2.x}
-                  cy={calibrationPoints.point2.y}
-                  r={calHitR * 1.3}
-                  fill="none"
-                  stroke="#fbbf24"
-                  strokeWidth={pxToViewBox(2)}
-                  vectorEffect="non-scaling-stroke"
-                  style={{ pointerEvents: "none", opacity: 0.8 }}
-                />
-              )}
-              {/* Large transparent interaction circle (drag hit area) */}
-              <circle
-                className="calibration-marker"
-                data-calibration-point="2"
-                cx={calibrationPoints.point2.x}
-                cy={calibrationPoints.point2.y}
-                r={calHitR}
-                fill="white" fillOpacity={0.001}
-                style={{
-                  pointerEvents: "none",
-                  cursor: (calibrationStage === "reviewing-point-2" || calibrationStage === "entering-distance" || calibrationStage === "calibrated" || calibrationStage === "idle")
-                    ? (isDraggingMarker ? "grabbing" : "grab")
-                    : "default",
-                }}
-              />
-              {/* Small visible marker (Item 6a, 6e, 6f) */}
-              <circle
-                cx={calibrationPoints.point2.x}
-                cy={calibrationPoints.point2.y}
-                r={calMarkerR}
-                fill={point2Confirmed ? "#10b981" : "#fbbf24"}
-                stroke="white"
-                strokeWidth={pxToViewBox(2)}
-                strokeDasharray={point2Confirmed ? undefined : `${pxToViewBox(2)} ${pxToViewBox(1.5)}`}
-                vectorEffect="non-scaling-stroke"
-                style={{ pointerEvents: "none" }}
-              />
-              {/* Small label offset from marker */}
-              <text
-                x={calibrationPoints.point2.x + calHitR}
-                y={calibrationPoints.point2.y - calHitR * 0.7}
-                fill={point2Confirmed ? "#10b981" : "#fbbf24"}
-                fontSize={0.01}
-                className="select-none"
-                style={{ pointerEvents: "none", textShadow: "0 0 2px black" }}
-              >
-                P2
-              </text>
-            </g>
-          )}
-
-          {/* ── Landmark markers (Item 8h) ──
-              Fixed pixel sizes (not scaled by zoom).
-              - Small visible marker: ~10px diameter
-              - Large invisible hit area: ~24px diameter
-              - Cursor: grab/grabbing for draggable points */}
-          {LANDMARK_DEFINITIONS.map((def) => {
-            const lm = landmarks[def.name];
-            if (!lm) return null;
-            const color = landmarkColor(def.name);
-            const isActive = activeLandmark === def.name;
-            const isAiCandidate = !!aiCandidateLandmarks[def.name];
-            return (
-              <g key={def.name}>
-                {/* Active ring */}
-                {isActive && (
-                  <circle
-                    cx={lm.x}
-                    cy={lm.y}
-                    r={lmActiveRingR}
-                    fill="none"
-                    stroke="#f97316"
-                    strokeWidth={pxToViewBox(2)}
-                    vectorEffect="non-scaling-stroke"
-                  />
-                )}
-                {/* AI Candidate Dashed Halo */}
-                {isAiCandidate && !isActive && (
-                  <circle
-                    cx={lm.x}
-                    cy={lm.y}
-                    r={lmHitR * 1.3}
-                    fill="none"
-                    stroke="#f59e0b"
-                    strokeWidth={pxToViewBox(2)}
-                    strokeDasharray={`${pxToViewBox(3)} ${pxToViewBox(2)}`}
-                    vectorEffect="non-scaling-stroke"
-                  />
-                )}
-                {/* Large transparent interaction circle (hit area) */}
-                <circle
-                  className="landmark-marker"
-                  data-landmark={def.name}
-                  cx={lm.x}
-                  cy={lm.y}
-                  r={lmHitR}
-                  fill="white" fillOpacity={0.001}
-                  style={{
-                    pointerEvents: "none",
-                    cursor: isDraggingMarker ? "grabbing" : "grab",
-                  }}
-                />
-                {/* Small visible marker */}
-                <circle
-                  cx={lm.x}
-                  cy={lm.y}
-                  r={lmMarkerR}
-                  fill={color}
-                  stroke="white"
-                  strokeWidth={pxToViewBox(2)}
-                  vectorEffect="non-scaling-stroke"
-                  style={{ pointerEvents: "none" }}
-                />
-                <text
-                  x={lm.x + lmHitR}
-                  y={lm.y - lmHitR * 0.7}
-                  fill={isAiCandidate ? "#fde047" : "white"}
-                  fontSize={0.01}
-                  className="select-none font-bold"
-                  style={{ pointerEvents: "none", textShadow: "0 0 2px black" }}
-                >
-                  {def.label}{isAiCandidate ? " (AI)" : ""}
-                </text>
-                {/* Delete button — small red badge with × */}
-                <g
-                  className="delete-btn"
-                  data-delete={def.name}
-                  style={{ cursor: "pointer", pointerEvents: "all" }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    deleteLandmark(def.name);
-                  }}
-                  onPointerDown={(e) => {
-                    e.stopPropagation();
-                  }}
-                >
-                  <circle
-                    cx={lm.x + lmHitR * 0.7}
-                    cy={lm.y + lmHitR * 0.7}
-                    r={deleteBtnR}
-                    fill="#dc2626"
-                    stroke="white"
-                    strokeWidth={pxToViewBox(1)}
-                    vectorEffect="non-scaling-stroke"
-                  />
-                  <text
-                    x={lm.x + lmHitR * 0.7}
-                    y={lm.y + lmHitR * 0.7}
-                    fill="white"
-                    fontSize={deleteBtnR * 1.4}
-                    textAnchor="middle"
-                    dominantBaseline="central"
-                    className="select-none font-bold"
-                    style={{ pointerEvents: "none" }}
-                  >
-                    ×
-                  </text>
-                </g>
-              </g>
-            );
-          })}
-        </svg>
+        />
       </div>
     </div>
   );
