@@ -38,7 +38,6 @@ export interface StoredStudy {
   calibrationPoints: CalibrationDraft | null;
   measurements: StudyMeasurements;
   interpretation: string;
-  filters?: import("../domain/types").ImageFilterState;
   createdAt: string;
   updatedAt: string;
 }

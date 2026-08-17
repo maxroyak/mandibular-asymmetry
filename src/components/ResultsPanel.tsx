@@ -1,13 +1,10 @@
 // ── Results Panel ────────────────────────────────────────────
-// Displays quantitative mandibular asymmetry results with dark clinical tokens.
-// Features:
-//   - Habets Asymmetry Index card with 6% baseline bar & dominant verdict chip
-//   - 3-column comparative cards for Ramus and Body measurements
-//   - Bi-directional hover highlighting to viewer canvas
-//   - Clinical conclusion card
-//   - Consolidated collapsible "Clinical Methodology & 2D Notice" disclosure
+// Displays measurement results with mm as PRIMARY when calibrated.
+// Hierarchy:
+//   PRIMARY: Right mm, Left mm, Difference mm, comparison sentence
+//   SECONDARY: Relative difference %, Habets index %
+// When uncalibrated: shows relative % as primary with calibration prompt.
 
-import { useState } from "react";
 import { useStudyStore } from "../store/studyStore";
 import {
   generateRamusComparison,
@@ -28,7 +25,7 @@ function largerSideLabel(side: string, t: Translations): string {
   return t.common.sideEqual;
 }
 
-// ── Calibrated mm Section ───────────────────────────────────
+// ── Calibrated mm Section (PRIMARY) ──────────────────────────
 function CalibratedMmSection({
   title,
   bilateral,
@@ -49,90 +46,106 @@ function CalibratedMmSection({
   const setHoveredLine = useStudyStore((s) => s.setHoveredLine);
 
   return (
-    <div className="mb-3.5 rounded-xl border border-slate-800 bg-slate-800/50 p-3.5">
-      {/* Card Header */}
-      <div className="mb-2.5 flex items-center justify-between">
-        <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider">{title}</h4>
-        <span className="text-[11px] text-slate-400 font-mono">
-          {isBody ? "Go → Me" : "Co → Go"}
-        </span>
+    <div className="mb-4 rounded-lg border border-gray-200 bg-white p-3">
+      {/* Header */}
+      <div className="mb-2 flex items-center justify-between">
+        <h4 className="text-sm font-semibold text-gray-800">{title}</h4>
+        <span className="text-xs text-gray-400 italic">{t.common.notClassified}</span>
       </div>
 
-      {/* PRIMARY 3-COLUMN METRICS */}
-      <div className="mb-3 grid grid-cols-3 gap-2">
-        {/* Right Side (Pure Blue) */}
+      {/* PRIMARY: mm values */}
+      <div className="mb-2 grid grid-cols-3 gap-3">
         <div
-          className="rounded-lg border border-blue-900/60 bg-blue-950/30 p-2.5 text-center cursor-pointer transition-all hover:border-blue-700/80 hover:bg-blue-950/50 select-none"
+          className="rounded border border-blue-200 bg-blue-50 p-2 text-center cursor-pointer transition-colors hover:border-blue-300"
           onMouseEnter={() => setHoveredLine(`${measurementId}R`)}
           onMouseLeave={() => setHoveredLine(null)}
         >
-          <div className="text-[10px] font-bold uppercase tracking-wider text-blue-400">{t.common.right}</div>
-          <div className="font-mono text-lg font-bold text-blue-100 mt-0.5">
+          <div className="text-xs font-medium text-blue-600">{t.common.right}</div>
+          <div className="font-mono text-lg font-bold text-gray-800">
             {bilateral.rightMm.toFixed(1)}
           </div>
-          <div className="text-[10px] text-blue-300/80">{t.common.mm}</div>
+          <div className="text-xs text-gray-500">{t.common.mm}</div>
         </div>
-
-        {/* Left Side (Pure Red/Coral) */}
         <div
-          className="rounded-lg border border-red-900/60 bg-red-950/30 p-2.5 text-center cursor-pointer transition-all hover:border-red-700/80 hover:bg-red-950/50 select-none"
+          className="rounded border border-green-200 bg-green-50 p-2 text-center cursor-pointer transition-colors hover:border-green-300"
           onMouseEnter={() => setHoveredLine(`${measurementId}L`)}
           onMouseLeave={() => setHoveredLine(null)}
         >
-          <div className="text-[10px] font-bold uppercase tracking-wider text-red-400">{t.common.left}</div>
-          <div className="font-mono text-lg font-bold text-red-100 mt-0.5">
+          <div className="text-xs font-medium text-green-600">{t.common.left}</div>
+          <div className="font-mono text-lg font-bold text-gray-800">
             {bilateral.leftMm.toFixed(1)}
           </div>
-          <div className="text-[10px] text-red-300/80">{t.common.mm}</div>
+          <div className="text-xs text-gray-500">{t.common.mm}</div>
         </div>
-
-        {/* Absolute Difference (Neutral Slate) */}
-        <div className="rounded-lg border border-slate-700/70 bg-slate-900/60 p-2.5 text-center select-none">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{t.common.absDiff}</div>
-          <div className="font-mono text-lg font-bold text-slate-100 mt-0.5">
+        <div className="rounded border border-gray-300 bg-gray-50 p-2 text-center">
+          <div className="text-xs font-medium text-gray-500">{t.common.absDiff}</div>
+          <div className="font-mono text-lg font-bold text-gray-800">
             {bilateral.absoluteDifferenceMm.toFixed(1)}
           </div>
-          <div className="text-[10px] text-slate-400">{t.common.mm}</div>
+          <div className="text-xs text-gray-500">{t.common.mm}</div>
         </div>
       </div>
 
-      {/* Comparative Clinical Summary */}
-      <p className="mb-2.5 text-xs text-slate-200 leading-relaxed font-medium">
-        {comparisonSentence}
-      </p>
+      {/* Comparison sentence */}
+      <p className="mb-2 text-sm text-gray-700 leading-relaxed">{comparisonSentence}</p>
 
-      {/* SECONDARY: Relative % & Habets Index */}
-      <div className="border-t border-slate-700/60 pt-2.5">
+      {/* SECONDARY: relative %, Habets index */}
+      <div className="border-t border-gray-100 pt-2">
         <div className="grid grid-cols-2 gap-2 text-xs">
-          <div className="rounded-lg bg-slate-900/60 border border-slate-800/80 p-2">
-            <div className="text-[10px] text-slate-400 font-medium">{t.common.relativeDifference}</div>
-            <div className="font-mono text-xs font-bold text-slate-200 mt-0.5">
+          {/* Relative Difference */}
+          <div className="rounded bg-gray-50 p-2">
+            <div className="font-medium text-gray-600">{t.common.relativeDifference}</div>
+            <div className="font-mono text-sm font-bold text-gray-800">
               {result.relativeDifferencePercent.toFixed(1)}%
             </div>
           </div>
-          <div className="rounded-lg bg-slate-900/60 border border-slate-800/80 p-2">
-            <div className="text-[10px] text-slate-400 font-medium">{t.common.habetsIndex}</div>
-            <div className="font-mono text-xs font-bold text-slate-200 mt-0.5">
+          {/* Habets Asymmetry Index */}
+          <div className="rounded bg-gray-50 p-2">
+            <div className="font-medium text-gray-600">{t.common.habetsIndex}</div>
+            <div className="font-mono text-sm font-bold text-gray-800">
               {result.asymmetryIndexPercent.toFixed(1)}%
             </div>
           </div>
         </div>
 
-        {/* Dominant Side */}
-        <div className="mt-2 text-[11px] text-slate-400">
+        {/* Larger measured side */}
+        <div className="mt-2 text-xs text-gray-600">
           <span className="font-medium">{t.common.largerSide}</span>{" "}
-          <span className="font-semibold text-slate-100">{largerSideLabel(result.largerSide, t)}</span>
+          {largerSideLabel(result.largerSide, t)}
         </div>
       </div>
+
+      {/* 6% reference annotation — ramus only */}
+      {!isBody && (
+        <div className="mt-2 rounded border border-blue-200 bg-blue-50 p-2 text-xs text-blue-800">
+          <strong>{t.results.reference6Title}</strong> — {t.results.reference6Text}
+        </div>
+      )}
+
+      {/* Threshold disclaimer — ramus only */}
+      {!isBody && (
+        <div className="mt-2 rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800">
+          <strong>{t.results.thresholdDisclaimerTitle}</strong>{" "}
+          {t.results.thresholdDisclaimerText}
+        </div>
+      )}
+
+      {/* Body length reliability warning */}
+      {isBody && (
+        <div className="mt-2 rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800">
+          {t.results.bodyReliabilityWarning}
+        </div>
+      )}
     </div>
   );
 }
 
-// ── Uncalibrated Section ────────────────────────────────────
+// ── Uncalibrated Section (relative % as primary) ─────────────
 function UncalibratedSection({
   title,
   result,
   measurementId,
+  isBody,
   t,
 }: {
   title: string;
@@ -144,63 +157,87 @@ function UncalibratedSection({
   const setHoveredLine = useStudyStore((s) => s.setHoveredLine);
 
   return (
-    <div className="mb-3.5 rounded-xl border border-slate-800 bg-slate-800/50 p-3.5">
-      {/* Card Header */}
-      <div className="mb-2.5 flex items-center justify-between">
-        <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider">{title}</h4>
-        <span className="text-[11px] text-amber-400 font-medium">{t.common.uncalibratedUnit}</span>
+    <div className="mb-4 rounded-lg border border-gray-200 bg-white p-3">
+      {/* Header */}
+      <div className="mb-2 flex items-center justify-between">
+        <h4 className="text-sm font-semibold text-gray-800">{title}</h4>
+        <span className="text-xs text-gray-400 italic">{t.common.notClassified}</span>
       </div>
 
-      {/* Uncalibrated placeholder */}
-      <div className="mb-3 grid grid-cols-3 gap-2">
+      {/* Uncalibrated: show "—" for mm, show % values */}
+      <div className="mb-2 grid grid-cols-3 gap-3">
         <div
-          className="rounded-lg border border-blue-900/60 bg-blue-950/30 p-2.5 text-center cursor-pointer select-none"
+          className="rounded border border-blue-200 bg-blue-50 p-2 text-center cursor-pointer"
           onMouseEnter={() => setHoveredLine(`${measurementId}R`)}
           onMouseLeave={() => setHoveredLine(null)}
         >
-          <div className="text-[10px] font-bold uppercase tracking-wider text-blue-400">{t.common.right}</div>
-          <div className="font-mono text-lg font-bold text-slate-600 mt-0.5">—</div>
-          <div className="text-[10px] text-slate-500">{t.common.mm}</div>
+          <div className="text-xs font-medium text-blue-600">{t.common.right}</div>
+          <div className="font-mono text-lg font-bold text-gray-400">—</div>
+          <div className="text-xs text-gray-500">{t.common.uncalibratedUnit}</div>
         </div>
         <div
-          className="rounded-lg border border-red-900/60 bg-red-950/30 p-2.5 text-center cursor-pointer select-none"
+          className="rounded border border-green-200 bg-green-50 p-2 text-center cursor-pointer"
           onMouseEnter={() => setHoveredLine(`${measurementId}L`)}
           onMouseLeave={() => setHoveredLine(null)}
         >
-          <div className="text-[10px] font-bold uppercase tracking-wider text-red-400">{t.common.left}</div>
-          <div className="font-mono text-lg font-bold text-slate-600 mt-0.5">—</div>
-          <div className="text-[10px] text-slate-500">{t.common.mm}</div>
+          <div className="text-xs font-medium text-green-600">{t.common.left}</div>
+          <div className="font-mono text-lg font-bold text-gray-400">—</div>
+          <div className="text-xs text-gray-500">{t.common.uncalibratedUnit}</div>
         </div>
-        <div className="rounded-lg border border-slate-700/70 bg-slate-900/60 p-2.5 text-center select-none">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{t.common.absDiff}</div>
-          <div className="font-mono text-lg font-bold text-slate-600 mt-0.5">—</div>
-          <div className="text-[10px] text-slate-500">{t.common.mm}</div>
+        <div className="rounded border border-gray-300 bg-gray-50 p-2 text-center">
+          <div className="text-xs font-medium text-gray-500">{t.common.absDiff}</div>
+          <div className="font-mono text-lg font-bold text-gray-400">—</div>
+          <div className="text-xs text-gray-500">{t.common.uncalibratedUnit}</div>
         </div>
       </div>
 
-      {/* Relative % & Habets Index */}
-      <div className="border-t border-slate-700/60 pt-2.5">
+      {/* Relative % and Habets Index */}
+      <div className="border-t border-gray-100 pt-2">
         <div className="grid grid-cols-2 gap-2 text-xs">
-          <div className="rounded-lg bg-slate-900/60 border border-slate-800/80 p-2">
-            <div className="text-[10px] text-slate-400 font-medium">{t.common.relativeDifference}</div>
-            <div className="font-mono text-xs font-bold text-slate-200 mt-0.5">
+          {/* Relative Difference */}
+          <div className="rounded bg-gray-50 p-2">
+            <div className="font-medium text-gray-600">{t.common.relativeDifference}</div>
+            <div className="font-mono text-sm font-bold text-gray-800">
               {result.relativeDifferencePercent.toFixed(1)}%
             </div>
           </div>
-          <div className="rounded-lg bg-slate-900/60 border border-slate-800/80 p-2">
-            <div className="text-[10px] text-slate-400 font-medium">{t.common.habetsIndex}</div>
-            <div className="font-mono text-xs font-bold text-slate-200 mt-0.5">
+          {/* Habets Asymmetry Index */}
+          <div className="rounded bg-gray-50 p-2">
+            <div className="font-medium text-gray-600">{t.common.habetsIndex}</div>
+            <div className="font-mono text-sm font-bold text-gray-800">
               {result.asymmetryIndexPercent.toFixed(1)}%
             </div>
           </div>
         </div>
 
         {/* Larger measured side */}
-        <div className="mt-2 text-[11px] text-slate-400">
+        <div className="mt-2 text-xs text-gray-600">
           <span className="font-medium">{t.common.largerSide}</span>{" "}
-          <span className="font-semibold text-slate-100">{largerSideLabel(result.largerSide, t)}</span>
+          {largerSideLabel(result.largerSide, t)}
         </div>
       </div>
+
+      {/* 6% reference annotation — ramus only */}
+      {!isBody && (
+        <div className="mt-2 rounded border border-blue-200 bg-blue-50 p-2 text-xs text-blue-800">
+          <strong>{t.results.reference6Title}</strong> — {t.results.reference6Text}
+        </div>
+      )}
+
+      {/* Threshold disclaimer — ramus only */}
+      {!isBody && (
+        <div className="mt-2 rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800">
+          <strong>{t.results.thresholdDisclaimerTitle}</strong>{" "}
+          {t.results.thresholdDisclaimerText}
+        </div>
+      )}
+
+      {/* Body length reliability warning */}
+      {isBody && (
+        <div className="mt-2 rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800">
+          {t.results.bodyReliabilityWarning}
+        </div>
+      )}
     </div>
   );
 }
@@ -214,6 +251,7 @@ function generateLandmarkWarnings(landmarks: LandmarkSet, t: Translations): stri
   const warnings: string[] = [];
   const { CoR, GoR, CoL, GoL, Me } = landmarks;
 
+  // a) Co located below its corresponding Go (in image coords, higher y = lower)
   if (CoR && GoR && CoR.y > GoR.y) {
     warnings.push(t.warnings.coBelowGoR);
   }
@@ -221,6 +259,7 @@ function generateLandmarkWarnings(landmarks: LandmarkSet, t: Translations): stri
     warnings.push(t.warnings.coBelowGoL);
   }
 
+  // b) Menton outside expected horizontal span of mandibular landmarks
   if (Me && GoR && GoL) {
     const minX = Math.min(GoR.x, GoL.x);
     const maxX = Math.max(GoR.x, GoL.x);
@@ -231,6 +270,7 @@ function generateLandmarkWarnings(landmarks: LandmarkSet, t: Translations): stri
     }
   }
 
+  // c) Coincident landmarks
   const allPlaced: { name: string; point: Point }[] = [];
   if (CoR) allPlaced.push({ name: "CoR", point: CoR });
   if (GoR) allPlaced.push({ name: "GoR", point: GoR });
@@ -246,6 +286,7 @@ function generateLandmarkWarnings(landmarks: LandmarkSet, t: Translations): stri
     }
   }
 
+  // d) Zero-length measurement
   if (CoR && GoR && pointsEqual(CoR, GoR)) {
     warnings.push(t.warnings.ramusZeroR);
   }
@@ -259,10 +300,12 @@ function generateLandmarkWarnings(landmarks: LandmarkSet, t: Translations): stri
     warnings.push(t.warnings.bodyZeroL);
   }
 
+  // f) Right and left labels potentially reversed
   if (CoR && CoL && CoR.x > CoL.x) {
     warnings.push(t.warnings.lrReversed);
   }
 
+  // g) Points outside image bounds
   for (const { name, point } of allPlaced) {
     if (point.x < 0 || point.x > 1 || point.y < 0 || point.y > 1) {
       warnings.push(t.warnings.outsideBounds(name));
@@ -279,40 +322,34 @@ function LandmarkWarnings({ t }: { t: Translations }) {
   if (warnings.length === 0) return null;
 
   return (
-    <div className="mb-3.5 rounded-xl border border-amber-500/50 bg-amber-950/30 p-3">
-      <h4 className="mb-1.5 text-xs font-bold text-amber-300">
+    <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3">
+      <h4 className="mb-2 text-sm font-semibold text-amber-800">
         {t.warnings.title}
       </h4>
-      <ul className="space-y-1 text-xs text-amber-200/90 leading-relaxed">
+      <ul className="space-y-1 text-xs text-amber-700">
         {warnings.map((w, idx) => (
-          <li key={idx} className="flex items-start gap-1.5">
-            <span className="text-amber-400 shrink-0">•</span>
+          <li key={idx} className="flex items-start gap-1">
+            <span className="text-amber-500 mt-0.5">•</span>
             <span>{w}</span>
           </li>
         ))}
       </ul>
-      <p className="mt-2 text-[10px] text-amber-400/80 italic">
+      <p className="mt-2 text-xs text-amber-600 italic">
         {t.warnings.disclaimer}
       </p>
     </div>
   );
 }
 
-// ── Main Results Panel Component ─────────────────────────────
-interface ResultsPanelProps {
-  onOpenReport?: () => void;
-  onJumpToCalibration?: () => void;
-}
-
-export function ResultsPanel({ onJumpToCalibration }: ResultsPanelProps = {}) {
+// ── Main Results Panel ──────────────────────────────────────
+export function ResultsPanel({ onOpenReport }: { onOpenReport?: () => void } = {}) {
   const language = useStudyStore((s) => s.language);
   const measurements = useStudyStore((s) => s.measurements);
   const interpretation = useStudyStore((s) => s.interpretation);
   const calibration = useStudyStore((s) => s.calibration);
   const mandibularResult = useStudyStore((s) => s.mandibularResult);
+  const startCalibration = useStudyStore((s) => s.startCalibration);
   const landmarks = useStudyStore((s) => s.landmarks);
-
-  const [isMethodologyOpen, setIsMethodologyOpen] = useState(false);
 
   const t = getTranslations(language);
 
@@ -321,7 +358,7 @@ export function ResultsPanel({ onJumpToCalibration }: ResultsPanelProps = {}) {
     (!measurements.ramusHeight && !measurements.bodyLength)
   ) {
     return (
-      <div className="p-4 text-xs text-slate-500">
+      <div className="p-4 text-sm text-gray-400">
         {t.results.placeAllToSee}
       </div>
     );
@@ -330,149 +367,79 @@ export function ResultsPanel({ onJumpToCalibration }: ResultsPanelProps = {}) {
   const isCalibrated = calibration !== null;
   const hasAnyLandmarks = Object.keys(landmarks).length > 0;
 
-  // Habets Index & Dominant Asymmetry Calculation
-  const habetsIndex = measurements.ramusHeight?.asymmetryIndexPercent ?? 0;
-  const ramusAbsDiffMm = mandibularResult?.ramus.absoluteDifferenceMm ?? 0;
-  const longerSide = mandibularResult?.ramus.longerSide;
-
   return (
-    <div className="p-4 select-none">
-      {/* ── High-Impact Quantitative Habets Overview Card ── */}
-      <div className="mb-4 rounded-xl border border-slate-700/80 bg-gradient-to-br from-slate-900 via-slate-900/95 to-slate-800/90 p-4 shadow-lg">
-        <div className="flex items-start justify-between gap-2">
-          <div>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-blue-400">
-              {t.common.habetsIndex}
+    <div className="p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-gray-700">{t.results.title}</h3>
+        {onOpenReport && (
+          <button
+            onClick={onOpenReport}
+            type="button"
+            className="inline-flex items-center gap-1 rounded bg-blue-50 border border-blue-200 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 transition-colors"
+          >
+            <span>📄</span>
+            <span>{t.report.exportButton}</span>
+          </button>
+        )}
+      </div>
+
+      {/* Calibration status banner */}
+      <div className="mb-3">
+        {isCalibrated ? (
+          <div className="rounded border border-green-200 bg-green-50 p-2 text-xs text-green-700">
+            {t.calibration.calibratedBanner(calibration!.mmPerPixel.toFixed(4))}
+            <span className="text-green-600 font-normal">
+              {" "}{t.calibration.calibratedDesc}
             </span>
-            <div className="mt-1 flex items-baseline gap-2">
-              <span className="font-mono text-3xl font-extrabold text-slate-50 tracking-tight">
-                {habetsIndex.toFixed(1)}%
-              </span>
-              {habetsIndex > 6.0 && (
-                <span className="rounded-md bg-red-500/20 text-red-300 border border-red-500/40 px-1.5 py-0.5 text-[10px] font-bold">
-                  &gt; 6% ({t.results.thresholdSignificant})
-                </span>
-              )}
-              {habetsIndex >= 3.0 && habetsIndex <= 6.0 && (
-                <span className="rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/40 px-1.5 py-0.5 text-[10px] font-bold">
-                  3–6% ({t.results.thresholdMild})
-                </span>
-              )}
-              {habetsIndex < 3.0 && (
-                <span className="rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-1.5 py-0.5 text-[10px] font-bold">
-                  &lt; 3% ({t.results.thresholdNormal})
-                </span>
-              )}
-            </div>
           </div>
-
-          {/* Dominant Asymmetry Pill */}
-          {isCalibrated && longerSide && (
-            <div className="text-right">
-              <span
-                className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-bold shadow-xs ${
-                  longerSide === "right"
-                    ? "bg-blue-600/30 text-blue-200 border border-blue-500/50"
-                    : longerSide === "left"
-                    ? "bg-red-600/30 text-red-200 border border-red-500/50"
-                    : "bg-slate-800 text-slate-300 border border-slate-700"
-                }`}
-              >
-                <span>{longerSide === "right" ? "🔵" : longerSide === "left" ? "🔴" : "⚪"}</span>
-                <span>
-                  {longerSide === "right"
-                    ? t.results.dominantRightRamus(ramusAbsDiffMm.toFixed(1))
-                    : longerSide === "left"
-                    ? t.results.dominantLeftRamus(ramusAbsDiffMm.toFixed(1))
-                    : t.results.dominantSymmetrical}
-                </span>
-              </span>
-            </div>
-          )}
-        </div>
-
-        {/* Clean 3-Tier Multi-Threshold Progress Gauge */}
-        <div className="mt-3.5">
-          <div className="flex justify-between text-[10px] font-medium text-slate-300 mb-1.5">
-            <span>{t.results.habetsBaseline6Title}</span>
-            <span className="font-mono text-slate-400">Habets (1987)</span>
-          </div>
-
-          {/* Gauge Track */}
-          <div className="relative h-2.5 w-full rounded-full bg-slate-950 border border-slate-700/80 overflow-hidden">
-            {/* 3% Marker Notch */}
-            <div
-              className="absolute top-0 bottom-0 w-0.5 bg-slate-500 z-10 opacity-75"
-              style={{ left: "20%" }} // 3% of 15% range = 20%
-              title="3% Threshold"
-            />
-            {/* 6% Baseline Notch */}
-            <div
-              className="absolute top-0 bottom-0 w-0.5 bg-amber-400 z-10 shadow-sm"
-              style={{ left: "40%" }} // 6% of 15% range = 40%
-              title="6% Habets Baseline Error Threshold"
-            />
-            {/* Dynamic Fill */}
-            <div
-              className={`h-full rounded-full transition-all duration-300 ${
-                habetsIndex > 6.0
-                  ? "bg-gradient-to-r from-blue-500 via-amber-500 to-red-500"
-                  : habetsIndex >= 3.0
-                  ? "bg-gradient-to-r from-blue-500 to-amber-400"
-                  : "bg-blue-500"
-              }`}
-              style={{
-                width: `${Math.min(100, (habetsIndex / 15) * 100)}%`,
-              }}
-            />
-          </div>
-
-          {/* Gauge Legend */}
-          <div className="mt-1.5 flex justify-between text-[9px] text-slate-400 font-mono">
-            <span>0% (Norm &lt;3%)</span>
-            <span className="text-amber-300 font-semibold">6% Baseline</span>
-            <span>15%+</span>
-          </div>
-        </div>
-
-        {/* Uncalibrated Notice / Link to Step 1 */}
-        {!isCalibrated && (
-          <div className="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center justify-between text-xs text-amber-300">
-            <span className="flex items-center gap-1 text-[11px]">
-              <span>⚠</span>
-              <span>{t.calibration.calReqTitle}</span>
-            </span>
-            {onJumpToCalibration && (
-              <button
-                onClick={onJumpToCalibration}
-                type="button"
-                className="text-[11px] font-semibold text-blue-400 hover:text-blue-300 underline cursor-pointer"
-              >
-                {t.results.jumpToCalibration}
-              </button>
-            )}
+        ) : (
+          <div className="rounded border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+            <p className="font-medium mb-1">
+              {t.calibration.calReqTitle}
+            </p>
+            <p className="mb-2">
+              {t.calibration.calReqDesc}
+            </p>
+            <button
+              onClick={() => startCalibration()}
+              className="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
+            >
+              {t.calibration.calibrateImage}
+            </button>
           </div>
         )}
+      </div>
+
+      {/* Habets protocol disclaimer banner */}
+      <div className="mb-3 rounded border border-blue-200 bg-blue-50 p-2 text-xs text-blue-700">
+        <strong>{t.results.habetsNoticeTitle}</strong> {t.results.habetsNoticeText}
+      </div>
+
+      {/* Persistent limitation notice */}
+      <div className="mb-3 rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
+        <strong>{t.results.approximateValuesTitle}</strong> {t.results.approximateValuesText}
       </div>
 
       {/* Landmark validation warnings */}
       {hasAnyLandmarks && <LandmarkWarnings t={t} />}
 
       {/* ── Ramus length proxy ── */}
-      {measurements.ramusHeight && isCalibrated && mandibularResult && (
-        <CalibratedMmSection
-          title={t.results.ramusTitle}
-          bilateral={mandibularResult.ramus}
-          result={measurements.ramusHeight}
-          comparisonSentence={generateRamusComparison(
-            mandibularResult.ramus.rightMm,
-            mandibularResult.ramus.leftMm,
-            language
-          )}
-          measurementId="ramus"
-          t={t}
-        />
-      )}
+      {measurements.ramusHeight &&
+        isCalibrated &&
+        mandibularResult && (
+          <CalibratedMmSection
+            title={t.results.ramusTitle}
+            bilateral={mandibularResult.ramus}
+            result={measurements.ramusHeight}
+            comparisonSentence={generateRamusComparison(
+              mandibularResult.ramus.rightMm,
+              mandibularResult.ramus.leftMm,
+              language
+            )}
+            measurementId="ramus"
+            t={t}
+          />
+        )}
 
       {measurements.ramusHeight && !isCalibrated && (
         <UncalibratedSection
@@ -484,21 +451,23 @@ export function ResultsPanel({ onJumpToCalibration }: ResultsPanelProps = {}) {
       )}
 
       {/* ── Mandibular body length proxy ── */}
-      {measurements.bodyLength && isCalibrated && mandibularResult && (
-        <CalibratedMmSection
-          title={t.results.bodyTitle}
-          bilateral={mandibularResult.body}
-          result={measurements.bodyLength}
-          comparisonSentence={generateBodyComparison(
-            mandibularResult.body.rightMm,
-            mandibularResult.body.leftMm,
-            language
-          )}
-          measurementId="body"
-          isBody
-          t={t}
-        />
-      )}
+      {measurements.bodyLength &&
+        isCalibrated &&
+        mandibularResult && (
+          <CalibratedMmSection
+            title={t.results.bodyTitle}
+            bilateral={mandibularResult.body}
+            result={measurements.bodyLength}
+            comparisonSentence={generateBodyComparison(
+              mandibularResult.body.rightMm,
+              mandibularResult.body.leftMm,
+              language
+            )}
+            measurementId="body"
+            isBody
+            t={t}
+          />
+        )}
 
       {measurements.bodyLength && !isCalibrated && (
         <UncalibratedSection
@@ -512,84 +481,52 @@ export function ResultsPanel({ onJumpToCalibration }: ResultsPanelProps = {}) {
 
       {/* ── Clinical Conclusion (calibrated only) ── */}
       {isCalibrated && mandibularResult && (
-        <div className="mb-4 rounded-xl border border-blue-800/40 bg-slate-800/60 p-3.5">
-          <h4 className="mb-1.5 text-xs font-bold uppercase tracking-wider text-blue-400">
+        <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 p-3">
+          <h4 className="mb-2 text-sm font-semibold text-gray-700">
             {t.results.conclusion}
           </h4>
-          <p className="text-xs text-slate-200 leading-relaxed font-medium">
+          <p className="text-sm text-gray-800 leading-relaxed">
             {mandibularResult.conclusion}
           </p>
         </div>
       )}
 
-      {/* ── Consolidated "Clinical Methodology & 2D Notice" Accordion ── */}
-      <div className="rounded-xl border border-slate-800 bg-slate-900/60 overflow-hidden">
-        <button
-          onClick={() => setIsMethodologyOpen(!isMethodologyOpen)}
-          type="button"
-          className="w-full flex items-center justify-between px-3.5 py-2.5 text-left text-xs font-semibold text-slate-300 hover:bg-slate-800/60 transition-colors"
-          aria-expanded={isMethodologyOpen}
-        >
-          <div className="flex items-center gap-2">
-            <span>🛡</span>
-            <span>{t.results.methodologyTitle}</span>
-          </div>
-          <span className="text-slate-500 font-mono text-xs">
-            {isMethodologyOpen ? "▲" : "▼"}
-          </span>
-        </button>
-
-        {isMethodologyOpen && (
-          <div className="border-t border-slate-800 p-3.5 space-y-3 text-[11px] text-slate-400 leading-relaxed">
-            {/* Habets Notice */}
-            <div>
-              <span className="font-semibold text-slate-300">{t.results.habetsNoticeTitle}</span>{" "}
-              <span>{t.results.habetsNoticeText}</span>
-            </div>
-
-            {/* Approximate Values */}
-            <div>
-              <span className="font-semibold text-slate-300">{t.results.approximateValuesTitle}</span>{" "}
-              <span>{t.results.approximateValuesText}</span>
-            </div>
-
-            {/* 6% Reference Note */}
-            <div>
-              <span className="font-semibold text-slate-300">{t.results.reference6Title}</span> —{" "}
-              <span>{t.results.reference6Text}</span>
-            </div>
-
-            {/* Threshold Caveat */}
-            <div>
-              <span className="font-semibold text-slate-300">{t.results.thresholdDisclaimerTitle}</span>{" "}
-              <span>{t.results.thresholdDisclaimerText}</span>
-            </div>
-
-            {/* Body Reliability Warning */}
-            <div className="text-amber-400/90 font-medium">
-              {t.results.bodyReliabilityWarning}
-            </div>
-
-            {/* Medical Disclaimer */}
-            <div className="border-t border-slate-800/80 pt-2.5 text-slate-400">
-              <span className="font-bold text-slate-300">{t.results.medicalDisclaimerTitle}</span>{" "}
-              <span>{t.results.medicalDisclaimerText}</span>
-            </div>
-          </div>
-        )}
+      {/* Medical disclaimer */}
+      <div className="mt-2 mb-4 rounded border border-gray-300 bg-gray-50 p-3 text-xs text-gray-600">
+        <span className="font-medium">{t.results.medicalDisclaimerTitle}</span>{" "}
+        {t.results.medicalDisclaimerText}
       </div>
 
-      {/* Clinical Interpretation text if present */}
+      {/* Threshold caveat */}
+      <div className="mt-2 mb-4 text-xs text-gray-500 italic">
+        {t.results.thresholdDisclaimerTitle} {t.results.thresholdDisclaimerText}
+      </div>
+
+      {/* Clinical Interpretation */}
       {interpretation && (
         <div className="mt-4">
-          <h4 className="mb-1.5 text-xs font-bold uppercase tracking-wider text-slate-400">
+          <h3 className="mb-2 text-sm font-semibold text-gray-700">
             {t.results.clinicalInterpretation}
-          </h4>
-          <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3">
-            <pre className="whitespace-pre-wrap font-sans text-xs leading-relaxed text-slate-300">
+          </h3>
+          <div className="rounded border border-gray-200 bg-gray-50 p-3">
+            <pre className="whitespace-pre-wrap text-xs leading-relaxed text-gray-700">
               {interpretation}
             </pre>
           </div>
+        </div>
+      )}
+
+      {/* Export / Print Report Call-to-action */}
+      {onOpenReport && (
+        <div className="mt-4 pt-3 border-t border-gray-200">
+          <button
+            onClick={onOpenReport}
+            type="button"
+            className="w-full flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-xs font-semibold text-white shadow-xs hover:bg-blue-700 active:bg-blue-800 transition-colors"
+          >
+            <span>📄</span>
+            <span>{t.report.exportButton}</span>
+          </button>
         </div>
       )}
     </div>

@@ -181,25 +181,3 @@ export const LANDMARK_DEFINITIONS: LandmarkMeta[] = [
     order: 4,
   },
 ];
-
-// ── Radiograph Image Enhancement & Filter Types ───────────────
-
-/** Radiograph image filter preset type */
-export type FilterPresetType =
-  | "default"
-  | "bone-enhanced"
-  | "high-contrast"
-  | "inverted"
-  | "custom";
-
-export type ImageFilterPreset = FilterPresetType;
-
-/** State for real-time radiograph image enhancement & filter suite */
-export interface ImageFilterState {
-  brightness: number; // 50 to 150 (default 100)
-  contrast: number;   // 50 to 200 (default 100)
-  invert: boolean;    // default false
-  sharpen: boolean;   // default false
-  gamma: number;      // 0.5 to 2.0 (default 1.0)
-  preset: FilterPresetType;
-}

@@ -1,5 +1,5 @@
 // ── Language Switcher ─────────────────────────────────────────
-// Compact segmented UI control for toggling between English (EN) and Russian (RU).
+// Compact UI control for toggling between English (EN) and Russian (RU).
 
 import { useStudyStore } from "../store/studyStore";
 import type { Locale } from "../locales/types";
@@ -17,7 +17,7 @@ export function LanguageSwitcher() {
     <div
       role="group"
       aria-label="Language selector"
-      className="inline-flex items-center rounded-lg border border-slate-700/80 bg-slate-800 p-0.5 text-xs shadow-xs"
+      className="inline-flex items-center rounded-lg border border-gray-200 bg-gray-50 p-0.5 text-xs shadow-xs"
     >
       {languages.map((lang) => {
         const isActive = language === lang.code;
@@ -26,10 +26,10 @@ export function LanguageSwitcher() {
             key={lang.code}
             type="button"
             onClick={() => setLanguage(lang.code)}
-            className={`rounded-md px-2.5 py-1 text-xs font-semibold transition-all ${
+            className={`rounded-md px-2.5 py-1 font-medium transition-all ${
               isActive
-                ? "bg-cyan-600 text-white shadow-xs"
-                : "text-slate-400 hover:bg-slate-700/70 hover:text-slate-200"
+                ? "bg-blue-600 text-white shadow-xs"
+                : "text-gray-600 hover:bg-gray-200/60 hover:text-gray-900"
             }`}
             aria-pressed={isActive}
           >
@@ -40,4 +40,3 @@ export function LanguageSwitcher() {
     </div>
   );
 }
-

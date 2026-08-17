@@ -32,39 +32,6 @@ export interface Translations {
     sideEqual: string;
     notClassified: string;
     close: string;
-    editionBadge: string;
-    step: string;
-  };
-  topBar: {
-    patient: string;
-    unassigned: string;
-    editPatient: string;
-    calibratedChip: (scale: string) => string;
-    uncalibratedChip: string;
-    save: string;
-    saved: string;
-    newStudy: string;
-    exportReport: string;
-  };
-  steps: {
-    calibration: string;
-    landmarks: string;
-    results: string;
-    history: string;
-  };
-  hud: {
-    zoomIn: string;
-    zoomOut: string;
-    zoomLevel: (zoom: number) => string;
-    fit: string;
-    pan: string;
-    reset: string;
-    invert: string;
-    filters: string;
-    measurements: string;
-    landmarks: string;
-    aiDetect: string;
-    aiDetecting: string;
   };
   imageQuality: {
     title: string;
@@ -146,7 +113,6 @@ export interface Translations {
     unreasonableScaleError: (scale: string) => string;
     point1: string;
     point2: string;
-    dicomAutoBadge: (scale: string) => string;
   };
   results: {
     title: string;
@@ -166,16 +132,6 @@ export interface Translations {
     bodyReliabilityWarning: string;
     medicalDisclaimerTitle: string;
     medicalDisclaimerText: string;
-    habetsBaseline6Title: string;
-    habetsBaseline6Desc: string;
-    dominantRightRamus: (diffMm: string) => string;
-    dominantLeftRamus: (diffMm: string) => string;
-    dominantSymmetrical: string;
-    thresholdNormal: string;
-    thresholdMild: string;
-    thresholdSignificant: string;
-    methodologyTitle: string;
-    jumpToCalibration: string;
   };
   warnings: {
     title: string;
@@ -207,7 +163,6 @@ export interface Translations {
     localPersistenceNote: string;
     loadFailedError: string;
     loadingStudy: string;
-    loadStudy: string;
   };
   report: {
     exportButton: string;
@@ -242,24 +197,5 @@ export interface Translations {
     verifiedBadge: string;
     disclaimer: string;
     proposalsActive: (count: number) => string;
-  };
-  filters: {
-    title: string;
-    brightness: string;
-    contrast: string;
-    gamma: string;
-    invert: string;
-    invertShort: string;
-    sharpen: string;
-    sharpenShort: string;
-    presetsTitle: string;
-    presetDefault: string;
-    presetBoneEnhanced: string;
-    presetHighContrast: string;
-    presetInverted: string;
-    presetCustom: string;
-    resetFilters: string;
-    activeFiltersBadge: (count: number) => string;
-    togglePanel: string;
   };
 }

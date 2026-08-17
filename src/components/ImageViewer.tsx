@@ -4,8 +4,6 @@ import { LANDMARK_DEFINITIONS } from "../domain/types";
 import type { Point, LandmarkName, CalibrationStage } from "../domain/types";
 import { screenToNormalized as transformScreenToNormalized } from "../domain/coordinateTransform";
 import { getTranslations } from "../locales";
-import { ImageFiltersToolbar } from "./ImageFiltersToolbar";
-import { buildCssFilterString, isFilterActive } from "../domain/imageFilters";
 
 // ── Interaction mode ────────────────────────────────────────
 // Tracks what the current pointer-down gesture is doing so that
@@ -31,6 +29,7 @@ const CALIBRATION_HIT_AREA_PX = 12;   // 24px diameter hit area
 const LANDMARK_MARKER_PX = 5;         // 10px diameter visible marker
 const LANDMARK_HIT_AREA_PX = 12;      // 24px diameter hit area
 const LANDMARK_ACTIVE_RING_PX = 10;   // 20px diameter active ring
+const DELETE_BTN_PX = 5;             // 10px diameter delete button
 
 export function ImageViewer() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -46,9 +45,7 @@ export function ImageViewer() {
   // isDraggingPlaced is a render-trigger flag so that click-after-drag is suppressed
   const [isDraggingPlaced, setIsDraggingPlaced] = useState(false);
   const [panMode, setPanMode] = useState(false);
-  const [showOverlay, setShowOverlay] = useState(true); // Measurement lines toggle
-  const [showLandmarks, setShowLandmarks] = useState(true); // Landmark pins toggle
-  const [showFilters, setShowFilters] = useState(false); // Image enhancement filter popover
+  const [showOverlay, setShowOverlay] = useState(true); // Item 9h: measurement overlay toggle
   const [containerSize, setContainerSize] = useState({ w: 0, h: 0 });
   const [isDraggingMarker, setIsDraggingMarker] = useState(false); // for cursor: grabbing
 
@@ -59,7 +56,6 @@ export function ImageViewer() {
   const imageNaturalWidth = useStudyStore((s) => s.imageNaturalWidth);
   const imageNaturalHeight = useStudyStore((s) => s.imageNaturalHeight);
   const viewer = useStudyStore((s) => s.viewer);
-  const filters = useStudyStore((s) => s.filters);
   const landmarks = useStudyStore((s) => s.landmarks);
   const activeLandmark = useStudyStore((s) => s.activeLandmark);
   const calibrationPoints = useStudyStore((s) => s.calibrationPoints);
@@ -76,11 +72,12 @@ export function ImageViewer() {
   const setActiveLandmark = useStudyStore((s) => s.setActiveLandmark);
   const setZoom = useStudyStore((s) => s.setZoom);
   const setPan = useStudyStore((s) => s.setPan);
+  const setBrightness = useStudyStore((s) => s.setBrightness);
+  const setContrast = useStudyStore((s) => s.setContrast);
   const resetViewer = useStudyStore((s) => s.resetViewer);
   const fitToScreen = useStudyStore((s) => s.fitToScreen);
   const placeCalibrationPoint = useStudyStore((s) => s.placeCalibrationPoint);
   const moveCalibrationPoint = useStudyStore((s) => s.moveCalibrationPoint);
-  const setImageFilters = useStudyStore((s) => s.setImageFilters);
 
   // ── Track container size for fixed-pixel marker calculations ──
   useEffect(() => {
@@ -97,6 +94,10 @@ export function ImageViewer() {
   }, []);
 
   // ── Convert CSS pixel size to SVG viewBox units ─────────────
+  // The SVG has viewBox="0 0 1 1" with preserveAspectRatio="xMidYMid meet".
+  // With the meet rule, 1 viewBox unit = min(containerW, containerH) CSS px
+  // (before the zoom transform). After scale(zoom), it's min(w,h)*zoom.
+  // So: viewBoxUnits = cssPx / (min(containerW, containerH) * zoom)
   const pxToViewBox = useCallback(
     (px: number): number => {
       const base = Math.min(containerSize.w, containerSize.h);
@@ -112,13 +113,19 @@ export function ImageViewer() {
   const lmMarkerR = pxToViewBox(LANDMARK_MARKER_PX);
   const lmHitR = pxToViewBox(LANDMARK_HIT_AREA_PX);
   const lmActiveRingR = pxToViewBox(LANDMARK_ACTIVE_RING_PX);
+  const deleteBtnR = pxToViewBox(DELETE_BTN_PX);
 
   // ── One source of truth: mm values from the store ──────────
+  // The overlay reads mandibularResult from the same store state that
+  // the ResultsPanel uses. No recalculation in the UI layer.
   const mandibularResult = useStudyStore((s) => s.mandibularResult);
   const calibration = useStudyStore((s) => s.calibration);
   const isCalibrated = calibrationMode === "B" && calibration !== null;
 
   // ── Screen → normalized coordinate conversion ──────────────
+  // Delegates to the pure domain function in coordinateTransform.ts,
+  // accounting for container offset, pan, zoom about center, and
+  // object-contain letterboxing.
   const screenToNormalized = useCallback(
     (clientX: number, clientY: number): Point => {
       const rect = containerRef.current?.getBoundingClientRect();
@@ -141,16 +148,26 @@ export function ImageViewer() {
     [viewer.zoom, setZoom]
   );
 
-  // Click on overlay: place landmark fallback
+  // Click on overlay: place landmark only (if not already placed in pointerdown).
+  // Calibration point placement is handled in handlePointerDown (pointerdown
+  // event) to eliminate the pointerdown/click conflict that was causing
+  // calibration clicks to be swallowed by pan pointer capture.
+  // Landmark placement is ALSO handled in handlePointerDown so that it works
+  // reliably in real browsers where pointerdown→click may not always fire on
+  // the SVG overlay (e.g. when pointer capture is set on the container).
+  // This click handler is a FALLBACK that only places if pointerdown did not.
   const handleOverlayClick = useCallback(
     (e: React.MouseEvent<SVGSVGElement>) => {
+      // Don't place if we were just dragging
       if (isDraggingPlaced) return;
       if (isDraggingRef.current) return;
+      // Don't double-place if pointerdown already handled it
       if (placedInPointerDown.current) {
         placedInPointerDown.current = false;
         return;
       }
 
+      // Check if delete button was clicked
       const target = e.target as Element;
       const deleteTarget = target.closest?.(".delete-btn") || target.closest?.("[data-delete]");
       if (deleteTarget) {
@@ -161,15 +178,21 @@ export function ImageViewer() {
         }
       }
 
+      // Calibration placement is handled in pointerdown — not here.
+      // If we're in a calibration placing stage, don't place a landmark.
       const stage = useStudyStore.getState().calibrationStage;
-      if (isCalibratingStage(stage)) {
+      if (stage === "placing-point-1" || stage === "placing-point-2" ||
+          stage === "reviewing-point-1" || stage === "reviewing-point-2" ||
+          stage === "entering-distance") {
         return;
       }
 
       const point = screenToNormalized(e.clientX, e.clientY);
 
+      // Landmark placement
       if (activeLandmark) {
         setLandmark(activeLandmark, point);
+        // Auto-advance to next landmark
         const idx = LANDMARK_DEFINITIONS.findIndex(
           (l) => l.name === activeLandmark
         );
@@ -190,23 +213,36 @@ export function ImageViewer() {
     ]
   );
 
-  // Pointer down on container
+  // Pointer down on container: decide interaction mode.
+  // PRIORITY ORDER (highest first):
+  //   1. Calibration point placement (placing-point-1 / placing-point-2)
+  //   2. Landmark placement (if activeLandmark set AND not calibrating)
+  //   3. Delete button click / pointerdown
+  //   4. Calibration point drag (only when NOT placing a landmark)
+  //   5. Landmark marker drag
+  //   6. Pan
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
       const target = e.target as Element;
       const stage = useStudyStore.getState().calibrationStage;
 
-      // 1. Calibration point PLACEMENT
+      // ── 1. Calibration point PLACEMENT (highest priority) ──
       if (stage === "placing-point-1" || stage === "placing-point-2") {
         const point = screenToNormalized(e.clientX, e.clientY);
         placeCalibrationPoint(point);
         return;
       }
 
-      // 2. Landmark PLACEMENT
+      // ── 2. Landmark PLACEMENT (if a landmark is active for placement) ──
+      // This must come BEFORE the calibration-marker drag check so that
+      // clicking on the image (even on a calibration marker's hit area)
+      // places the landmark. The user explicitly selected a landmark to
+      // place, so that intent takes priority over dragging calibration
+      // points. Calibration drag is only allowed when no landmark is active.
       if (activeLandmark && !isCalibratingStage(stage)) {
         const point = screenToNormalized(e.clientX, e.clientY);
         setLandmark(activeLandmark, point);
+        // Auto-advance to next landmark
         const idx = LANDMARK_DEFINITIONS.findIndex(
           (l) => l.name === activeLandmark
         );
@@ -215,12 +251,14 @@ export function ImageViewer() {
         } else {
           setActiveLandmark(null);
         }
+        // Mark as placed so the subsequent click event doesn't double-place
         placedInPointerDown.current = true;
         e.preventDefault();
         return;
       }
 
-      // 3. Delete button check
+      // ── 3. Delete button check (before programmatic hit-testing) ──
+      // If pointer is down on a delete button, ignore pointerdown for pan/drag
       if (
         target &&
         (target.classList?.contains("delete-btn") ||
@@ -230,15 +268,15 @@ export function ImageViewer() {
         return;
       }
 
-      // 4. Programmatic hit-testing for calibration points and landmarks
+      // ── 4. Programmatic hit-testing for calibration points and landmarks ──
+      // SVG circles with pointerEvents: "all" and near-zero fillOpacity cause
+      // the ENTIRE SVG to be the hit target in Chromium — the last-rendered
+      // circle intercepts ALL pointer events, not just clicks within its
+      // radius. We do hit-testing manually using SVG coordinate math instead.
       if (!activeLandmark) {
         const container = containerRef.current;
         if (container) {
-          // Select the OVERLAY SVG (not the hidden 0×0 filter-definition SVG
-          // that appears earlier in the DOM). The hidden SVG has no viewBox,
-          // so its getScreenCTM() maps to screen pixels rather than the 0-1
-          // normalized coordinate space, which would make hit-testing fail.
-          const svg = container.querySelector("svg.overlay-svg") as SVGSVGElement | null;
+          const svg = (container.querySelector("svg.overlay-svg") || container.querySelector("svg")) as SVGSVGElement | null;
           if (svg) {
             const pt = svg.createSVGPoint();
             pt.x = e.clientX;
@@ -246,46 +284,49 @@ export function ImageViewer() {
             const ctm = svg.getScreenCTM();
             if (ctm) {
               const svgPt = pt.matrixTransform(ctm.inverse());
+              // svgPt.x and svgPt.y are in viewBox coordinates (0-1)
 
-              // Check calibration points first (only during active calibration workflow)
+              // Check calibration points first (higher priority than landmarks)
               const calHitRadius = pxToViewBox(CALIBRATION_HIT_AREA_PX);
-              if (isCalibratingStage(stage)) {
-                for (const which of [1, 2] as const) {
-                  const cp =
-                    which === 1 ? calibrationPoints?.point1 : calibrationPoints?.point2;
-                  if (!cp) continue;
-                  const canDrag =
-                    (which === 1 &&
-                      (stage === "reviewing-point-1" ||
-                        stage === "reviewing-point-2" ||
-                        stage === "entering-distance")) ||
-                    (which === 2 &&
-                      (stage === "reviewing-point-2" ||
-                        stage === "entering-distance"));
+              for (const which of [1, 2] as const) {
+                const cp =
+                  which === 1 ? calibrationPoints?.point1 : calibrationPoints?.point2;
+                if (!cp) continue;
+                const canDrag =
+                  (which === 1 &&
+                    (stage === "reviewing-point-1" ||
+                      stage === "reviewing-point-2" ||
+                      stage === "entering-distance" ||
+                      stage === "calibrated" ||
+                      stage === "idle")) ||
+                  (which === 2 &&
+                    (stage === "reviewing-point-2" ||
+                      stage === "entering-distance" ||
+                      stage === "calibrated" ||
+                      stage === "idle"));
 
-                  if (!canDrag) continue;
+                if (!canDrag) continue;
 
-                  const dx = svgPt.x - cp.x;
-                  const dy = svgPt.y - cp.y;
-                  const dist = Math.sqrt(dx * dx + dy * dy);
-                  if (dist < calHitRadius) {
-                    interactionMode.current = "drag-calibration";
-                    draggingCalibrationPoint.current = which;
-                    activePointerId.current = e.pointerId;
-                    isDraggingRef.current = true;
-                    setIsDraggingMarker(true);
-                    try {
-                      (e.currentTarget as Element).setPointerCapture(e.pointerId);
-                    } catch {
-                      /* noop */
-                    }
-                    e.preventDefault();
-                    return;
+                const dx = svgPt.x - cp.x;
+                const dy = svgPt.y - cp.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < calHitRadius) {
+                  interactionMode.current = "drag-calibration";
+                  draggingCalibrationPoint.current = which;
+                  activePointerId.current = e.pointerId;
+                  isDraggingRef.current = true;
+                  setIsDraggingMarker(true);
+                  try {
+                    (e.currentTarget as Element).setPointerCapture(e.pointerId);
+                  } catch {
+                    /* some browsers throw if already captured */
                   }
+                  e.preventDefault();
+                  return;
                 }
               }
 
-              // Check landmarks
+              // Check landmarks — find closest within hit radius
               let closest: LandmarkName | null = null;
               let closestDist = Infinity;
               const lmHitRadius = pxToViewBox(LANDMARK_HIT_AREA_PX);
@@ -309,7 +350,7 @@ export function ImageViewer() {
                 try {
                   (e.currentTarget as Element).setPointerCapture(e.pointerId);
                 } catch {
-                  /* noop */
+                  /* some browsers throw if already captured */
                 }
                 e.preventDefault();
                 return;
@@ -319,7 +360,7 @@ export function ImageViewer() {
         }
       }
 
-      // 5. Don't pan during calibration review or entering-distance stages
+      // ── 5. Don't pan during calibration review or entering-distance stages ──
       if (
         stage === "reviewing-point-1" ||
         stage === "reviewing-point-2" ||
@@ -328,7 +369,7 @@ export function ImageViewer() {
         return;
       }
 
-      // 6. Start panning
+      // ── 6. Start panning ──
       interactionMode.current = "pan";
       activePointerId.current = e.pointerId;
       dragStart.current = {
@@ -347,7 +388,7 @@ export function ImageViewer() {
     [activeLandmark, viewer.panX, viewer.panY, screenToNormalized, placeCalibrationPoint, setLandmark, setActiveLandmark, pxToViewBox, calibrationPoints, landmarks]
   );
 
-  // Pointer move
+  // Pointer move: pan, drag landmark, or drag calibration point
   const handlePointerMove = useCallback(
     (e: React.PointerEvent) => {
       if (interactionMode.current === "drag-calibration" && draggingCalibrationPoint.current) {
@@ -357,6 +398,8 @@ export function ImageViewer() {
       }
 
       if (interactionMode.current === "drag-landmark" && draggingLandmark.current) {
+        // Calculate landmark position DIRECTLY from current pointer position
+        // on every move — no delta accumulation
         const point = screenToNormalized(e.clientX, e.clientY);
         moveLandmark(draggingLandmark.current, point);
         return;
@@ -371,9 +414,10 @@ export function ImageViewer() {
     [screenToNormalized, moveLandmark, setPan, moveCalibrationPoint]
   );
 
-  // Pointer up / cancel
+  // Pointer up / cancel: end drag, pan, or calibration drag
   const handlePointerUp = useCallback(
     (e: React.PointerEvent) => {
+      // Release pointer capture
       if (activePointerId.current !== null) {
         try {
           (e.currentTarget as Element).releasePointerCapture(activePointerId.current);
@@ -383,7 +427,16 @@ export function ImageViewer() {
         activePointerId.current = null;
       }
 
-      if (interactionMode.current === "pan" || interactionMode.current === "drag-landmark" || interactionMode.current === "drag-calibration") {
+      if (interactionMode.current === "pan") {
+        // Small timeout to prevent click-after-drag from placing a landmark
+        setIsDraggingPlaced(true);
+        isDraggingRef.current = true;
+        setTimeout(() => {
+          setIsDraggingPlaced(false);
+          isDraggingRef.current = false;
+        }, 50);
+      } else if (interactionMode.current === "drag-landmark" || interactionMode.current === "drag-calibration") {
+        // Suppress click after drag
         setIsDraggingPlaced(true);
         isDraggingRef.current = true;
         setTimeout(() => {
@@ -403,6 +456,7 @@ export function ImageViewer() {
   // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      // Don't intercept if user is typing in an input
       const target = e.target as Element;
       if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA"))
         return;
@@ -410,10 +464,10 @@ export function ImageViewer() {
       switch (e.key) {
         case "+":
         case "=":
-          setZoom(viewer.zoom * 1.15);
+          setZoom(viewer.zoom * 1.1);
           break;
         case "-":
-          setZoom(viewer.zoom * 0.85);
+          setZoom(viewer.zoom * 0.9);
           break;
         case "0":
           fitToScreen();
@@ -448,13 +502,17 @@ export function ImageViewer() {
   const landmarkColor = (name: LandmarkName): string => {
     const def = LANDMARK_DEFINITIONS.find((l) => l.name === name);
     if (!def) return "#ef4444";
-    if (def.side === "right") return "#3b82f6"; // Pure Blue
-    if (def.side === "left") return "#ef4444";  // Pure Red / Coral
-    return "#f59e0b"; // Warm Amber
+    if (def.side === "right") return "#2563eb";
+    if (def.side === "left") return "#16a34a";
+    return "#d97706";
   };
 
-  const RIGHT_COLOR = "#3b82f6"; // Pure Blue
-  const LEFT_COLOR = "#ef4444";  // Pure Red / Coral
+  // Measurement line definitions
+  // mm values come from mandibularResult (the store's single source of truth).
+  // Colors: blue for right side, red/orange (#dc2626) for left side.
+  // When uncalibrated, labels show "calibration required" instead of mm.
+  const RIGHT_COLOR = "#2563eb"; // blue
+  const LEFT_COLOR = "#dc2626";  // red
 
   const lineDefs = [
     {
@@ -491,8 +549,8 @@ export function ImageViewer() {
     },
   ];
 
-  const isCalibrating = isCalibratingStage(calibrationStage);
-
+  // ── Determine active calibration point (Item 6d) ──
+  // The "active" point is the one currently being placed or reviewed.
   const activeCalibrationPoint: 1 | 2 | null =
     calibrationStage === "placing-point-1" || calibrationStage === "reviewing-point-1"
       ? 1
@@ -500,6 +558,9 @@ export function ImageViewer() {
       ? 2
       : null;
 
+  // ── Determine if a calibration point is confirmed (Item 6e) ──
+  // Point 1 is "confirmed" once we've moved past reviewing-point-1.
+  // Point 2 is "confirmed" once we've moved past reviewing-point-2.
   const point1Confirmed =
     calibrationStage === "placing-point-2" ||
     calibrationStage === "reviewing-point-2" ||
@@ -510,149 +571,98 @@ export function ImageViewer() {
     calibrationStage === "calibrated";
 
   return (
-    <div className="relative flex h-full flex-col overflow-hidden bg-slate-950 radiograph-grid-bg">
-      {/* ── Translucent Glassmorphic Floating HUD Toolbar ── */}
-      <div
-        className="absolute top-4 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1 sm:gap-2 px-3 py-1.5 rounded-2xl bg-slate-900/85 backdrop-blur-md border border-slate-700/70 shadow-2xl text-slate-200 select-none max-w-[95vw] overflow-x-auto print-hide"
-        role="toolbar"
-        aria-label="Viewer HUD"
-      >
-        {/* Cluster A: View Navigation */}
-        <div className="flex items-center gap-1">
-          <button
-            onClick={() => setZoom(viewer.zoom * 0.85)}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-slate-800/80 active:bg-slate-700/80 text-xs font-semibold transition-colors cursor-pointer"
-            title={t.hud.zoomOut}
-            aria-label={t.hud.zoomOut}
-          >
-            🔍−
-          </button>
-          <span className="min-w-[44px] text-center font-mono text-xs font-semibold text-slate-300">
-            {t.hud.zoomLevel(viewer.zoom)}
-          </span>
-          <button
-            onClick={() => setZoom(viewer.zoom * 1.15)}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-slate-800/80 active:bg-slate-700/80 text-xs font-semibold transition-colors cursor-pointer"
-            title={t.hud.zoomIn}
-            aria-label={t.hud.zoomIn}
-          >
-            🔍+
-          </button>
-          <button
-            onClick={fitToScreen}
-            className="px-2 py-1 rounded-lg text-xs font-semibold text-slate-300 hover:bg-slate-800/80 hover:text-slate-100 transition-colors cursor-pointer"
-            title={t.hud.fit}
-          >
-            {t.hud.fit}
-          </button>
-          <button
-            onClick={() => setPanMode(!panMode)}
-            className={`px-2 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
-              panMode
-                ? "bg-blue-600 text-white shadow-xs"
-                : "text-slate-400 hover:bg-slate-800/80 hover:text-slate-100"
-            }`}
-            title={t.hud.pan}
-          >
-            {t.hud.pan}
-          </button>
-          <button
-            onClick={resetViewer}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-slate-800/80 active:bg-slate-700/80 text-xs transition-colors cursor-pointer"
-            title={t.hud.reset}
-            aria-label={t.hud.reset}
-          >
-            ↺
-          </button>
-        </div>
-
-        {/* Divider */}
-        <div className="h-4 w-px bg-slate-700/80 mx-0.5 shrink-0" />
-
-        {/* Cluster B: Radiograph Enhancement */}
-        <div className="flex items-center gap-1">
-          {/* Grayscale Inversion */}
-          <button
-            onClick={() => setImageFilters({ invert: !filters.invert })}
-            className={`p-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
-              filters.invert
-                ? "bg-amber-500/20 text-amber-300 border border-amber-500/50 shadow-xs"
-                : "text-slate-400 hover:bg-slate-800/80 hover:text-slate-100"
-            }`}
-            title={t.hud.invert}
-            aria-label={t.hud.invert}
-          >
-            🌓
-          </button>
-
-          {/* Filter Popover Toggle */}
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className={`px-2 py-1 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer ${
-              showFilters || isFilterActive(filters)
-                ? "bg-blue-600/30 text-blue-200 border border-blue-500/50 shadow-xs"
-                : "text-slate-400 hover:bg-slate-800/80 hover:text-slate-100"
-            }`}
-            title={t.filters.togglePanel}
-          >
-            <span>🎨</span>
-            <span>{t.hud.filters}</span>
-            {isFilterActive(filters) && (
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-400 inline-block" />
-            )}
-          </button>
-        </div>
-
-        {/* Divider */}
-        <div className="h-4 w-px bg-slate-700/80 mx-0.5 shrink-0" />
-
-        {/* Cluster C: Overlay Toggles */}
-        <div className="flex items-center gap-1">
-          <button
-            onClick={() => setShowOverlay(!showOverlay)}
-            className={`px-2 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
-              showOverlay
-                ? "bg-slate-800 text-blue-400 border border-blue-500/40"
-                : "text-slate-500 hover:bg-slate-800/80 hover:text-slate-300"
-            }`}
-            title={t.hud.measurements}
-          >
-            📊 {t.hud.measurements}
-          </button>
-          <button
-            onClick={() => setShowLandmarks(!showLandmarks)}
-            className={`px-2 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
-              showLandmarks
-                ? "bg-slate-800 text-blue-400 border border-blue-500/40"
-                : "text-slate-500 hover:bg-slate-800/80 hover:text-slate-300"
-            }`}
-            title={t.hud.landmarks}
-          >
-            🎯 {t.hud.landmarks}
-          </button>
-        </div>
-
-        {/* Divider */}
-        <div className="h-4 w-px bg-slate-700/80 mx-0.5 shrink-0" />
-
-        {/* Cluster D: AI Auto-Detect */}
-        <div className="flex items-center">
-          <button
-            onClick={() => detectLandmarksAi()}
-            disabled={isAiDetecting}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg bg-blue-600/20 hover:bg-blue-600/30 text-blue-200 border border-blue-500/40 shadow-sm disabled:opacity-50 transition-colors cursor-pointer"
-            title={t.ai.detectButton}
-          >
-            <span>{isAiDetecting ? "⏳" : "✨"}</span>
-            <span>{isAiDetecting ? t.hud.aiDetecting : t.hud.aiDetect}</span>
-          </button>
+    <div className="flex h-full flex-col">
+      {/* Viewer Toolbar */}
+      <div className="flex items-center gap-2 border-b border-gray-200 bg-gray-50 px-4 py-2">
+        <button
+          onClick={() => setZoom(viewer.zoom * 1.2)}
+          className="px-3 py-1 text-sm rounded border border-gray-300 hover:bg-gray-100"
+          title={t.viewer.zoomIn}
+        >
+          🔍+
+        </button>
+        <button
+          onClick={() => setZoom(viewer.zoom * 0.8)}
+          className="px-3 py-1 text-sm rounded border border-gray-300 hover:bg-gray-100"
+          title={t.viewer.zoomOut}
+        >
+          🔍−
+        </button>
+        <button
+          onClick={fitToScreen}
+          className="px-3 py-1 text-sm rounded border border-gray-300 hover:bg-gray-100 text-xs font-medium"
+          title={t.viewer.fitScreen}
+        >
+          {language === "ru" ? "Авто" : "Fit"}
+        </button>
+        <div className="mx-2 text-xs text-gray-400">|</div>
+        <label className="flex items-center gap-1 text-xs" title={t.viewer.brightness}>
+          ☀
+          <input
+            type="range"
+            min={0.3}
+            max={2.0}
+            step={0.05}
+            value={viewer.brightness}
+            onChange={(e) => setBrightness(parseFloat(e.target.value))}
+            className="w-20"
+          />
+        </label>
+        <label className="flex items-center gap-1 text-xs" title={t.viewer.contrast}>
+          ◐
+          <input
+            type="range"
+            min={0.3}
+            max={2.0}
+            step={0.05}
+            value={viewer.contrast}
+            onChange={(e) => setContrast(parseFloat(e.target.value))}
+            className="w-20"
+          />
+        </label>
+        <div className="mx-2 text-xs text-gray-400">|</div>
+        {/* Item 9h: Show/hide measurement overlay toggle */}
+        <button
+          onClick={() => setShowOverlay(!showOverlay)}
+          className={`px-3 py-1 text-xs font-medium rounded border ${
+            showOverlay
+              ? "border-blue-400 bg-blue-50 text-blue-700"
+              : "border-gray-300 hover:bg-gray-100 text-gray-600"
+          }`}
+          title={showOverlay ? t.viewer.hideOverlay : t.viewer.showOverlay}
+        >
+          {showOverlay
+            ? `📊 ${language === "ru" ? "Оверлей" : "Overlay"}`
+            : `📊 ${language === "ru" ? "Скрыт" : "Off"}`}
+        </button>
+        <div className="mx-2 text-xs text-gray-400">|</div>
+        <button
+          onClick={resetViewer}
+          className="px-3 py-1 text-xs rounded border border-gray-300 hover:bg-gray-100 text-gray-600"
+          title={t.viewer.resetView}
+        >
+          {language === "ru" ? "Сброс" : "Reset"}
+        </button>
+        <div className="mx-2 text-xs text-gray-400">|</div>
+        {/* AI Auto-Detect Trigger */}
+        <button
+          onClick={() => detectLandmarksAi()}
+          disabled={isAiDetecting}
+          className="inline-flex items-center gap-1 px-3 py-1 text-xs font-semibold rounded bg-indigo-50 border border-indigo-300 text-indigo-700 hover:bg-indigo-100 disabled:opacity-50 transition-colors"
+          title={t.ai.detectButton}
+        >
+          <span>{isAiDetecting ? "⏳" : "✨"}</span>
+          <span>{isAiDetecting ? t.ai.detecting : t.ai.detectButton}</span>
+        </button>
+        <div className="ml-auto text-xs text-gray-400">
+          Zoom: {viewer.zoom.toFixed(1)}x
         </div>
       </div>
 
-      {/* Image + Overlay Viewport */}
+      {/* Image + Overlay */}
       <div
         ref={containerRef}
-        className="relative flex-1 overflow-hidden"
+        className="relative flex-1 overflow-hidden bg-black"
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
@@ -668,24 +678,6 @@ export function ImageViewer() {
             : "default",
         }}
       >
-        {/* Hidden SVG Filter Definition for Convolution Sharpening */}
-        <svg className="absolute w-0 h-0 pointer-events-none opacity-0" aria-hidden="true">
-          <filter id="radiograph-sharpen">
-            <feConvolveMatrix
-              order="3"
-              kernelMatrix="0 -1 0 -1 5 -1 0 -1 0"
-              preserveAlpha="true"
-            />
-          </filter>
-        </svg>
-
-        {/* Floating Radiograph Filter Suite Popover */}
-        {showFilters && (
-          <div className="absolute top-16 right-4 z-40 max-w-sm w-full">
-            <ImageFiltersToolbar />
-          </div>
-        )}
-
         {/* Image Layer */}
         {imageDataUrl && (
           <img
@@ -693,7 +685,7 @@ export function ImageViewer() {
             alt="Panoramic radiograph"
             className="absolute inset-0 h-full w-full object-contain"
             style={{
-              filter: buildCssFilterString(filters),
+              filter: `brightness(${viewer.brightness}) contrast(${viewer.contrast})`,
               transform: `translate(${viewer.panX}px, ${viewer.panY}px) scale(${viewer.zoom})`,
               transformOrigin: "center",
               pointerEvents: "none",
@@ -703,7 +695,9 @@ export function ImageViewer() {
           />
         )}
 
-        {/* Overlay Layer (SVG) */}
+        {/* Overlay Layer (SVG) — receives the SAME transform as the image
+            so landmarks, lines, and markers stay aligned with the radiograph
+            at all zoom levels and pan offsets. */}
         <svg
           className="absolute inset-0 h-full w-full overlay-svg"
           viewBox="0 0 1 1"
@@ -715,19 +709,17 @@ export function ImageViewer() {
             transformOrigin: "center",
           }}
         >
-          {/* Measurement lines with midpoint mm labels (strokeWidth: 1.5px) */}
+          {/* Measurement lines with mm labels — only when overlay is visible */}
           {showOverlay && lineDefs.map((line) => {
             if (!line.from || !line.to) return null;
             const isHovered = hoveredLine === line.id;
             const midX = (line.from.x + line.to.x) / 2;
             const midY = (line.from.y + line.to.y) / 2;
+            // Calibration gating: show mm only when calibrated and value available
             const showMm = isCalibrated && line.mm !== null;
             const label = showMm
               ? `${line.name}: ${line.mm!.toFixed(1)} ${t.common.mm}`
               : `${line.name}: ${t.overlay.calibrationRequired}`;
-            const pillWidth = showMm ? 0.16 : 0.22;
-            const pillHalfWidth = pillWidth / 2;
-
             return (
               <g key={line.id}>
                 <line
@@ -736,39 +728,34 @@ export function ImageViewer() {
                   x2={line.to.x}
                   y2={line.to.y}
                   stroke={line.color}
-                  strokeWidth={isHovered ? 2.5 : 1.5}
-                  opacity={hoveredLine && !isHovered ? 0.25 : 1}
+                  strokeWidth={isHovered ? 0.006 : 0.003}
+                  opacity={hoveredLine && !isHovered ? 0.3 : 1}
                   vectorEffect="non-scaling-stroke"
                   style={{
-                    filter: isHovered
-                      ? `drop-shadow(0 0 5px ${line.color})`
-                      : "drop-shadow(0 0 2px rgba(0,0,0,0.85))",
+                    filter: isHovered ? "drop-shadow(0 0 3px rgba(255,255,255,0.8))" : "none",
                     transition: "stroke-width 0.15s, opacity 0.15s",
                   }}
                 />
-                {/* Translucent glassmorphic dark pill badge */}
+                {/* Label background for readability */}
                 <rect
-                  x={midX - pillHalfWidth}
-                  y={midY - 0.024}
-                  width={pillWidth}
-                  height={0.024}
-                  fill="rgba(15, 23, 42, 0.88)"
-                  stroke={isHovered ? line.color : "rgba(51, 65, 85, 0.85)"}
-                  strokeWidth={pxToViewBox(1)}
-                  rx={0.005}
-                  ry={0.005}
+                  x={midX - 0.08}
+                  y={midY - 0.025}
+                  width={0.16}
+                  height={0.02}
+                  fill="rgba(0,0,0,0.7)"
+                  rx={0.003}
+                  ry={0.003}
                   style={{ pointerEvents: "none" }}
                 />
-                {/* Measurement text inside pill */}
+                {/* Measurement name + mm value at midpoint */}
                 <text
                   x={midX}
                   y={midY}
-                  fill={showMm ? "#f8fafc" : "#fbbf24"}
-                  fontSize={0.011}
-                  fontWeight="bold"
+                  fill={showMm ? "#ffffff" : "#fbbf24"}
+                  fontSize={0.012}
                   textAnchor="middle"
-                  dy="-0.006"
-                  className="select-none font-sans"
+                  dy="-0.005"
+                  className="select-none"
                   style={{ pointerEvents: "none" }}
                 >
                   {label}
@@ -777,8 +764,8 @@ export function ImageViewer() {
             );
           })}
 
-          {/* Calibration line (visible ONLY during active calibration stages) */}
-          {showOverlay && isCalibrating && calibrationPoints?.point1 && calibrationPoints?.point2 && (
+          {/* Calibration line — show when both points exist, with distance label when calibrated */}
+          {showOverlay && calibrationPoints?.point1 && calibrationPoints?.point2 && (
             <g>
               <line
                 x1={calibrationPoints.point1.x}
@@ -786,17 +773,38 @@ export function ImageViewer() {
                 x2={calibrationPoints.point2.x}
                 y2={calibrationPoints.point2.y}
                 stroke="#10b981"
-                strokeWidth={1.5}
-                strokeDasharray="4 2"
+                strokeWidth={0.004}
+                strokeDasharray="0.02 0.01"
                 vectorEffect="non-scaling-stroke"
-                style={{ filter: "drop-shadow(0 0 2px rgba(0,0,0,0.8))" }}
               />
+              {calibrationStage === "calibrated" && calibration && (
+                <text
+                  x={(calibrationPoints.point1.x + calibrationPoints.point2.x) / 2}
+                  y={(calibrationPoints.point1.y + calibrationPoints.point2.y) / 2}
+                  fill="#10b981"
+                  fontSize={0.012}
+                  textAnchor="middle"
+                  className="select-none"
+                  style={{ pointerEvents: "none", textShadow: "0 0 2px black" }}
+                >
+                  {calibration.realDistanceMm.toFixed(1)} {t.common.mm}
+                </text>
+              )}
             </g>
           )}
 
-          {/* Calibration point markers (visible ONLY during active calibration stages) */}
-          {isCalibrating && calibrationPoints?.point1 && (
+          {/* ── Calibration point markers (Item 6) ──
+              Fixed pixel sizes (not scaled by zoom).
+              - Small visible marker: ~10px diameter
+              - Large invisible hit area: ~24px diameter
+              - Active point highlighted with ring
+              - Unconfirmed: dashed border
+              - Confirmed: solid border
+              - Cursor: grab/grabbing for draggable points */}
+
+          {calibrationPoints?.point1 && (
             <g>
+              {/* Active highlight ring (Item 6d) */}
               {activeCalibrationPoint === 1 && (
                 <circle
                   cx={calibrationPoints.point1.x}
@@ -806,49 +814,53 @@ export function ImageViewer() {
                   stroke="#fbbf24"
                   strokeWidth={pxToViewBox(2)}
                   vectorEffect="non-scaling-stroke"
-                  style={{ pointerEvents: "none", opacity: 0.9 }}
+                  style={{ pointerEvents: "none", opacity: 0.8 }}
                 />
               )}
+              {/* Large transparent interaction circle (drag hit area) */}
               <circle
                 className="calibration-marker"
                 data-calibration-point="1"
                 cx={calibrationPoints.point1.x}
                 cy={calibrationPoints.point1.y}
                 r={calHitR}
-                fill="white"
-                fillOpacity={0.001}
+                fill="white" fillOpacity={0.001}
                 style={{
                   pointerEvents: "none",
-                  cursor: isDraggingMarker ? "grabbing" : "grab",
+                  cursor: (calibrationStage === "reviewing-point-1" || calibrationStage === "reviewing-point-2" || calibrationStage === "entering-distance" || calibrationStage === "calibrated" || calibrationStage === "idle")
+                    ? (isDraggingMarker ? "grabbing" : "grab")
+                    : "default",
                 }}
               />
+              {/* Small visible marker (Item 6a, 6e, 6f) */}
               <circle
                 cx={calibrationPoints.point1.x}
                 cy={calibrationPoints.point1.y}
                 r={calMarkerR}
                 fill={point1Confirmed ? "#10b981" : "#fbbf24"}
                 stroke="white"
-                strokeWidth={pxToViewBox(1.5)}
+                strokeWidth={pxToViewBox(2)}
                 strokeDasharray={point1Confirmed ? undefined : `${pxToViewBox(2)} ${pxToViewBox(1.5)}`}
                 vectorEffect="non-scaling-stroke"
                 style={{ pointerEvents: "none" }}
               />
+              {/* Small label offset from marker */}
               <text
                 x={calibrationPoints.point1.x + calHitR}
                 y={calibrationPoints.point1.y - calHitR * 0.7}
-                fill={point1Confirmed ? "#34d399" : "#fbbf24"}
-                fontSize={0.011}
-                fontWeight="bold"
-                className="select-none font-sans"
-                style={{ pointerEvents: "none", textShadow: "0 0 3px black" }}
+                fill={point1Confirmed ? "#10b981" : "#fbbf24"}
+                fontSize={0.01}
+                className="select-none"
+                style={{ pointerEvents: "none", textShadow: "0 0 2px black" }}
               >
                 P1
               </text>
             </g>
           )}
 
-          {isCalibrating && calibrationPoints?.point2 && (
+          {calibrationPoints?.point2 && (
             <g>
+              {/* Active highlight ring (Item 6d) */}
               {activeCalibrationPoint === 2 && (
                 <circle
                   cx={calibrationPoints.point2.x}
@@ -858,58 +870,64 @@ export function ImageViewer() {
                   stroke="#fbbf24"
                   strokeWidth={pxToViewBox(2)}
                   vectorEffect="non-scaling-stroke"
-                  style={{ pointerEvents: "none", opacity: 0.9 }}
+                  style={{ pointerEvents: "none", opacity: 0.8 }}
                 />
               )}
+              {/* Large transparent interaction circle (drag hit area) */}
               <circle
                 className="calibration-marker"
                 data-calibration-point="2"
                 cx={calibrationPoints.point2.x}
                 cy={calibrationPoints.point2.y}
                 r={calHitR}
-                fill="white"
-                fillOpacity={0.001}
+                fill="white" fillOpacity={0.001}
                 style={{
                   pointerEvents: "none",
-                  cursor: isDraggingMarker ? "grabbing" : "grab",
+                  cursor: (calibrationStage === "reviewing-point-2" || calibrationStage === "entering-distance" || calibrationStage === "calibrated" || calibrationStage === "idle")
+                    ? (isDraggingMarker ? "grabbing" : "grab")
+                    : "default",
                 }}
               />
+              {/* Small visible marker (Item 6a, 6e, 6f) */}
               <circle
                 cx={calibrationPoints.point2.x}
                 cy={calibrationPoints.point2.y}
                 r={calMarkerR}
                 fill={point2Confirmed ? "#10b981" : "#fbbf24"}
                 stroke="white"
-                strokeWidth={pxToViewBox(1.5)}
+                strokeWidth={pxToViewBox(2)}
                 strokeDasharray={point2Confirmed ? undefined : `${pxToViewBox(2)} ${pxToViewBox(1.5)}`}
                 vectorEffect="non-scaling-stroke"
                 style={{ pointerEvents: "none" }}
               />
+              {/* Small label offset from marker */}
               <text
                 x={calibrationPoints.point2.x + calHitR}
                 y={calibrationPoints.point2.y - calHitR * 0.7}
-                fill={point2Confirmed ? "#34d399" : "#fbbf24"}
-                fontSize={0.011}
-                fontWeight="bold"
-                className="select-none font-sans"
-                style={{ pointerEvents: "none", textShadow: "0 0 3px black" }}
+                fill={point2Confirmed ? "#10b981" : "#fbbf24"}
+                fontSize={0.01}
+                className="select-none"
+                style={{ pointerEvents: "none", textShadow: "0 0 2px black" }}
               >
                 P2
               </text>
             </g>
           )}
 
-          {/* Landmark markers (Clean solid circle with subtle halo & text label) */}
-          {showLandmarks && LANDMARK_DEFINITIONS.map((def) => {
+          {/* ── Landmark markers (Item 8h) ──
+              Fixed pixel sizes (not scaled by zoom).
+              - Small visible marker: ~10px diameter
+              - Large invisible hit area: ~24px diameter
+              - Cursor: grab/grabbing for draggable points */}
+          {LANDMARK_DEFINITIONS.map((def) => {
             const lm = landmarks[def.name];
             if (!lm) return null;
             const color = landmarkColor(def.name);
             const isActive = activeLandmark === def.name;
             const isAiCandidate = !!aiCandidateLandmarks[def.name];
-
             return (
               <g key={def.name}>
-                {/* Active Pulsing Ring */}
+                {/* Active ring */}
                 {isActive && (
                   <circle
                     cx={lm.x}
@@ -919,80 +937,90 @@ export function ImageViewer() {
                     stroke="#f97316"
                     strokeWidth={pxToViewBox(2)}
                     vectorEffect="non-scaling-stroke"
-                    style={{ filter: "drop-shadow(0 0 4px #f97316)" }}
                   />
                 )}
-
                 {/* AI Candidate Dashed Halo */}
                 {isAiCandidate && !isActive && (
                   <circle
                     cx={lm.x}
                     cy={lm.y}
-                    r={lmHitR * 1.2}
+                    r={lmHitR * 1.3}
                     fill="none"
                     stroke="#f59e0b"
-                    strokeWidth={pxToViewBox(1.5)}
+                    strokeWidth={pxToViewBox(2)}
                     strokeDasharray={`${pxToViewBox(3)} ${pxToViewBox(2)}`}
                     vectorEffect="non-scaling-stroke"
-                    style={{ filter: "drop-shadow(0 0 3px #f59e0b)" }}
                   />
                 )}
-
-                {/* Subtle Anatomical Halo Ring */}
-                <circle
-                  cx={lm.x}
-                  cy={lm.y}
-                  r={lmMarkerR + pxToViewBox(2)}
-                  fill="none"
-                  stroke={color}
-                  strokeOpacity={0.4}
-                  strokeWidth={pxToViewBox(1)}
-                  vectorEffect="non-scaling-stroke"
-                  style={{ pointerEvents: "none" }}
-                />
-
-                {/* Interaction Hit Area */}
+                {/* Large transparent interaction circle (hit area) */}
                 <circle
                   className="landmark-marker"
                   data-landmark={def.name}
                   cx={lm.x}
                   cy={lm.y}
                   r={lmHitR}
-                  fill="white"
-                  fillOpacity={0.001}
+                  fill="white" fillOpacity={0.001}
                   style={{
                     pointerEvents: "none",
                     cursor: isDraggingMarker ? "grabbing" : "grab",
                   }}
                 />
-
-                {/* High-Precision Solid Marker Circle */}
+                {/* Small visible marker */}
                 <circle
                   cx={lm.x}
                   cy={lm.y}
                   r={lmMarkerR}
                   fill={color}
                   stroke="white"
-                  strokeWidth={pxToViewBox(1.5)}
+                  strokeWidth={pxToViewBox(2)}
                   vectorEffect="non-scaling-stroke"
-                  style={{
-                    pointerEvents: "none",
-                    filter: "drop-shadow(0 0 2px rgba(0,0,0,0.9))",
-                  }}
+                  style={{ pointerEvents: "none" }}
                 />
-
-                {/* Landmark Label */}
                 <text
                   x={lm.x + lmHitR}
-                  y={lm.y - lmHitR * 0.6}
-                  fill={isAiCandidate ? "#fde047" : "#f8fafc"}
-                  fontSize={0.011}
-                  fontWeight="bold"
-                  className="select-none font-sans"
-                  style={{ pointerEvents: "none", textShadow: "0 0 3px black" }}
+                  y={lm.y - lmHitR * 0.7}
+                  fill={isAiCandidate ? "#fde047" : "white"}
+                  fontSize={0.01}
+                  className="select-none font-bold"
+                  style={{ pointerEvents: "none", textShadow: "0 0 2px black" }}
                 >
                   {def.label}{isAiCandidate ? " (AI)" : ""}
                 </text>
+                {/* Delete button — small red badge with × */}
+                <g
+                  className="delete-btn"
+                  data-delete={def.name}
+                  style={{ cursor: "pointer", pointerEvents: "all" }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    deleteLandmark(def.name);
+                  }}
+                  onPointerDown={(e) => {
+                    e.stopPropagation();
+                  }}
+                >
+                  <circle
+                    cx={lm.x + lmHitR * 0.7}
+                    cy={lm.y + lmHitR * 0.7}
+                    r={deleteBtnR}
+                    fill="#dc2626"
+                    stroke="white"
+                    strokeWidth={pxToViewBox(1)}
+                    vectorEffect="non-scaling-stroke"
+                  />
+                  <text
+                    x={lm.x + lmHitR * 0.7}
+                    y={lm.y + lmHitR * 0.7}
+                    fill="white"
+                    fontSize={deleteBtnR * 1.4}
+                    textAnchor="middle"
+                    dominantBaseline="central"
+                    className="select-none font-bold"
+                    style={{ pointerEvents: "none" }}
+                  >
+                    ×
+                  </text>
+                </g>
               </g>
             );
           })}

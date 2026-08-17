@@ -1,9 +1,6 @@
 // ── Analysis Page ───────────────────────────────────────────
-// Canonical application shell:
-//   - Top Navigation Bar (Single source of truth for Study Actions & Status)
-//   - Maximized Radiograph Viewport
-//   - 4-Step Structured Workflow Sidebar (Calibration, Landmarks, Results, History)
-//   - 1-Page Clinical PDF Export Modal
+// Main single-page view: upload → analyze → results.
+// Two-column layout: radiograph viewer (left) + workflow panel (right).
 
 import { useState } from "react";
 import { useStudyStore } from "../store/studyStore";
@@ -15,39 +12,24 @@ import { ResultsPanel } from "../components/ResultsPanel";
 import { StudyManager } from "../components/StudyManager";
 import { LanguageSwitcher } from "../components/LanguageSwitcher";
 import { ClinicalReportModal } from "../components/ClinicalReportModal";
-import { LANDMARK_DEFINITIONS } from "../domain/types";
 import { getTranslations } from "../locales";
-
-type WorkflowStep = 1 | 2 | 3 | 4;
 
 export function AnalysisPage() {
   const language = useStudyStore((s) => s.language);
   const studyId = useStudyStore((s) => s.studyId);
   const isSaved = useStudyStore((s) => s.isSaved);
-  const patientId = useStudyStore((s) => s.patientId);
   const imageDataUrl = useStudyStore((s) => s.imageDataUrl);
-  const calibration = useStudyStore((s) => s.calibration);
-  const landmarks = useStudyStore((s) => s.landmarks);
-  const measurements = useStudyStore((s) => s.measurements);
+  const imageNaturalWidth = useStudyStore((s) => s.imageNaturalWidth);
+  const imageNaturalHeight = useStudyStore((s) => s.imageNaturalHeight);
 
   const saveStudy = useStudyStore((s) => s.saveStudy);
   const newStudy = useStudyStore((s) => s.newStudy);
 
-  const [activeStep, setActiveStep] = useState<WorkflowStep>(2);
   const [isReportOpen, setIsReportOpen] = useState(false);
-  const [showPatientPopover, setShowPatientPopover] = useState(false);
-  const [localPatientId, setLocalPatientId] = useState(patientId);
-
   const t = getTranslations(language);
 
-  const isCalibrated = calibration !== null;
-  const placedLandmarkCount = LANDMARK_DEFINITIONS.filter(
-    (l) => landmarks[l.name]
-  ).length;
-  const hasResults = !!measurements?.ramusHeight || !!measurements?.bodyLength;
-
   const handleSaveStudy = async () => {
-    if (!imageDataUrl) return;
+    if (!studyId) return;
     await saveStudy();
   };
 
@@ -58,250 +40,133 @@ export function AnalysisPage() {
       }
     }
     newStudy();
-    setActiveStep(2);
   };
 
   return (
-    <div className="flex h-screen flex-col bg-slate-950 text-slate-100 select-none overflow-hidden font-sans">
-      {/* ── Top Navigation Bar ── */}
-      <header className="h-14 border-b border-slate-800 bg-slate-900/95 backdrop-blur-md px-4 sm:px-6 flex items-center justify-between gap-4 shrink-0 z-20 select-none no-print">
-        {/* GROUP 1: BRAND & EDITION (Left) */}
-        <div className="flex items-center gap-3 shrink-0 min-w-0">
-          <span className="text-2xl" aria-hidden="true">🩻</span>
-          <div className="flex flex-col justify-center min-w-0">
-            <div className="flex items-center gap-2">
-              <h1 className="text-sm font-bold tracking-tight text-slate-100 truncate">
-                {t.common.appName}
-              </h1>
-              <span className="shrink-0 rounded-md bg-blue-950/80 border border-blue-800/70 px-2 py-0.5 text-[10px] font-bold text-blue-400 tracking-wide">
-                {t.common.editionBadge}
-              </span>
-            </div>
-            <p className="text-[11px] text-slate-400 truncate hidden 2xl:block max-w-md">
-              {t.common.appSubtitle}
-            </p>
-          </div>
+    <div className="flex h-screen flex-col bg-white">
+      {/* Header */}
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 bg-white px-6 py-3 no-print">
+        {/* Title */}
+        <div className="min-w-[200px]">
+          <h1 className="text-lg font-bold text-gray-800">
+            {t.common.appName}
+          </h1>
+          <p className="text-xs text-gray-500">
+            {t.common.appSubtitle}
+          </p>
         </div>
 
-        {/* GROUP 2: CLINICAL STUDY METADATA & CALIBRATION STATUS (Center) */}
-        {imageDataUrl && (
-          <div className="hidden md:flex items-center gap-2.5 shrink-0">
-            {/* Patient ID Pill / Inline Quick-Edit */}
-            {showPatientPopover ? (
-              <div className="flex items-center gap-1 bg-slate-800 border border-blue-500/60 rounded-lg px-2 py-0.5 shadow-sm">
-                <input
-                  type="text"
-                  value={localPatientId}
-                  onChange={(e) => setLocalPatientId(e.target.value)}
-                  placeholder={t.studyManager.patientIdPlaceholder}
-                  className="bg-transparent text-xs font-mono text-slate-100 outline-none w-28"
-                  autoFocus
-                />
-                <button
-                  onClick={() => {
-                    useStudyStore.setState({ patientId: localPatientId, isSaved: false });
-                    setShowPatientPopover(false);
-                  }}
-                  className="text-xs font-bold text-blue-400 hover:text-blue-300 px-1 cursor-pointer"
-                >
-                  ✓
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => {
-                  setLocalPatientId(patientId);
-                  setShowPatientPopover(true);
-                }}
-                className="flex items-center gap-1.5 rounded-lg border border-slate-700/80 bg-slate-800/80 px-2.5 py-1 text-xs text-slate-300 hover:border-slate-600 hover:text-slate-100 transition-colors cursor-pointer"
-                title={t.topBar.editPatient}
-              >
-                <span className="text-slate-400">{t.topBar.patient}</span>
-                <span className="font-mono font-semibold text-slate-100">
-                  {patientId || t.studyManager.unassigned}
-                </span>
-                <span className="text-slate-400 text-[10px]">✎</span>
-              </button>
+        {/* Central Study Actions */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleSaveStudy}
+            disabled={!studyId}
+            type="button"
+            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold shadow-2xs transition-colors ${
+              !studyId
+                ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                : isSaved
+                ? "bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800"
+                : "bg-blue-600 text-white hover:bg-blue-700 ring-2 ring-blue-300 ring-offset-1"
+            }`}
+            title={t.studyManager.saveStudy}
+          >
+            <span>💾</span>
+            <span>{t.studyManager.saveStudy}</span>
+            {!isSaved && studyId && (
+              <span className="ml-1 h-1.5 w-1.5 rounded-full bg-amber-300 animate-pulse" />
             )}
+          </button>
 
-            {/* Calibration Status Chip */}
-            <button
-              onClick={() => setActiveStep(1)}
-              className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold border transition-colors cursor-pointer ${
-                isCalibrated
-                  ? "bg-emerald-950/40 border-emerald-800/60 text-emerald-300 hover:bg-emerald-900/40"
-                  : "bg-amber-950/40 border-amber-800/60 text-amber-300 hover:bg-amber-900/40"
-              }`}
-              title={isCalibrated ? t.calibration.title : t.results.jumpToCalibration}
-            >
-              <span className={`w-2 h-2 rounded-full ${isCalibrated ? "bg-emerald-400" : "bg-amber-400 animate-pulse"}`} />
-              <span>
-                {isCalibrated
-                  ? t.topBar.calibratedChip(calibration!.mmPerPixel.toFixed(4))
-                  : t.topBar.uncalibratedChip}
-              </span>
-            </button>
-          </div>
-        )}
+          <button
+            onClick={handleNewStudy}
+            type="button"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 shadow-2xs hover:bg-gray-50 active:bg-gray-100 transition-colors"
+            title={t.studyManager.newStudy}
+          >
+            <span>➕</span>
+            <span>{t.studyManager.newStudy}</span>
+          </button>
+        </div>
 
-        {/* GROUP 3: STUDY ACTIONS & LOCALIZATION (Right) */}
-        <div className="flex items-center gap-2 shrink-0">
-          {/* Export Report (Primary Blue Accent Action) */}
+        {/* Right-hand Utilities */}
+        <div className="flex items-center gap-3">
           {imageDataUrl && (
             <button
               onClick={() => setIsReportOpen(true)}
               type="button"
-              className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 active:scale-[0.98] px-3 py-1.5 text-xs font-semibold text-white shadow-md shadow-blue-950/50 transition-all cursor-pointer"
-              title={t.topBar.exportReport}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-2xs hover:bg-gray-50 active:bg-gray-100 transition-colors"
+              title={t.report.exportButton}
             >
               <span>📄</span>
-              <span className="hidden sm:inline">{t.topBar.exportReport}</span>
+              <span>{t.report.exportButton}</span>
             </button>
           )}
-
-          {/* Save Study Action */}
-          {imageDataUrl && (
-            <button
-              onClick={handleSaveStudy}
-              type="button"
-              className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold border transition-all cursor-pointer ${
-                isSaved
-                  ? "bg-slate-800 text-emerald-400 border-emerald-700/60 hover:bg-slate-700"
-                  : "bg-slate-800 text-slate-300 border-slate-700/80 hover:bg-slate-700 hover:text-slate-100"
-              }`}
-              title={t.topBar.save}
-            >
-              <span>{isSaved ? "✓" : "💾"}</span>
-              <span className="hidden sm:inline">{isSaved ? t.topBar.saved : t.topBar.save}</span>
-              {!isSaved && (
-                <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
-              )}
-            </button>
-          )}
-
-          {/* New Study (Secondary Ghost Action) */}
-          <button
-            onClick={handleNewStudy}
-            type="button"
-            className="inline-flex items-center gap-1 rounded-lg border border-slate-700/80 bg-slate-800/80 px-2.5 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-700 hover:text-slate-100 transition-colors cursor-pointer"
-            title={t.topBar.newStudy}
-          >
-            <span>➕</span>
-            <span className="hidden sm:inline">{t.topBar.newStudy}</span>
-          </button>
-
-          {/* Language Switcher */}
           <LanguageSwitcher />
         </div>
       </header>
 
-      {/* ── Main Workspace Body ── */}
+      {/* Main content: two-column layout */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Radiograph Viewport Area */}
-        <main className="flex-1 overflow-hidden relative flex flex-col bg-slate-950 radiograph-grid-bg">
-          {imageDataUrl ? <ImageViewer /> : <ImageUploadZone />}
-        </main>
+        {/* Left / Center — Radiograph Viewer */}
+        <div className="flex-1 overflow-hidden">
+          {imageDataUrl ? (
+            <ImageViewer />
+          ) : (
+            <ImageUploadZone />
+          )}
+        </div>
 
-        {/* Structured 4-Step Workflow Sidebar */}
-        <aside className="w-96 lg:w-[420px] bg-slate-900 border-l border-slate-800 flex flex-col shrink-0 no-print select-none">
+        {/* Right Panel — Workflow */}
+        <aside className="w-96 overflow-y-auto border-l border-gray-200 bg-white flex flex-col no-print">
           {imageDataUrl ? (
             <>
-              {/* 4-Step Horizontal Navigation Bar */}
-              <div className="bg-slate-950/80 border-b border-slate-800 p-1.5 flex gap-1 shrink-0">
-                {/* Step 1: Calibration */}
-                <button
-                  onClick={() => setActiveStep(1)}
-                  type="button"
-                  className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                    activeStep === 1
-                      ? "bg-slate-800 text-blue-400 border border-slate-700 shadow-xs"
-                      : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
-                  }`}
-                >
-                  <span
-                    className={`w-2 h-2 rounded-full ${
-                      isCalibrated ? "bg-emerald-400" : "bg-amber-400"
-                    }`}
-                  />
-                  <span>{t.steps.calibration}</span>
-                </button>
-
-                {/* Step 2: Landmarks */}
-                <button
-                  onClick={() => setActiveStep(2)}
-                  type="button"
-                  className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                    activeStep === 2
-                      ? "bg-slate-800 text-blue-400 border border-slate-700 shadow-xs"
-                      : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
-                  }`}
-                >
-                  <span
-                    className={`w-2 h-2 rounded-full ${
-                      placedLandmarkCount === 5 ? "bg-emerald-400" : "bg-blue-400"
-                    }`}
-                  />
-                  <span>{t.steps.landmarks}</span>
-                  <span className="font-mono text-[10px] text-slate-500">
-                    ({placedLandmarkCount}/5)
-                  </span>
-                </button>
-
-                {/* Step 3: Analysis */}
-                <button
-                  onClick={() => setActiveStep(3)}
-                  type="button"
-                  className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                    activeStep === 3
-                      ? "bg-slate-800 text-blue-400 border border-slate-700 shadow-xs"
-                      : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
-                  }`}
-                >
-                  <span
-                    className={`w-2 h-2 rounded-full ${
-                      hasResults ? "bg-emerald-400" : "bg-slate-600"
-                    }`}
-                  />
-                  <span>{t.steps.results}</span>
-                </button>
-
-                {/* Step 4: History */}
-                <button
-                  onClick={() => setActiveStep(4)}
-                  type="button"
-                  className={`py-1.5 px-2.5 rounded-lg text-xs font-semibold flex items-center justify-center transition-all cursor-pointer ${
-                    activeStep === 4
-                      ? "bg-slate-800 text-blue-400 border border-slate-700 shadow-xs"
-                      : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
-                  }`}
-                  title={t.steps.history}
-                >
-                  <span>📁</span>
-                </button>
+              {/* Image Quality status */}
+              <div className="border-b border-gray-200 p-4">
+                <h3 className="text-sm font-semibold text-gray-700 mb-1">
+                  {t.imageQuality.title}
+                </h3>
+                <div className="text-xs text-gray-600">
+                  <div className="flex items-center gap-1">
+                    <span className="text-green-500">✓</span>
+                    <span>
+                      {t.imageQuality.loadedText(imageNaturalWidth, imageNaturalHeight)}
+                    </span>
+                  </div>
+                  {(imageNaturalWidth < 800 || imageNaturalWidth > 10000) && (
+                    <div className="mt-1 text-amber-600">
+                      ⚠ {" "}
+                      {imageNaturalWidth < 800
+                        ? t.imageQuality.lowResWarning
+                        : t.imageQuality.highResWarning}
+                    </div>
+                  )}
+                </div>
               </div>
 
-              {/* Step Content Viewport */}
-              <div className="flex-1 overflow-y-auto">
-                {activeStep === 1 && <CalibrationPanel />}
-                {activeStep === 2 && <LandmarkPalette />}
-                {activeStep === 3 && (
-                  <ResultsPanel
-                    onOpenReport={() => setIsReportOpen(true)}
-                    onJumpToCalibration={() => setActiveStep(1)}
-                  />
-                )}
-                {activeStep === 4 && <StudyManager />}
+              {/* Landmark Placement */}
+              <LandmarkPalette />
+
+              {/* Calibration */}
+              <CalibrationPanel />
+
+              {/* Results (shown when landmarks placed) */}
+              <div className="flex-1">
+                <ResultsPanel onOpenReport={() => setIsReportOpen(true)} />
               </div>
+
+              {/* Study Persistence Manager */}
+              <StudyManager />
             </>
           ) : (
-            <div className="flex-1 overflow-y-auto">
+            <div className="p-4 text-xs text-gray-400">
               <StudyManager />
             </div>
           )}
         </aside>
       </div>
 
-      {/* ── 1-Page Clinical PDF Export Preview Modal ── */}
+      {/* 1-Page Clinical Standard PDF Report Preview Modal */}
       <ClinicalReportModal
         isOpen={isReportOpen}
         onClose={() => setIsReportOpen(false)}
