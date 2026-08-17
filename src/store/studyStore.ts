@@ -700,7 +700,11 @@ export const useStudyStore = create<Store>()(
 
     moveLandmark: (name, point) => {
       set((state) => {
-        const landmarks = { ...state.landmarks, [name]: point };
+        const clampedPoint: Point = {
+          x: Math.max(0, Math.min(1, point.x)),
+          y: Math.max(0, Math.min(1, point.y)),
+        };
+        const landmarks = { ...state.landmarks, [name]: clampedPoint };
         const aiCandidateLandmarks = { ...state.aiCandidateLandmarks, [name]: false };
         const measurements = computeMeasurements(
           landmarks,

@@ -234,7 +234,11 @@ export function ImageViewer() {
       if (!activeLandmark) {
         const container = containerRef.current;
         if (container) {
-          const svg = container.querySelector("svg");
+          // Select the OVERLAY SVG (not the hidden 0×0 filter-definition SVG
+          // that appears earlier in the DOM). The hidden SVG has no viewBox,
+          // so its getScreenCTM() maps to screen pixels rather than the 0-1
+          // normalized coordinate space, which would make hit-testing fail.
+          const svg = container.querySelector("svg.overlay-svg") as SVGSVGElement | null;
           if (svg) {
             const pt = svg.createSVGPoint();
             pt.x = e.clientX;
@@ -655,7 +659,9 @@ export function ImageViewer() {
         onPointerCancel={handlePointerUp}
         onWheel={handleWheel}
         style={{
-          cursor: panMode || (!activeLandmark && !isCalibratingStage(calibrationStage) && interactionMode.current === "pan")
+          cursor: isDraggingMarker
+            ? "grabbing"
+            : panMode || (!activeLandmark && !isCalibratingStage(calibrationStage) && interactionMode.current === "pan")
             ? "grab"
             : (activeLandmark || isCalibratingStage(calibrationStage))
             ? "crosshair"
@@ -699,7 +705,7 @@ export function ImageViewer() {
 
         {/* Overlay Layer (SVG) */}
         <svg
-          className="absolute inset-0 h-full w-full"
+          className="absolute inset-0 h-full w-full overlay-svg"
           viewBox="0 0 1 1"
           preserveAspectRatio="xMidYMid meet"
           onClick={handleOverlayClick}
