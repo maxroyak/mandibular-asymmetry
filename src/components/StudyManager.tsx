@@ -1,6 +1,6 @@
 // ── Study Manager ───────────────────────────────────────────
 // Save, load, new, delete studies. Uses localStorage (metadata) +
-// IndexedDB (images) persistence.
+// IndexedDB (images) persistence with bulk "Clear All" support.
 
 import { useState, useEffect } from "react";
 import { useStudyStore } from "../store/studyStore";
@@ -14,6 +14,7 @@ export function StudyManager() {
   const studyList = useStudyStore((s) => s.studyList);
   const loadStudy = useStudyStore((s) => s.loadStudy);
   const deleteStudy = useStudyStore((s) => s.deleteStudy);
+  const clearAllStudies = useStudyStore((s) => s.clearAllStudies);
   const patientId = useStudyStore((s) => s.patientId);
   const refreshStudyList = useStudyStore((s) => s.refreshStudyList);
   const getPersistenceError = useStudyStore((s) => s.getPersistenceError);
@@ -26,6 +27,7 @@ export function StudyManager() {
   const [localPatientId, setLocalPatientId] = useState(patientId);
   const [persistenceError, setPersistenceError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [showClearAllModal, setShowClearAllModal] = useState(false);
 
   // Check for persistence errors after save operations
   useEffect(() => {
@@ -51,6 +53,18 @@ export function StudyManager() {
     if (confirm(t.studyManager.deleteStudyConfirm)) {
       await deleteStudy(id);
     }
+  };
+
+  const handleConfirmClearAll = async () => {
+    setIsLoading(true);
+    try {
+      await clearAllStudies();
+      setShowClearAllModal(false);
+      setShowList(false);
+    } catch {
+      setPersistenceError(t.studyManager.loadFailedError);
+    }
+    setIsLoading(false);
   };
 
   return (
@@ -122,18 +136,31 @@ export function StudyManager() {
         )}
       </div>
 
-      {/* Saved studies toggle */}
+      {/* Saved studies toggle & Clear All Action */}
       {studyList.length > 0 && (
         <div>
-          <button
-            onClick={() => {
-              refreshStudyList();
-              setShowList(!showList);
-            }}
-            className="text-xs font-medium text-blue-600 hover:underline"
-          >
-            {showList ? "▼" : "▶"} {t.studyManager.savedStudiesCount(studyList.length)}
-          </button>
+          <div className="flex items-center justify-between">
+            <button
+              onClick={() => {
+                refreshStudyList();
+                setShowList(!showList);
+              }}
+              className="text-xs font-medium text-blue-600 hover:underline"
+            >
+              {showList ? "▼" : "▶"} {t.studyManager.savedStudiesCount(studyList.length)}
+            </button>
+
+            {/* Clear All Studies Button */}
+            <button
+              onClick={() => setShowClearAllModal(true)}
+              className="text-[11px] font-medium text-red-600 hover:text-red-700 hover:underline flex items-center gap-1 transition-colors"
+              title={t.studyManager.clearAll}
+            >
+              <span>🗑️</span>
+              <span>{t.studyManager.clearAll}</span>
+            </button>
+          </div>
+
           {showList && (
             <div className="mt-2 max-h-40 space-y-1 overflow-y-auto">
               {studyList.map((study: StoredStudy) => (
@@ -176,6 +203,39 @@ export function StudyManager() {
           {t.studyManager.localPersistenceNote}
         </p>
       </div>
+
+      {/* Clear All Confirmation Modal */}
+      {showClearAllModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
+          <div className="w-full max-w-sm rounded-xl bg-white p-5 shadow-2xl border border-gray-200 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-2.5 text-red-600 mb-2">
+              <span className="text-xl">🗑️</span>
+              <h3 className="font-bold text-gray-900 text-sm">
+                {t.studyManager.clearAllConfirmTitle}
+              </h3>
+            </div>
+            <p className="text-xs text-gray-600 mb-4 leading-relaxed">
+              {t.studyManager.clearAllConfirmMessage}
+            </p>
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowClearAllModal(false)}
+                className="rounded-lg px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors"
+              >
+                {t.common.cancel}
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmClearAll}
+                className="rounded-lg px-3 py-1.5 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 shadow-xs transition-colors"
+              >
+                {t.studyManager.clearAllConfirmAction}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

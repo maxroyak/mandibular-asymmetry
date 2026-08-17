@@ -160,6 +160,10 @@ export interface Translations {
     savedStudiesCount: (count: number) => string;
     deleteStudyConfirm: string;
     discardStudyConfirm: string;
+    clearAll: string;
+    clearAllConfirmTitle: string;
+    clearAllConfirmMessage: string;
+    clearAllConfirmAction: string;
     localPersistenceNote: string;
     loadFailedError: string;
     loadingStudy: string;

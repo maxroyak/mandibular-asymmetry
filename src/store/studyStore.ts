@@ -129,6 +129,7 @@ interface StudyActions {
   loadCurrentStudy: () => Promise<void>;
   saveStudy: () => Promise<void>;
   deleteStudy: (studyId: string) => Promise<void>;
+  clearAllStudies: () => Promise<void>;
   refreshStudyList: () => void;
   newStudy: () => void;
   /** Migrate legacy localStorage records with embedded images to IndexedDB */
@@ -480,6 +481,15 @@ export const useStudyStore = create<Store>()(
       if (studyRepository.getCurrentStudyId() === studyId) {
         studyRepository.setCurrentStudyId(null);
       }
+      get().refreshStudyList();
+    },
+
+    clearAllStudies: async () => {
+      const allStudies = studyRepository.getAll();
+      for (const s of allStudies) {
+        await studyRepository.remove(s.studyId);
+      }
+      studyRepository.setCurrentStudyId(null);
       get().refreshStudyList();
     },
 

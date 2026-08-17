@@ -320,6 +320,25 @@ describe("Integration — full workflow", () => {
     expect(store().studyList).toHaveLength(1);
   });
 
+  it("clearAllStudies removes all saved studies from storage and state", async () => {
+    const store = useStudyStore.getState;
+
+    store().createStudy("batch-1", TEST_IMAGE, TEST_WIDTH, TEST_HEIGHT);
+    await store().saveStudy();
+    store().createStudy("batch-2", TEST_IMAGE, TEST_WIDTH, TEST_HEIGHT);
+    await store().saveStudy();
+    store().createStudy("batch-3", TEST_IMAGE, TEST_WIDTH, TEST_HEIGHT);
+    await store().saveStudy();
+
+    expect(store().studyList).toHaveLength(3);
+
+    // Bulk clear all studies
+    await store().clearAllStudies();
+
+    expect(store().studyList).toHaveLength(0);
+    expect(storageMap.get("ma.studies")).toBe("[]");
+  });
+
   it("calibration clears correctly", () => {
     const store = useStudyStore.getState;
     store().createStudy("test-clear-cal", TEST_IMAGE, TEST_WIDTH, TEST_HEIGHT);
