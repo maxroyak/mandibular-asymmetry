@@ -145,6 +145,7 @@ export function RadiographOverlay({
       onClick={onClick}
       style={{
         pointerEvents: readOnly ? "none" : "all",
+        cursor: isDraggingMarker ? "none" : undefined,
         ...style,
       }}
     >
@@ -273,7 +274,7 @@ export function RadiographOverlay({
                   calibrationStage === "calibrated" ||
                   calibrationStage === "idle"
                     ? isDraggingMarker
-                      ? "grabbing"
+                      ? "none"
                       : "grab"
                     : "default",
               }}
@@ -369,7 +370,7 @@ export function RadiographOverlay({
                   calibrationStage === "calibrated" ||
                   calibrationStage === "idle"
                     ? isDraggingMarker
-                      ? "grabbing"
+                      ? "none"
                       : "grab"
                     : "default",
               }}
@@ -480,7 +481,7 @@ export function RadiographOverlay({
                 fillOpacity={0.001}
                 style={{
                   pointerEvents: "none",
-                  cursor: isDraggingMarker ? "grabbing" : "grab",
+                  cursor: isDraggingMarker ? "none" : "grab",
                 }}
               />
             )}

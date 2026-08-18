@@ -133,4 +133,28 @@ describe("Phase 2 — Precision Marker Radii & Hair-Cross Overlay", () => {
     const lines = container.querySelectorAll("line");
     expect(lines.length).toBeGreaterThanOrEqual(2); // horizontal & vertical hair-cross lines
   });
+
+  it("sets cursor to none during active marker dragging to avoid obscuring cortical bone", () => {
+    useStudyStore.getState().createStudy("PAT-CURSOR", "data:image/png;base64,mock", 1200, 800);
+    useStudyStore.getState().setLandmark("CoR", { x: 0.3, y: 0.3 });
+
+    const { container, rerender } = render(
+      <svg>
+        <RadiographOverlay isDraggingMarker={false} />
+      </svg>
+    );
+
+    let hitArea = container.querySelector('circle[data-landmark="CoR"]');
+    expect(hitArea?.getAttribute("style")).toContain("cursor: grab");
+
+    // When isDraggingMarker becomes true
+    rerender(
+      <svg>
+        <RadiographOverlay isDraggingMarker={true} />
+      </svg>
+    );
+
+    hitArea = container.querySelector('circle[data-landmark="CoR"]');
+    expect(hitArea?.getAttribute("style")).toContain("cursor: none");
+  });
 });

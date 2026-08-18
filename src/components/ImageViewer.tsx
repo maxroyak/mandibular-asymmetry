@@ -589,7 +589,7 @@ export function ImageViewer() {
         onWheel={handleWheel}
         style={{
           cursor: isDraggingMarker
-            ? "grabbing"
+            ? "none"
             : panMode || (!activeLandmark && !isCalibratingStage(calibrationStage) && interactionMode.current === "pan")
             ? "grab"
             : (activeLandmark || isCalibratingStage(calibrationStage))
