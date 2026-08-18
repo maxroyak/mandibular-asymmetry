@@ -61,7 +61,9 @@ export interface Translations {
     zoomIn: string;
     zoomOut: string;
     fitScreen: string;
+    fitScreenTooltip: string;
     resetView: string;
+    resetViewTooltip: string;
     panTool: string;
     showOverlay: string;
     hideOverlay: string;
@@ -203,6 +205,7 @@ export interface Translations {
   };
   ai: {
     detectButton: string;
+    detectButtonTooltip: string;
     detecting: string;
     acceptAll: string;
     clearProposals: string;
@@ -210,5 +213,8 @@ export interface Translations {
     verifiedBadge: string;
     disclaimer: string;
     proposalsActive: (count: number) => string;
+    confirmOverwriteTitle: string;
+    confirmOverwriteMessage: string;
+    confirmOverwriteAction: string;
   };
 }

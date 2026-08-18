@@ -48,6 +48,7 @@ export function ImageViewer() {
   const [showOverlay, setShowOverlay] = useState(true); // Item 9h: measurement overlay toggle
   const [containerSize, setContainerSize] = useState({ w: 0, h: 0 });
   const [isDraggingMarker, setIsDraggingMarker] = useState(false); // for cursor: grabbing
+  const [showAiOverwriteModal, setShowAiOverwriteModal] = useState(false);
 
   const language = useStudyStore((s) => s.language);
   const t = getTranslations(language);
@@ -493,28 +494,41 @@ export function ImageViewer() {
     <div className="flex h-full flex-col">
       {/* Viewer Toolbar */}
       <div className="flex items-center gap-2 border-b border-gray-200 bg-gray-50 px-4 py-2">
-        <button
-          onClick={() => setZoom(viewer.zoom * 1.2)}
-          className="px-3 py-1 text-sm rounded border border-gray-300 hover:bg-gray-100"
-          title={t.viewer.zoomIn}
-        >
-          🔍+
-        </button>
-        <button
-          onClick={() => setZoom(viewer.zoom * 0.8)}
-          className="px-3 py-1 text-sm rounded border border-gray-300 hover:bg-gray-100"
-          title={t.viewer.zoomOut}
-        >
-          🔍−
-        </button>
-        <button
-          onClick={fitToScreen}
-          className="px-3 py-1 text-sm rounded border border-gray-300 hover:bg-gray-100 text-xs font-medium"
-          title={t.viewer.fitScreen}
-        >
-          {language === "ru" ? "Авто" : "Fit"}
-        </button>
-        <div className="mx-2 text-xs text-gray-400">|</div>
+        {/* Zoom & View Controls Group */}
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setZoom(viewer.zoom * 1.2)}
+            className="px-2.5 py-1 text-xs font-semibold rounded border border-gray-300 hover:bg-gray-100 bg-white"
+            title={t.viewer.zoomIn}
+          >
+            🔍+
+          </button>
+          <button
+            onClick={() => setZoom(viewer.zoom * 0.8)}
+            className="px-2.5 py-1 text-xs font-semibold rounded border border-gray-300 hover:bg-gray-100 bg-white"
+            title={t.viewer.zoomOut}
+          >
+            🔍−
+          </button>
+          <button
+            onClick={fitToScreen}
+            className="px-2.5 py-1 text-xs font-medium rounded border border-gray-300 hover:bg-gray-100 bg-white text-gray-700"
+            title={t.viewer.fitScreenTooltip}
+          >
+            {t.viewer.fitScreen}
+          </button>
+          <button
+            onClick={resetViewer}
+            className="px-2.5 py-1 text-xs font-medium rounded border border-gray-300 hover:bg-gray-100 bg-white text-gray-700"
+            title={t.viewer.resetViewTooltip}
+          >
+            {t.viewer.resetView}
+          </button>
+        </div>
+
+        <div className="mx-1 text-xs text-gray-300">|</div>
+
+        {/* Image Adjustments */}
         <label className="flex items-center gap-1 text-xs" title={t.viewer.brightness}>
           ☀
           <input
@@ -539,14 +553,16 @@ export function ImageViewer() {
             className="w-20"
           />
         </label>
-        <div className="mx-2 text-xs text-gray-400">|</div>
-        {/* Item 9h: Show/hide measurement overlay toggle */}
+
+        <div className="mx-1 text-xs text-gray-300">|</div>
+
+        {/* Show/hide measurement overlay toggle */}
         <button
           onClick={() => setShowOverlay(!showOverlay)}
           className={`px-3 py-1 text-xs font-medium rounded border ${
             showOverlay
               ? "border-blue-400 bg-blue-50 text-blue-700"
-              : "border-gray-300 hover:bg-gray-100 text-gray-600"
+              : "border-gray-300 hover:bg-gray-100 bg-white text-gray-600"
           }`}
           title={showOverlay ? t.viewer.hideOverlay : t.viewer.showOverlay}
         >
@@ -554,29 +570,71 @@ export function ImageViewer() {
             ? `📊 ${language === "ru" ? "Оверлей" : "Overlay"}`
             : `📊 ${language === "ru" ? "Скрыт" : "Off"}`}
         </button>
-        <div className="mx-2 text-xs text-gray-400">|</div>
-        <button
-          onClick={resetViewer}
-          className="px-3 py-1 text-xs rounded border border-gray-300 hover:bg-gray-100 text-gray-600"
-          title={t.viewer.resetView}
-        >
-          {language === "ru" ? "Сброс" : "Reset"}
-        </button>
-        <div className="mx-2 text-xs text-gray-400">|</div>
+
+        <div className="mx-1 text-xs text-gray-300">|</div>
+
         {/* AI Auto-Detect Trigger */}
         <button
-          onClick={() => detectLandmarksAi()}
+          onClick={() => {
+            const placedCount = Object.keys(landmarks).filter((k) => landmarks[k as LandmarkName]).length;
+            if (placedCount > 0) {
+              setShowAiOverwriteModal(true);
+            } else {
+              detectLandmarksAi();
+            }
+          }}
           disabled={isAiDetecting}
-          className="inline-flex items-center gap-1 px-3 py-1 text-xs font-semibold rounded bg-indigo-50 border border-indigo-300 text-indigo-700 hover:bg-indigo-100 disabled:opacity-50 transition-colors"
-          title={t.ai.detectButton}
+          className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded bg-indigo-50 border border-indigo-300 text-indigo-700 hover:bg-indigo-100 disabled:opacity-50 transition-colors shadow-2xs"
+          title={t.ai.detectButtonTooltip}
         >
-          <span>{isAiDetecting ? "⏳" : "✨"}</span>
+          <span>{isAiDetecting ? "⏳" : "🪄"}</span>
           <span>{isAiDetecting ? t.ai.detecting : t.ai.detectButton}</span>
         </button>
+
         <div className="ml-auto text-xs text-gray-400">
           Zoom: {viewer.zoom.toFixed(1)}x
         </div>
       </div>
+
+      {/* AI Overwrite Confirmation Modal */}
+      {showAiOverwriteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl animate-in fade-in zoom-in duration-150">
+            <div className="mb-4 flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-lg">
+                🪄
+              </div>
+              <div>
+                <h3 className="text-base font-semibold text-gray-900">
+                  {t.ai.confirmOverwriteTitle}
+                </h3>
+                <p className="mt-1 text-xs text-gray-500 leading-relaxed">
+                  {t.ai.confirmOverwriteMessage}
+                </p>
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setShowAiOverwriteModal(false)}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                {t.common.cancel}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAiOverwriteModal(false);
+                  detectLandmarksAi();
+                }}
+                className="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-medium text-white hover:bg-indigo-700 transition-colors shadow-2xs"
+              >
+                {t.ai.confirmOverwriteAction}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Image + Overlay */}
       <div

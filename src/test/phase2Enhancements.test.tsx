@@ -8,6 +8,8 @@ import { useStudyStore } from "../store/studyStore";
 import { ImageUploadZone } from "../components/ImageUploadZone";
 import { RadiographOverlay } from "../components/RadiographOverlay";
 import { CalibrationPanel } from "../components/CalibrationPanel";
+import { ImageViewer } from "../components/ImageViewer";
+import { LandmarkPalette } from "../components/LandmarkPalette";
 
 // Mock localStorage
 const storageMap = new Map<string, string>();
@@ -158,3 +160,74 @@ describe("Phase 2 — Precision Marker Radii & Hair-Cross Overlay", () => {
     expect(hitArea?.getAttribute("style")).toContain("cursor: none");
   });
 });
+
+describe("Phase 2 — Topbar Controls Refactoring (Reset View & AI Landmark Detection)", () => {
+  beforeEach(() => {
+    storageMap.clear();
+    useStudyStore.getState().newStudy();
+  });
+
+  it("renders 'Reset View' with explicit tooltip and groups it alongside Zoom in EN and RU", () => {
+    useStudyStore.setState({ language: "ru" });
+    useStudyStore.getState().createStudy("PAT-RESET-RU", "data:image/png;base64,mock", 1200, 800);
+
+    const { unmount } = render(<ImageViewer />);
+    const resetBtnRu = screen.getByRole("button", { name: /Сбросить вид/i });
+    expect(resetBtnRu).toBeInTheDocument();
+    expect(resetBtnRu).toHaveAttribute(
+      "title",
+      "Сбросить масштаб, позицию и контраст изображения (точки сохраняются)"
+    );
+    unmount();
+
+    // Switch to English
+    useStudyStore.setState({ language: "en" });
+    render(<ImageViewer />);
+    const resetBtnEn = screen.getByRole("button", { name: /Reset View/i });
+    expect(resetBtnEn).toBeInTheDocument();
+    expect(resetBtnEn).toHaveAttribute(
+      "title",
+      "Reset zoom, pan, and contrast (landmarks are preserved)"
+    );
+  });
+
+  it("shows overwrite confirmation modal when clicking AI detection if landmarks already exist", async () => {
+    useStudyStore.setState({ language: "ru" });
+    useStudyStore.getState().createStudy("PAT-AI-MODAL", "data:image/png;base64,mock", 1200, 800);
+    useStudyStore.getState().setLandmark("CoR", { x: 0.3, y: 0.3 });
+
+    render(<ImageViewer />);
+    const aiBtn = screen.getByRole("button", { name: /🪄 ИИ-разметка точек/i });
+    expect(aiBtn).toBeInTheDocument();
+    expect(aiBtn).toHaveAttribute(
+      "title",
+      "Автоматически найти 5 анатомических точек с помощью ИИ"
+    );
+
+    // Click AI button -> should open modal
+    fireEvent.click(aiBtn);
+
+    expect(screen.getByText("Заменить текущие точки ИИ-разметкой?")).toBeInTheDocument();
+    expect(screen.getByText(/Текущие анатомические точки будут заменены предложенными ИИ/i)).toBeInTheDocument();
+
+    // Cancel closes modal
+    const cancelBtn = screen.getByText("Отмена");
+    fireEvent.click(cancelBtn);
+    expect(screen.queryByText("Заменить текущие точки ИИ-разметкой?")).toBeNull();
+  });
+
+  it("shows overwrite confirmation modal in LandmarkPalette as well", () => {
+    useStudyStore.setState({ language: "en" });
+    useStudyStore.getState().createStudy("PAT-PALETTE-AI", "data:image/png;base64,mock", 1200, 800);
+    useStudyStore.getState().setLandmark("GoL", { x: 0.7, y: 0.7 });
+
+    render(<LandmarkPalette />);
+    const aiBtn = screen.getByRole("button", { name: /🪄 🪄 AI Landmark Detection/i });
+    expect(aiBtn).toBeInTheDocument();
+
+    fireEvent.click(aiBtn);
+    expect(screen.getByText("Replace current landmarks with AI detection?")).toBeInTheDocument();
+    expect(screen.getByText("Yes, Run AI")).toBeInTheDocument();
+  });
+});
+
