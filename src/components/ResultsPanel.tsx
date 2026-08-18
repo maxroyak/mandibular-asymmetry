@@ -387,9 +387,14 @@ export function ResultsPanel({ onOpenReport }: { onOpenReport?: () => void } = {
       <div className="mb-3">
         {isCalibrated ? (
           <div className="rounded border border-green-200 bg-green-50 p-2 text-xs text-green-700">
-            {t.calibration.calibratedBanner(calibration!.mmPerPixel.toFixed(4))}
+            {calibration?.source === "dicom"
+              ? t.calibration.dicomAutoCalibratedBanner(calibration.mmPerPixel.toFixed(4))
+              : t.calibration.calibratedBanner(calibration!.mmPerPixel.toFixed(4))}
             <span className="text-green-600 font-normal">
-              {" "}{t.calibration.calibratedDesc}
+              {" "}
+              {calibration?.source === "dicom"
+                ? t.calibration.dicomAutoCalibratedDesc
+                : t.calibration.calibratedDesc}
             </span>
           </div>
         ) : (

@@ -391,9 +391,13 @@ export function CalibrationPanel() {
       {isCalibrated && (
         <div className="text-xs text-gray-600">
           <p className="mb-1 font-medium text-green-700">
-            {t.calibration.calibratedBanner(calibration!.mmPerPixel.toFixed(4))}
+            {calibration?.source === "dicom"
+              ? t.calibration.dicomAutoCalibratedBanner(calibration.mmPerPixel.toFixed(4))
+              : t.calibration.calibratedBanner(calibration!.mmPerPixel.toFixed(4))}
             <span className="ml-1 text-gray-500 font-normal">
-              {t.calibration.calibratedDesc}
+              {calibration?.source === "dicom"
+                ? t.calibration.dicomAutoCalibratedDesc
+                : t.calibration.calibratedDesc}
             </span>
           </p>
           <div className="mb-2 rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">

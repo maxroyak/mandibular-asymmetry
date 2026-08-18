@@ -49,6 +49,13 @@ export interface Translations {
     fileReadError: string;
     dicomParseError: string;
     dicomAutoCalibrated: (scale: string) => string;
+    cbctHintLink: string;
+    cbctModalTitle: string;
+    cbctModalStep1Title: string;
+    cbctModalStep1Desc: string;
+    cbctModalStep2Title: string;
+    cbctModalStep2Desc: string;
+    cbctModalNote: string;
   };
   viewer: {
     zoomIn: string;
@@ -106,6 +113,8 @@ export interface Translations {
     applyCalibration: string;
     calibratedBanner: (scale: string) => string;
     calibratedDesc: string;
+    dicomAutoCalibratedBanner: (scale: string) => string;
+    dicomAutoCalibratedDesc: string;
     calReqTitle: string;
     calReqDesc: string;
     invalidDistanceError: string;

@@ -862,6 +862,7 @@ export const useStudyStore = create<Store>()(
               realDistanceMm: state.calibrationRealDistanceMm,
               pixelDistance,
               mmPerPixel,
+              source: "manual",
             };
           }
         }
@@ -947,6 +948,7 @@ export const useStudyStore = create<Store>()(
           pixelDistance: pixelDist,
           realDistanceMm: knownDistanceMm,
           mmPerPixel,
+          source: "manual",
         },
         calibrationMode: "B",
         calibrationRealDistanceMm: knownDistanceMm,

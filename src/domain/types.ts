@@ -11,11 +11,12 @@ export type LandmarkName = "CoR" | "GoR" | "CoL" | "GoL" | "Me";
 /** Partial set of placed landmarks */
 export type LandmarkSet = Partial<Record<LandmarkName, Point>>;
 
-/** Calibration data (user-marked reference distance) */
+/** Calibration data (user-marked reference distance or DICOM auto-scale) */
 export interface Calibration {
   pixelDistance: number; // distance between calibration points in image px
   realDistanceMm: number; // known real-world distance
   mmPerPixel: number; // computed: realDistanceMm / pixelDistance
+  source?: "manual" | "dicom";
 }
 
 /**

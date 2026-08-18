@@ -107,8 +107,10 @@ export function ImageUploadZone() {
     [createStudy, t]
   );
 
+  const [showCbctModal, setShowCbctModal] = useState(false);
+
   return (
-    <div className="flex h-full items-center justify-center p-8">
+    <div className="flex h-full flex-col items-center justify-center p-8">
       <div
         className={`w-full max-w-2xl rounded-lg border-2 border-dashed p-12 text-center transition-colors ${
           isDragging
@@ -160,6 +162,84 @@ export function ImageUploadZone() {
           <p className="text-sm text-red-600 mt-4 font-medium">{error}</p>
         )}
       </div>
+
+      {/* CBCT 2D Export Micro-Instruction Link */}
+      <div className="mt-4 text-center">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowCbctModal(true);
+          }}
+          className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline cursor-pointer transition-colors"
+        >
+          <span>💡</span>
+          <span>{t.upload.cbctHintLink}</span>
+        </button>
+      </div>
+
+      {/* CBCT 2D Export Guidance Modal */}
+      {showCbctModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 text-left"
+          onClick={() => setShowCbctModal(false)}
+        >
+          <div
+            className="w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl border border-gray-200 animate-in fade-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-gray-200 pb-3 mb-4">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">🩻</span>
+                <h3 className="font-bold text-gray-900 text-sm">
+                  {t.upload.cbctModalTitle}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCbctModal(false)}
+                className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs text-gray-600 leading-relaxed mb-5">
+              <div className="rounded-lg bg-blue-50/70 border border-blue-100 p-3">
+                <p className="font-bold text-blue-900 mb-1">
+                  {t.upload.cbctModalStep1Title}
+                </p>
+                <p className="text-gray-700">
+                  {t.upload.cbctModalStep1Desc}
+                </p>
+              </div>
+
+              <div className="rounded-lg bg-green-50/70 border border-green-100 p-3">
+                <p className="font-bold text-green-900 mb-1">
+                  {t.upload.cbctModalStep2Title}
+                </p>
+                <p className="text-gray-700">
+                  {t.upload.cbctModalStep2Desc}
+                </p>
+              </div>
+
+              <p className="text-[11px] text-gray-500 italic bg-gray-50 p-2.5 rounded border border-gray-200">
+                {t.upload.cbctModalNote}
+              </p>
+            </div>
+
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowCbctModal(false)}
+                className="rounded-lg bg-blue-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 transition-colors"
+              >
+                {t.common.ok}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

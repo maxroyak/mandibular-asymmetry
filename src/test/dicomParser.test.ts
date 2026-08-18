@@ -230,6 +230,7 @@ describe("DICOM Dataset Extraction & Canvas Rendering", () => {
     expect(result.autoCalibration).not.toBeNull();
     expect(result.autoCalibration?.mmPerPixel).toBe(0.125);
     expect(result.autoCalibration?.realDistanceMm).toBe(12.5);
+    expect(result.autoCalibration?.source).toBe("dicom");
     expect(result.width).toBe(16);
     expect(result.height).toBe(16);
   });

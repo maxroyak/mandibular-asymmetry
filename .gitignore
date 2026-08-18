@@ -6,4 +6,5 @@ TASKS.md
 DECISIONS.md
 tasks/
 *.tsbuildinfo
+.DS_Store
 

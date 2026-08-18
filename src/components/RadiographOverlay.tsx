@@ -87,8 +87,9 @@ export function RadiographOverlay({
   // Precision dimension calculations based on pixel viewBox
   const lineBaseStroke = Math.max(1.8, natW * 0.0025);
   const lineHoverStroke = Math.max(3, natW * 0.0045);
-  const markerRadius = Math.max(3.5, natW * 0.0038);     // Precision 3.5px-4px visible dot
-  const focalDotRadius = Math.max(1, natW * 0.001);       // 1px center focal pinpoint
+  const markerRadius = Math.max(3, natW * 0.0035);        // Precision 3px-4px visible dot
+  const focalDotRadius = Math.max(0.8, natW * 0.0008);    // Center focal pinpoint dot
+  const crossLength = Math.max(3.5, natW * 0.004);        // Subtle 1px center hair-cross length
   const hitAreaRadius = Math.max(14, natW * 0.016);       // Large 14px-16px drag target
   const activeRingRadius = Math.max(16, natW * 0.018);
   const fontSize = Math.max(11, natW * 0.011);
@@ -279,7 +280,7 @@ export function RadiographOverlay({
             />
           )}
 
-          {/* Small precision visible marker (TRUE CIRCLE, 3.5px) */}
+          {/* Small precision visible marker (TRUE CIRCLE, 3-4px) */}
           <circle
             cx={calibrationPoints.point1.x * natW}
             cy={calibrationPoints.point1.y * natH}
@@ -287,6 +288,26 @@ export function RadiographOverlay({
             fill={point1Confirmed ? "#10b981" : "#fbbf24"}
             stroke="white"
             strokeWidth={Math.max(1, natW * 0.001)}
+            style={{ pointerEvents: "none" }}
+          />
+
+          {/* Precision 1px center hair-cross */}
+          <line
+            x1={calibrationPoints.point1.x * natW - crossLength}
+            y1={calibrationPoints.point1.y * natH}
+            x2={calibrationPoints.point1.x * natW + crossLength}
+            y2={calibrationPoints.point1.y * natH}
+            stroke="rgba(255,255,255,0.9)"
+            strokeWidth={Math.max(1, natW * 0.0008)}
+            style={{ pointerEvents: "none" }}
+          />
+          <line
+            x1={calibrationPoints.point1.x * natW}
+            y1={calibrationPoints.point1.y * natH - crossLength}
+            x2={calibrationPoints.point1.x * natW}
+            y2={calibrationPoints.point1.y * natH + crossLength}
+            stroke="rgba(255,255,255,0.9)"
+            strokeWidth={Math.max(1, natW * 0.0008)}
             style={{ pointerEvents: "none" }}
           />
 
@@ -355,7 +376,7 @@ export function RadiographOverlay({
             />
           )}
 
-          {/* Small precision visible marker (TRUE CIRCLE, 3.5px) */}
+          {/* Small precision visible marker (TRUE CIRCLE, 3-4px) */}
           <circle
             cx={calibrationPoints.point2.x * natW}
             cy={calibrationPoints.point2.y * natH}
@@ -363,6 +384,26 @@ export function RadiographOverlay({
             fill={point2Confirmed ? "#10b981" : "#fbbf24"}
             stroke="white"
             strokeWidth={Math.max(1, natW * 0.001)}
+            style={{ pointerEvents: "none" }}
+          />
+
+          {/* Precision 1px center hair-cross */}
+          <line
+            x1={calibrationPoints.point2.x * natW - crossLength}
+            y1={calibrationPoints.point2.y * natH}
+            x2={calibrationPoints.point2.x * natW + crossLength}
+            y2={calibrationPoints.point2.y * natH}
+            stroke="rgba(255,255,255,0.9)"
+            strokeWidth={Math.max(1, natW * 0.0008)}
+            style={{ pointerEvents: "none" }}
+          />
+          <line
+            x1={calibrationPoints.point2.x * natW}
+            y1={calibrationPoints.point2.y * natH - crossLength}
+            x2={calibrationPoints.point2.x * natW}
+            y2={calibrationPoints.point2.y * natH + crossLength}
+            stroke="rgba(255,255,255,0.9)"
+            strokeWidth={Math.max(1, natW * 0.0008)}
             style={{ pointerEvents: "none" }}
           />
 
@@ -444,7 +485,7 @@ export function RadiographOverlay({
               />
             )}
 
-            {/* Small precision visible marker (TRUE CIRCLE, 3.5px) */}
+            {/* Small precision visible marker (TRUE CIRCLE, 3-4px) */}
             <circle
               cx={px}
               cy={py}
@@ -452,6 +493,26 @@ export function RadiographOverlay({
               fill={color}
               stroke="white"
               strokeWidth={Math.max(1, natW * 0.001)}
+              style={{ pointerEvents: "none" }}
+            />
+
+            {/* Precision 1px center hair-cross */}
+            <line
+              x1={px - crossLength}
+              y1={py}
+              x2={px + crossLength}
+              y2={py}
+              stroke="rgba(255,255,255,0.9)"
+              strokeWidth={Math.max(1, natW * 0.0008)}
+              style={{ pointerEvents: "none" }}
+            />
+            <line
+              x1={px}
+              y1={py - crossLength}
+              x2={px}
+              y2={py + crossLength}
+              stroke="rgba(255,255,255,0.9)"
+              strokeWidth={Math.max(1, natW * 0.0008)}
               style={{ pointerEvents: "none" }}
             />
 

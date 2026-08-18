@@ -237,16 +237,21 @@ export function parseDicomFile(buffer: ArrayBuffer): DicomParseResult {
   const dataSet = dicomParser.parseDicom(byteArray);
   const metadata = extractDicomMetadata(dataSet);
 
+  const { dataUrl, width, height } = renderDicomToCanvas(dataSet, metadata);
+
   let autoCalibration: Calibration | null = null;
   if (metadata.mmPerPixel && metadata.mmPerPixel > 0 && metadata.mmPerPixel < 5) {
+    const origWidth = metadata.columns || width;
+    const scaleFactor = origWidth > 0 ? width / origWidth : 1;
+    const effectiveMmPerPixel = metadata.mmPerPixel / scaleFactor;
+
     autoCalibration = {
       pixelDistance: 100,
-      realDistanceMm: metadata.mmPerPixel * 100,
-      mmPerPixel: metadata.mmPerPixel,
+      realDistanceMm: effectiveMmPerPixel * 100,
+      mmPerPixel: effectiveMmPerPixel,
+      source: "dicom",
     };
   }
-
-  const { dataUrl, width, height } = renderDicomToCanvas(dataSet, metadata);
 
   return {
     metadata,
