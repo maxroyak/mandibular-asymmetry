@@ -26,6 +26,7 @@ export function AnalysisPage() {
   const newStudy = useStudyStore((s) => s.newStudy);
 
   const [isReportOpen, setIsReportOpen] = useState(false);
+  const [showDiscardModal, setShowDiscardModal] = useState(false);
   const t = getTranslations(language);
 
   const handleSaveStudy = async () => {
@@ -35,10 +36,14 @@ export function AnalysisPage() {
 
   const handleNewStudy = () => {
     if (!isSaved && studyId) {
-      if (!confirm(t.studyManager.discardStudyConfirm)) {
-        return;
-      }
+      setShowDiscardModal(true);
+      return;
     }
+    newStudy();
+  };
+
+  const handleConfirmNewStudy = () => {
+    setShowDiscardModal(false);
     newStudy();
   };
 
@@ -171,6 +176,41 @@ export function AnalysisPage() {
         isOpen={isReportOpen}
         onClose={() => setIsReportOpen(false)}
       />
+
+      {/* Discard Unsaved Changes Confirmation Modal */}
+      {showDiscardModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="discard-modal-title"
+        >
+          <div className="w-full max-w-sm rounded-xl bg-white p-5 shadow-2xl border border-gray-200 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-2.5 text-amber-600 mb-2">
+              <span className="text-xl" aria-hidden="true">⚠️</span>
+              <h3 id="discard-modal-title" className="font-bold text-gray-900 text-sm">
+                {t.studyManager.discardStudyConfirm}
+              </h3>
+            </div>
+            <div className="flex items-center justify-end gap-2 mt-4">
+              <button
+                type="button"
+                onClick={() => setShowDiscardModal(false)}
+                className="rounded-lg px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors cursor-pointer"
+              >
+                {t.common.cancel}
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmNewStudy}
+                className="rounded-lg px-3 py-1.5 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 shadow-xs transition-colors cursor-pointer"
+              >
+                {t.studyManager.newStudy}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

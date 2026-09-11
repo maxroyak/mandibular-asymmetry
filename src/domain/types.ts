@@ -61,19 +61,6 @@ export type CalibrationStage =
 /** Larger measured side determination */
 export type LargerSide = "right" | "left" | "equal";
 
-/**
- * Asymmetry classification tiers.
- * @deprecated The 3-tier classification system has been REMOVED per PIBot
- * threshold validation (docs/threshold-validation.md). The `classifyAsymmetry`
- * function has been removed. `MeasurementResult.classification` is now always
- * null. This type is retained only for structural compatibility with stored
- * legacy data and should not be used for new classifications.
- */
-export type AsymmetryTier =
-  | "within_typical_range"
-  | "borderline"
-  | "above_technical_error_margin";
-
 /** Side difference result */
 export interface SideDifference {
   difference: number; // R − L (signed)
@@ -89,7 +76,6 @@ export interface MeasurementResult {
   relativeDifferencePercent: number; // |R−L| / max(R,L) × 100
   asymmetryIndexPercent: number; // |R−L| / (R+L) × 100 (absolute)
   largerSide: LargerSide;
-  classification: AsymmetryTier | null; // Always null — 3-tier system removed per PIBot
   rightMm: number | null; // null when uncalibrated
   leftMm: number | null; // null when uncalibrated
 }

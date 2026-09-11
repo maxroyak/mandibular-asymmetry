@@ -28,6 +28,7 @@ export function StudyManager() {
   const [persistenceError, setPersistenceError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [showClearAllModal, setShowClearAllModal] = useState(false);
+  const [studyToDelete, setStudyToDelete] = useState<string | null>(null);
 
   // Check for persistence errors after save operations
   useEffect(() => {
@@ -49,9 +50,20 @@ export function StudyManager() {
     setShowList(false);
   };
 
-  const handleDelete = async (id: string) => {
-    if (confirm(t.studyManager.deleteStudyConfirm)) {
-      await deleteStudy(id);
+  const handleDelete = (id: string) => {
+    setStudyToDelete(id);
+  };
+
+  const handleConfirmDeleteSingle = async () => {
+    if (studyToDelete) {
+      setIsLoading(true);
+      try {
+        await deleteStudy(studyToDelete);
+        setStudyToDelete(null);
+      } catch {
+        setPersistenceError(t.studyManager.loadFailedError);
+      }
+      setIsLoading(false);
     }
   };
 
@@ -206,11 +218,16 @@ export function StudyManager() {
 
       {/* Clear All Confirmation Modal */}
       {showClearAllModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="clear-all-modal-title"
+        >
           <div className="w-full max-w-sm rounded-xl bg-white p-5 shadow-2xl border border-gray-200 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center gap-2.5 text-red-600 mb-2">
-              <span className="text-xl">🗑️</span>
-              <h3 className="font-bold text-gray-900 text-sm">
+              <span className="text-xl" aria-hidden="true">🗑️</span>
+              <h3 id="clear-all-modal-title" className="font-bold text-gray-900 text-sm">
                 {t.studyManager.clearAllConfirmTitle}
               </h3>
             </div>
@@ -221,16 +238,51 @@ export function StudyManager() {
               <button
                 type="button"
                 onClick={() => setShowClearAllModal(false)}
-                className="rounded-lg px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors"
+                className="rounded-lg px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors cursor-pointer"
               >
                 {t.common.cancel}
               </button>
               <button
                 type="button"
                 onClick={handleConfirmClearAll}
-                className="rounded-lg px-3 py-1.5 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 shadow-xs transition-colors"
+                className="rounded-lg px-3 py-1.5 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 shadow-xs transition-colors cursor-pointer"
               >
                 {t.studyManager.clearAllConfirmAction}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Single Study Confirmation Modal */}
+      {studyToDelete && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-study-modal-title"
+        >
+          <div className="w-full max-w-sm rounded-xl bg-white p-5 shadow-2xl border border-gray-200 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-2.5 text-red-600 mb-2">
+              <span className="text-xl" aria-hidden="true">🗑️</span>
+              <h3 id="delete-study-modal-title" className="font-bold text-gray-900 text-sm">
+                {t.studyManager.deleteStudyConfirm}
+              </h3>
+            </div>
+            <div className="flex items-center justify-end gap-2 mt-4">
+              <button
+                type="button"
+                onClick={() => setStudyToDelete(null)}
+                className="rounded-lg px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors cursor-pointer"
+              >
+                {t.common.cancel}
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteSingle}
+                className="rounded-lg px-3 py-1.5 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 shadow-xs transition-colors cursor-pointer"
+              >
+                {t.common.delete}
               </button>
             </div>
           </div>

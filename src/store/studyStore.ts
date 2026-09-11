@@ -36,13 +36,17 @@ import {
 import { detectMandibularLandmarks } from "../domain/ai/landmarkDetector";
 
 function getInitialLanguage(): Locale {
+  let lang: Locale = "en";
   try {
     const stored = localStorage.getItem("ma.language");
-    if (stored === "ru" || stored === "en") return stored;
+    if (stored === "ru" || stored === "en") lang = stored;
   } catch {
     // localStorage unavailable (e.g. test environments)
   }
-  return "en";
+  if (typeof document !== "undefined" && document.documentElement) {
+    document.documentElement.lang = lang;
+  }
+  return lang;
 }
 
 // ── Store State ─────────────────────────────────────────────
@@ -196,8 +200,7 @@ function computeSingleMeasurement(
   leftB: Point | undefined,
   calibration: Calibration | null,
   imageWidth: number,
-  imageHeight: number,
-  _isHorizontal: boolean
+  imageHeight: number
 ): MeasurementResult | null {
   if (!rightA || !rightB || !leftA || !leftB) return null;
 
@@ -207,22 +210,15 @@ function computeSingleMeasurement(
   const habets = calculateAsymmetryIndex(rightNorm, leftNorm);
   const relDiff = calculateRelativeDifference(rightNorm, leftNorm);
   const larger = determineLargerSide(rightNorm, leftNorm);
-  // 3-tier classification system removed per PIBot threshold validation.
-  // Classification is always null for all measurements.
-  const tier = null;
   const diff = calculateSideDifference(rightNorm, leftNorm);
 
-  // Calibrated: convert to mm
-  // Convert normalized → image pixels (using both dimensions for correct Euclidean)
-  // Then pixels → mm via mmPerPixel
-  // Full floating-point precision stored — display layer uses toFixed(1)
+  // Calibrated: convert to mm via domain function
   let rightMm: number | null = null;
   let leftMm: number | null = null;
   if (calibration) {
-    const rightPx = rightNorm * Math.max(imageWidth, imageHeight);
-    const leftPx = leftNorm * Math.max(imageWidth, imageHeight);
-    rightMm = rightPx * calibration.mmPerPixel;
-    leftMm = leftPx * calibration.mmPerPixel;
+    const maxDim = Math.max(imageWidth, imageHeight);
+    rightMm = rightNorm * maxDim * calibration.mmPerPixel;
+    leftMm = leftNorm * maxDim * calibration.mmPerPixel;
   }
 
   return {
@@ -233,7 +229,6 @@ function computeSingleMeasurement(
     relativeDifferencePercent: relDiff,
     asymmetryIndexPercent: habets,
     largerSide: larger,
-    classification: tier,
     rightMm,
     leftMm,
   };
@@ -253,8 +248,7 @@ function computeMeasurements(
     landmarks.GoL,
     calibration,
     imageWidth,
-    imageHeight,
-    false // isHorizontal = false — vertical measurement, apply classification
+    imageHeight
   );
 
   // Body length: GoR→Me (right), GoL→Me (left) — horizontal measurement
@@ -265,8 +259,7 @@ function computeMeasurements(
     landmarks.Me,
     calibration,
     imageWidth,
-    imageHeight,
-    true // isHorizontal = true — horizontal measurement, no classification
+    imageHeight
   );
 
   return { ramusHeight, bodyLength };
@@ -357,6 +350,9 @@ export const useStudyStore = create<Store>()(
         localStorage.setItem("ma.language", lang);
       } catch {
         // ignore in test/restricted environments
+      }
+      if (typeof document !== "undefined" && document.documentElement) {
+        document.documentElement.lang = lang;
       }
       set({ language: lang });
       get().recalculate();
@@ -542,43 +538,68 @@ export const useStudyStore = create<Store>()(
 
     // ── AI Landmark Detection ──
     detectLandmarksAi: async () => {
-      const state = get();
-      if (!state.imageDataUrl) return;
+      const initialStudyId = get().studyId;
+      const initialImageUrl = get().imageDataUrl;
+      if (!initialImageUrl) return;
       set({ isAiDetecting: true });
 
       // Small async yield for realistic UI progress indicator
       await new Promise((resolve) => setTimeout(resolve, 200));
 
+      // Guard against study change during initial yield
+      if (get().studyId !== initialStudyId || get().imageDataUrl !== initialImageUrl) {
+        set({ isAiDetecting: false });
+        return;
+      }
+
       let pixelData: Uint8ClampedArray | null = null;
       if (
         typeof window !== "undefined" &&
         typeof document !== "undefined" &&
-        state.imageDataUrl &&
-        !state.imageDataUrl.startsWith("data:image/svg+xml")
+        initialImageUrl &&
+        !initialImageUrl.startsWith("data:image/svg+xml")
       ) {
         try {
           const img = new Image();
-          img.crossOrigin = "anonymous";
-          img.src = state.imageDataUrl;
-          await new Promise<void>((resolve) => {
-            if (img.complete && img.naturalWidth > 0) {
-              resolve();
-              return;
+          if (!initialImageUrl.startsWith("data:")) {
+            img.crossOrigin = "anonymous";
+          }
+          img.src = initialImageUrl;
+          if (typeof img.decode === "function") {
+            try {
+              await img.decode();
+            } catch {
+              // decode fallback to onload
             }
-            const timer = setTimeout(() => resolve(), 30);
-            img.onload = () => {
-              clearTimeout(timer);
-              resolve();
-            };
-            img.onerror = () => {
-              clearTimeout(timer);
-              resolve();
-            };
-          });
+          }
+          if (!img.complete || img.naturalWidth === 0) {
+            await new Promise<void>((resolve) => {
+              if (img.complete && img.naturalWidth > 0) {
+                resolve();
+                return;
+              }
+              const timer = setTimeout(() => resolve(), 2000);
+              img.onload = () => {
+                clearTimeout(timer);
+                resolve();
+              };
+              img.onerror = () => {
+                clearTimeout(timer);
+                resolve();
+              };
+            });
+          }
+
+          // Guard against study change during async image load/decode
+          if (get().studyId !== initialStudyId || get().imageDataUrl !== initialImageUrl) {
+            set({ isAiDetecting: false });
+            return;
+          }
+
           if (img.naturalWidth > 0) {
             const canvas = document.createElement("canvas");
-            const w = state.imageNaturalWidth || img.naturalWidth || 1000;
-            const h = state.imageNaturalHeight || img.naturalHeight || 500;
+            const w = get().imageNaturalWidth || img.naturalWidth || 1000;
+            const h = get().imageNaturalHeight || img.naturalHeight || 500;
             canvas.width = w;
             canvas.height = h;
             const ctx = canvas.getContext("2d");
@@ -586,25 +607,35 @@ export const useStudyStore = create<Store>()(
               ctx.drawImage(img, 0, 0, w, h);
               pixelData = ctx.getImageData(0, 0, w, h).data;
             }
+          } else {
+            console.warn("AI landmark detection: Image width is 0 after decode/load, falling back to geometric proposal.");
           }
-        } catch {
-          // Gracefully fallback without pixel data
+        } catch (err) {
+          console.warn("AI landmark detection: Canvas pixel extraction failed, using geometric fallback.", err);
         }
       }
 
+      // Final guard check before applying detection
+      if (get().studyId !== initialStudyId || get().imageDataUrl !== initialImageUrl) {
+        set({ isAiDetecting: false });
+        return;
+      }
+
+      const freshState = get();
       const detection = detectMandibularLandmarks(
-        state.imageNaturalWidth,
-        state.imageNaturalHeight,
+        freshState.imageNaturalWidth,
+        freshState.imageNaturalHeight,
         { pixelData, isDicom: false }
       );
 
-      const newLandmarks = { ...get().landmarks, ...detection.landmarks };
+      const newLandmarks = { ...freshState.landmarks, ...detection.landmarks };
       const candidateFlags: Partial<Record<LandmarkName, boolean>> = {};
       for (const name of Object.keys(detection.landmarks) as LandmarkName[]) {
         candidateFlags[name] = true;
       }
 
       set((curr) => {
+        if (curr.studyId !== initialStudyId) return curr;
         const measurements = computeMeasurements(
           newLandmarks,
           curr.calibration,
@@ -616,7 +647,7 @@ export const useStudyStore = create<Store>()(
           landmarks: newLandmarks,
           aiCandidateLandmarks: candidateFlags,
           measurements,
-          mandibularResult: computeMandibularResult(measurements),
+          mandibularResult: computeMandibularResult(measurements, curr.language),
           isSaved: false,
           updatedAt: new Date().toISOString(),
         };
@@ -1021,24 +1052,20 @@ export const useStudyStore = create<Store>()(
   }))
 );
 
-// ── Initialize study list on module load ────────────────────
-useStudyStore.getState().refreshStudyList();
-
-// ── Migrate legacy localStorage images to IndexedDB on load ──
-// This is async and non-blocking — runs in the background.
-// Safe to call multiple times; no-op if already migrated.
-useStudyStore.getState().migrateLegacyImages();
-
-// ── Auto-load last active study on startup ──────────────────
-// Restores the study the user was working on before page reload.
-// Reads ma.currentStudyId from localStorage, loads metadata (sync)
-// and image from IndexedDB (async). No-op if no current study or
-// the study no longer exists. Must run after refreshStudyList so
-// the study sidebar is populated.
-// Wrapped in try/catch because localStorage may not be available
-// during module load in some test environments (jsdom without mock
-// yet set up). The App component also calls loadCurrentStudy() in a
-// useEffect as a fallback.
-void useStudyStore.getState().loadCurrentStudy().catch(() => {
-  // localStorage or IndexedDB not ready — App.tsx useEffect will retry
-});
+// ── Store Initialization ────────────────────────────────────
+// Initializes study list, migrates legacy localStorage images to IndexedDB,
+// and auto-loads the last active study.
+// Called explicitly from App.tsx useEffect — NOT at module load time,
+// so test environments that import the store do not trigger side effects.
+export function initStudyStore(): void {
+  if (typeof window === "undefined") return;
+  try {
+    useStudyStore.getState().refreshStudyList();
+    useStudyStore.getState().migrateLegacyImages();
+    void useStudyStore.getState().loadCurrentStudy().catch(() => {
+      // Storage not ready — App.tsx useEffect will retry
+    });
+  } catch {
+    // Storage unavailable in test/SSR environment
+  }
+}

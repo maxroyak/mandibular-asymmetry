@@ -78,8 +78,16 @@ export function calculateAsymmetryIndex(right: number, left: number): number {
 }
 
 /**
- * Determine which side is larger.
- * "equal" if relative difference ≤ 0.5%.
+ * Determine which side is larger based on normalized / percentage differences.
+ *
+ * Threshold design note:
+ * - `determineLargerSide` operates on dimensionless normalized distances / percentage
+ *   differences. A threshold of relative difference ≤ 0.5% is treated as "equal"
+ *   to filter out minor sub-pixel drawing variance in uncalibrated mode.
+ * - In contrast, `determineLongerSide` operates on calibrated physical metric values in mm,
+ *   where an absolute difference ≤ 0.5 mm is treated as "equal" to account for the spatial
+ *   resolution and landmark placement precision on clinical radiographs.
+ *
  * @returns "right" | "left" | "equal"
  */
 export function determineLargerSide(right: number, left: number): LargerSide {
@@ -87,21 +95,6 @@ export function determineLargerSide(right: number, left: number): LargerSide {
   if (relDiff <= 0.5) return "equal";
   return right > left ? "right" : "left";
 }
-
-// NOTE: The classifyAsymmetry function and the 3-tier classification system
-// (within_typical_range / borderline / above_technical_error_margin) have been
-// REMOVED per PIBot threshold validation (docs/threshold-validation.md).
-// The 3% threshold was derived from condylar height (Co-Sn), not Co-Go.
-// The 6% threshold is a vertical magnification error margin, not a validated
-// diagnostic boundary. Classification is now always null for all measurements.
-// TIER_LABELS and TIER_GUIDANCE are retained as empty/deprecated stubs for
-// backward compatibility with any code that may still import them.
-
-/** @deprecated The 3-tier classification system has been removed. */
-export const TIER_LABELS: Record<string, string> = {};
-
-/** @deprecated The 3-tier classification system has been removed. */
-export const TIER_GUIDANCE: Record<string, string> = {};
 
 /** Label for unclassified measurements — shown instead of a tier badge */
 export const UNCLASSIFIED_LABEL = "Not classified — no validated threshold";
@@ -123,29 +116,6 @@ export function computeMmPerPixel(
   return realDistanceMm / pixelDistance;
 }
 
-/**
- * Convert a normalized distance (0.0–1.0) to millimeters using calibration.
- * normalizedDistance → image pixels → mm
- * pixelDistance = normalizedDistance × max(imageWidth, imageHeight)
- * mmDistance = pixelDistance × mmPerPixel
- * @param normalizedDistance - distance in normalized units (0.0–1.0)
- * @param imageWidth - image width in pixels
- * @param imageHeight - image height in pixels
- * @param mmPerPixel - calibration factor
- * @returns distance in mm, rounded to 1 decimal place
- */
-export function convertDistanceToMm(
-  normalizedDistance: number,
-  imageWidth: number,
-  imageHeight: number,
-  mmPerPixel: number
-): number {
-  const pixelDistance = normalizedDistance * Math.max(imageWidth, imageHeight);
-  const mm = pixelDistance * mmPerPixel;
-  // Store full floating-point precision — display layer uses toFixed(1)
-  return mm;
-}
-
 // ── Bilateral mm Measurement Functions (Part 2) ────────────
 
 /**
@@ -158,7 +128,23 @@ export function calculateDifferenceMm(rightMm: number, leftMm: number): number {
 
 /**
  * Determine which side is longer based on mm values.
- * Threshold: >0.5 mm difference → "right" or "left"; ≤0.5 mm → "equal".
+ *
+ * Threshold design note (dual-threshold system — intentional):
+ * - `determineLongerSide` operates on calibrated physical values in millimetres.
+ *   An absolute difference ≤ 0.5 mm is treated as "equal" to account for the
+ *   spatial resolution and landmark placement precision on clinical radiographs.
+ * - In contrast, `determineLargerSide` operates on dimensionless normalised
+ *   distances / percentage differences and uses a relative threshold (≤ 0.5 %)
+ *   to filter sub-pixel drawing variance in uncalibrated mode.
+ * - The two thresholds use different units (mm vs. %) because they serve
+ *   different analytical contexts: `determineLongerSide` feeds the bilateral
+ *   mm comparison conclusion, while `determineLargerSide` feeds the Habets
+ *   asymmetry index display.  For the same measurement pair it is possible
+ *   — and correct — for one to return "equal" while the other returns a
+ *   side, because the significance of a 0.3 mm difference depends on
+ *   absolute size, whereas a 0.3 % relative difference is always negligible.
+ *
+ * @returns "right" | "left" | "equal"
  */
 export function determineLongerSide(
   rightMm: number,
@@ -424,10 +410,6 @@ export function generateMandibularAsymmetryConclusion(
     " Ramus and mandibular body lengths are approximately equal in the current projection."
   );
 }
-
-// ── Tier Labels and Guidance (DEPRECATED) ───────────────────
-// The 3-tier classification system has been removed per PIBot threshold
-// validation. See note above. TIER_LABELS and TIER_GUIDANCE are empty stubs.
 
 // ── Mandatory Limitation Statements ─────────────────────────
 

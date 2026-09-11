@@ -98,10 +98,10 @@ describe("Integration — full workflow", () => {
     expect(store().measurements).not.toBeNull();
     expect(store().measurements!.ramusHeight).not.toBeNull();
     expect(store().measurements!.bodyLength).not.toBeNull();
-    // Ramus and body both have classification=null (3-tier system removed per PIBot)
-    expect(store().measurements!.ramusHeight!.classification).toBeNull();
-    // Body is horizontal → should NOT have classification
-    expect(store().measurements!.bodyLength!.classification).toBeNull();
+    // Ramus and body do not have a classification field (3-tier system removed per PIBot)
+    expect("classification" in store().measurements!.ramusHeight!).toBe(false);
+    // Body also does not have classification
+    expect("classification" in store().measurements!.bodyLength!).toBe(false);
     // Without calibration, mm values should be null
     expect(store().measurements!.ramusHeight!.rightMm).toBeNull();
     expect(store().measurements!.ramusHeight!.leftMm).toBeNull();

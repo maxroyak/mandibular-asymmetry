@@ -44,8 +44,27 @@ function getDB(): Promise<IDBDatabase> {
       }
     };
 
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error ?? new Error("Failed to open IndexedDB"));
+    request.onsuccess = () => {
+      const db = request.result;
+      db.onclose = () => {
+        dbPromise = null;
+      };
+      db.onversionchange = () => {
+        db.close();
+        dbPromise = null;
+      };
+      resolve(db);
+    };
+
+    request.onerror = () => {
+      dbPromise = null;
+      reject(request.error ?? new Error("Failed to open IndexedDB"));
+    };
+
+    request.onblocked = () => {
+      dbPromise = null;
+      reject(new Error("IndexedDB connection was blocked"));
+    };
   });
 
   return dbPromise;

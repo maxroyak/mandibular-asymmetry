@@ -5,6 +5,9 @@ dist/
 TASKS.md
 DECISIONS.md
 tasks/
+worklog.md
 *.tsbuildinfo
 .DS_Store
+vite.config.js
+vite.config.d.ts
 

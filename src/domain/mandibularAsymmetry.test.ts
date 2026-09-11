@@ -9,7 +9,6 @@ import {
   UNCLASSIFIED_LABEL,
   LIMITATION_HEADER,
   LIMITATION_FOOTER,
-  convertDistanceToMm,
   computeMmPerPixel,
   calculateDifferenceMm,
   determineLongerSide,
@@ -24,6 +23,17 @@ import type {
   MeasurementResult,
   Calibration,
 } from "../domain/types";
+
+// Inline helper: converts normalized distance to mm (same formula previously
+// in the domain function convertDistanceToMm, now removed as dead code).
+function convertToMm(
+  normalizedDistance: number,
+  imageWidth: number,
+  imageHeight: number,
+  mmPerPixel: number
+): number {
+  return normalizedDistance * Math.max(imageWidth, imageHeight) * mmPerPixel;
+}
 
 // ── calculateDistance ──────────────────────────────────────
 
@@ -191,10 +201,10 @@ describe("determineLargerSide", () => {
   });
 });
 
-// ── Classification is always null (PIBot threshold validation) ──
+// ── Classification field removed (PIBot threshold validation) ──
 
-describe("Classification is always null", () => {
-  it("MeasurementResult.classification is null for ramus measurements", () => {
+describe("Classification field is absent from MeasurementResult", () => {
+  it("MeasurementResult does not have a classification field for ramus measurements", () => {
     const ramusResult: MeasurementResult = {
       right: 0.55,
       left: 0.50,
@@ -203,14 +213,13 @@ describe("Classification is always null", () => {
       relativeDifferencePercent: 9.1,
       asymmetryIndexPercent: 4.8,
       largerSide: "right",
-      classification: null,
       rightMm: null,
       leftMm: null,
     };
-    expect(ramusResult.classification).toBe(null);
+    expect("classification" in ramusResult).toBe(false);
   });
 
-  it("MeasurementResult.classification is null for body measurements", () => {
+  it("MeasurementResult does not have a classification field for body measurements", () => {
     const bodyLengthResult: MeasurementResult = {
       right: 0.35,
       left: 0.37,
@@ -219,11 +228,10 @@ describe("Classification is always null", () => {
       relativeDifferencePercent: 5.4,
       asymmetryIndexPercent: 2.8,
       largerSide: "left",
-      classification: null,
       rightMm: null,
       leftMm: null,
     };
-    expect(bodyLengthResult.classification).toBe(null);
+    expect("classification" in bodyLengthResult).toBe(false);
   });
 
   it("UNCLASSIFIED_LABEL is defined for all measurements", () => {
@@ -246,7 +254,6 @@ describe("generateClinicalSummary", () => {
       relativeDifferencePercent: 9.1,
       asymmetryIndexPercent: 4.8,
       largerSide: "right",
-      classification: null,
       rightMm: null,
       leftMm: null,
       ...overrides,
@@ -390,8 +397,8 @@ describe("generateClinicalSummary", () => {
 
   it("does NOT include tier guidance for any measurement (removed per PIBot)", () => {
     const results: FullResults = {
-      ramusHeight: makeResult({ classification: null }),
-      bodyLength: makeResult({ classification: null }),
+      ramusHeight: makeResult(),
+      bodyLength: makeResult(),
       calibration: null,
       calibrationMode: "A",
     };
@@ -672,8 +679,8 @@ describe("UNCLASSIFIED_LABEL", () => {
   });
 });
 
-describe("Body length and ramus classification are always null", () => {
-  it("MeasurementResult with classification=null represents unclassified body length", () => {
+describe("Body length and ramus have no classification field", () => {
+  it("MeasurementResult for body length has no classification field", () => {
     const bodyLengthResult: MeasurementResult = {
       right: 0.35,
       left: 0.37,
@@ -682,14 +689,13 @@ describe("Body length and ramus classification are always null", () => {
       relativeDifferencePercent: 5.4,
       asymmetryIndexPercent: 2.8,
       largerSide: "left",
-      classification: null,
       rightMm: null,
       leftMm: null,
     };
-    expect(bodyLengthResult.classification).toBe(null);
+    expect("classification" in bodyLengthResult).toBe(false);
   });
 
-  it("MeasurementResult for ramus height also has classification=null", () => {
+  it("MeasurementResult for ramus height has no classification field", () => {
     const ramusResult: MeasurementResult = {
       right: 0.55,
       left: 0.50,
@@ -698,11 +704,10 @@ describe("Body length and ramus classification are always null", () => {
       relativeDifferencePercent: 9.1,
       asymmetryIndexPercent: 4.8,
       largerSide: "right",
-      classification: null,
       rightMm: null,
       leftMm: null,
     };
-    expect(ramusResult.classification).toBe(null);
+    expect("classification" in ramusResult).toBe(false);
   });
 });
 
@@ -729,37 +734,37 @@ describe("computeMmPerPixel", () => {
   });
 });
 
-describe("convertDistanceToMm", () => {
+describe("convertToMm", () => {
   const mmPerPixel = 0.08;
 
   it("converts normalized distance to mm correctly", () => {
     // normalizedDistance = 0.5, image 1000×800
     // pixelDistance = 0.5 × max(1000, 800) = 0.5 × 1000 = 500
     // mm = 500 × 0.08 = 40.0
-    const result = convertDistanceToMm(0.5, 1000, 800, mmPerPixel);
+    const result = convertToMm(0.5, 1000, 800, mmPerPixel);
     expect(result).toBe(40.0);
   });
 
   it("returns 0 for zero normalized distance", () => {
-    expect(convertDistanceToMm(0, 1000, 800, mmPerPixel)).toBe(0);
+    expect(convertToMm(0, 1000, 800, mmPerPixel)).toBe(0);
   });
 
   it("handles full normalized distance (1.0)", () => {
     // pixelDistance = 1.0 × 1000 = 1000 → mm = 1000 × 0.08 = 80.0
-    expect(convertDistanceToMm(1.0, 1000, 800, mmPerPixel)).toBe(80.0);
+    expect(convertToMm(1.0, 1000, 800, mmPerPixel)).toBe(80.0);
   });
 
   it("uses max(imageWidth, imageHeight) for pixel conversion", () => {
     // image 800×1200 → max = 1200
     // pixelDistance = 0.5 × 1200 = 600 → mm = 600 × 0.08 = 48.0
-    expect(convertDistanceToMm(0.5, 800, 1200, mmPerPixel)).toBe(48.0);
+    expect(convertToMm(0.5, 800, 1200, mmPerPixel)).toBe(48.0);
   });
 
   it("returns full floating-point precision (display layer rounds)", () => {
     // normalizedDistance = 0.333, image 1000×800
     // pixelDistance = 0.333 × 1000 = 333 → mm = 333 × 0.08 = 26.64
     // Full precision is returned; the display layer (toFixed(1)) handles rounding.
-    expect(convertDistanceToMm(0.333, 1000, 800, mmPerPixel)).toBe(26.64);
+    expect(convertToMm(0.333, 1000, 800, mmPerPixel)).toBe(26.64);
   });
 
   it("full calibration pipeline: distance → mmPerPixel → mm conversion", () => {
@@ -770,7 +775,7 @@ describe("convertDistanceToMm", () => {
     const pixelDist = normDist * Math.max(imageW, imageH); // 500
     const realMm = 40;
     const mmPerPx = computeMmPerPixel(pixelDist, realMm); // 0.08
-    const mm = convertDistanceToMm(normDist, imageW, imageH, mmPerPx); // 40.0
+    const mm = convertToMm(normDist, imageW, imageH, mmPerPx); // 40.0
     expect(mmPerPx).toBeCloseTo(0.08, 10);
     expect(mm).toBe(40.0);
   });
@@ -1230,7 +1235,7 @@ describe("Measurement pipeline — pixel to mm conversion", () => {
     const a: Point = { x: 0.1, y: 0.1 };
     const b: Point = { x: 0.1, y: 0.3 };
     const normDist = calculateDistance(a, b); // 0.2
-    const mm = convertDistanceToMm(normDist, 1000, 1000, 0.3);
+    const mm = convertToMm(normDist, 1000, 1000, 0.3);
     expect(normDist).toBeCloseTo(0.2, 10);
     // 0.2 × 1000 × 0.3 = 60.0, but FP gives 59.999...986 — use toBeCloseTo
     expect(mm).toBeCloseTo(60.0, 5);
@@ -1242,8 +1247,8 @@ describe("Measurement pipeline — pixel to mm conversion", () => {
     // Image 1000×800, mmPerPixel = 0.3
     const rightNorm = 0.45;
     const leftNorm = 0.42;
-    const rightMm = convertDistanceToMm(rightNorm, 1000, 800, 0.3);
-    const leftMm = convertDistanceToMm(leftNorm, 1000, 800, 0.3);
+    const rightMm = convertToMm(rightNorm, 1000, 800, 0.3);
+    const leftMm = convertToMm(leftNorm, 1000, 800, 0.3);
     // rightMm = 0.45 × 1000 × 0.3 = 135.0
     // leftMm = 0.42 × 1000 × 0.3 = 126.0
     expect(rightMm).toBe(135.0);
@@ -1255,8 +1260,8 @@ describe("Measurement pipeline — pixel to mm conversion", () => {
   it("body measurement through full pipeline", () => {
     // Body length: GoR to Me, GoL to Me (horizontal-ish)
     // Right: normalized 0.35, Left: 0.37
-    const rightMm = convertDistanceToMm(0.35, 1000, 800, 0.3);
-    const leftMm = convertDistanceToMm(0.37, 1000, 800, 0.3);
+    const rightMm = convertToMm(0.35, 1000, 800, 0.3);
+    const leftMm = convertToMm(0.37, 1000, 800, 0.3);
     // rightMm = 0.35 × 1000 × 0.3 = 105.0
     // leftMm = 0.37 × 1000 × 0.3 = 111.0
     expect(rightMm).toBe(105.0);
@@ -1273,7 +1278,7 @@ describe("Measurement pipeline — pixel to mm conversion", () => {
     const b: Point = { x: 0.3, y: 0.4 };
     const normDist = calculateDistance(a, b);
     expect(normDist).toBeCloseTo(0.5, 10);
-    const mm = convertDistanceToMm(normDist, 1000, 1000, 0.3);
+    const mm = convertToMm(normDist, 1000, 1000, 0.3);
     expect(mm).toBe(150.0);
   });
 
@@ -1284,7 +1289,7 @@ describe("Measurement pipeline — pixel to mm conversion", () => {
     const a: Point = { x: 0.0, y: 0.0 };
     const b: Point = { x: 1.0, y: 1.0 };
     const normDist = calculateDistance(a, b);
-    const mm = convertDistanceToMm(normDist, 1000, 1000, 0.3);
+    const mm = convertToMm(normDist, 1000, 1000, 0.3);
     expect(mm).toBeCloseTo(Math.SQRT2 * 1000 * 0.3, 5);
   });
 
@@ -1297,7 +1302,7 @@ describe("Measurement pipeline — pixel to mm conversion", () => {
     const mmPerPixel = computeMmPerPixel(calibPx, calibMm);
     expect(mmPerPixel).toBeCloseTo(0.3, 10);
     // Now measure a line: normalized 0.2, image 1000×1000
-    const measured = convertDistanceToMm(0.2, 1000, 1000, mmPerPixel);
+    const measured = convertToMm(0.2, 1000, 1000, mmPerPixel);
     expect(measured).toBeCloseTo(60.0, 5);
   });
 });
@@ -1329,10 +1334,10 @@ describe("Zoom/pan invariance — mm value must not change", () => {
     const bodyRightNorm = calculateDistance(lm.GoR, lm.Me);
     const bodyLeftNorm = calculateDistance(lm.GoL, lm.Me);
     return {
-      ramusRightMm: convertDistanceToMm(ramusRightNorm, imageW, imageH, mmPerPixel),
-      ramusLeftMm: convertDistanceToMm(ramusLeftNorm, imageW, imageH, mmPerPixel),
-      bodyRightMm: convertDistanceToMm(bodyRightNorm, imageW, imageH, mmPerPixel),
-      bodyLeftMm: convertDistanceToMm(bodyLeftNorm, imageW, imageH, mmPerPixel),
+      ramusRightMm: convertToMm(ramusRightNorm, imageW, imageH, mmPerPixel),
+      ramusLeftMm: convertToMm(ramusLeftNorm, imageW, imageH, mmPerPixel),
+      bodyRightMm: convertToMm(bodyRightNorm, imageW, imageH, mmPerPixel),
+      bodyLeftMm: convertToMm(bodyLeftNorm, imageW, imageH, mmPerPixel),
     };
   }
 
@@ -1386,7 +1391,7 @@ describe("Zoom/pan invariance — mm value must not change", () => {
     // Change mmPerPixel from 0.3 to 0.25
     const newMmPerPixel = 0.25;
     const ramusRightNorm = calculateDistance(landmarks.CoR, landmarks.GoR);
-    const newRamusRightMm = convertDistanceToMm(ramusRightNorm, imageW, imageH, newMmPerPixel);
+    const newRamusRightMm = convertToMm(ramusRightNorm, imageW, imageH, newMmPerPixel);
     expect(newRamusRightMm).not.toBe(original.ramusRightMm);
     // 0.25 < 0.3 → smaller mm value
     expect(newRamusRightMm).toBeLessThan(original.ramusRightMm);
@@ -1400,10 +1405,10 @@ describe("Zoom/pan invariance — mm value must not change", () => {
     const goR: Point = { x: 0.7, y: 0.4 }; // distance = 0.2
     const normDist = calculateDistance(coR, goR);
     expect(normDist).toBeCloseTo(0.2, 10);
-    const mmAt100 = convertDistanceToMm(normDist, imageW, imageH, mmPerPixel);
+    const mmAt100 = convertToMm(normDist, imageW, imageH, mmPerPixel);
     expect(mmAt100).toBe(60.0);
     // At 200% zoom: same normalized coords → same mm
-    const mmAt200 = convertDistanceToMm(normDist, imageW, imageH, mmPerPixel);
+    const mmAt200 = convertToMm(normDist, imageW, imageH, mmPerPixel);
     expect(mmAt200).toBe(60.0);
     expect(mmAt200).toBe(mmAt100);
   });
@@ -1426,16 +1431,16 @@ describe("Overlay and results panel consistency", () => {
     const mmPerPixel = 0.3;
 
     // Simulate "overlay" calculation
-    const overlayRamusRight = convertDistanceToMm(calculateDistance(coR, goR), imageW, imageH, mmPerPixel);
-    const overlayRamusLeft = convertDistanceToMm(calculateDistance(coL, goL), imageW, imageH, mmPerPixel);
-    const overlayBodyRight = convertDistanceToMm(calculateDistance(goR, me), imageW, imageH, mmPerPixel);
-    const overlayBodyLeft = convertDistanceToMm(calculateDistance(goL, me), imageW, imageH, mmPerPixel);
+    const overlayRamusRight = convertToMm(calculateDistance(coR, goR), imageW, imageH, mmPerPixel);
+    const overlayRamusLeft = convertToMm(calculateDistance(coL, goL), imageW, imageH, mmPerPixel);
+    const overlayBodyRight = convertToMm(calculateDistance(goR, me), imageW, imageH, mmPerPixel);
+    const overlayBodyLeft = convertToMm(calculateDistance(goL, me), imageW, imageH, mmPerPixel);
 
     // Simulate "results panel" calculation (same function, same inputs)
-    const panelRamusRight = convertDistanceToMm(calculateDistance(coR, goR), imageW, imageH, mmPerPixel);
-    const panelRamusLeft = convertDistanceToMm(calculateDistance(coL, goL), imageW, imageH, mmPerPixel);
-    const panelBodyRight = convertDistanceToMm(calculateDistance(goR, me), imageW, imageH, mmPerPixel);
-    const panelBodyLeft = convertDistanceToMm(calculateDistance(goL, me), imageW, imageH, mmPerPixel);
+    const panelRamusRight = convertToMm(calculateDistance(coR, goR), imageW, imageH, mmPerPixel);
+    const panelRamusLeft = convertToMm(calculateDistance(coL, goL), imageW, imageH, mmPerPixel);
+    const panelBodyRight = convertToMm(calculateDistance(goR, me), imageW, imageH, mmPerPixel);
+    const panelBodyLeft = convertToMm(calculateDistance(goL, me), imageW, imageH, mmPerPixel);
 
     expect(panelRamusRight).toBe(overlayRamusRight);
     expect(panelRamusLeft).toBe(overlayRamusLeft);
@@ -1455,10 +1460,10 @@ describe("Overlay and results panel consistency", () => {
     const imageH = 800;
     const mmPerPixel = 0.3;
 
-    const ramusRightMm = convertDistanceToMm(calculateDistance(coR, goR), imageW, imageH, mmPerPixel);
-    const ramusLeftMm = convertDistanceToMm(calculateDistance(coL, goL), imageW, imageH, mmPerPixel);
-    const bodyRightMm = convertDistanceToMm(calculateDistance(goR, me), imageW, imageH, mmPerPixel);
-    const bodyLeftMm = convertDistanceToMm(calculateDistance(goL, me), imageW, imageH, mmPerPixel);
+    const ramusRightMm = convertToMm(calculateDistance(coR, goR), imageW, imageH, mmPerPixel);
+    const ramusLeftMm = convertToMm(calculateDistance(coL, goL), imageW, imageH, mmPerPixel);
+    const bodyRightMm = convertToMm(calculateDistance(goR, me), imageW, imageH, mmPerPixel);
+    const bodyLeftMm = convertToMm(calculateDistance(goL, me), imageW, imageH, mmPerPixel);
 
     const conclusion = generateMandibularAsymmetryConclusion(
       ramusRightMm, ramusLeftMm, bodyRightMm, bodyLeftMm
@@ -1480,9 +1485,9 @@ describe("Calibration changes update measurements", () => {
     const imageW = 1000;
     const imageH = 800;
 
-    const mmAt0_3 = convertDistanceToMm(normDist, imageW, imageH, 0.3);
-    const mmAt0_2 = convertDistanceToMm(normDist, imageW, imageH, 0.2);
-    const mmAt0_1 = convertDistanceToMm(normDist, imageW, imageH, 0.1);
+    const mmAt0_3 = convertToMm(normDist, imageW, imageH, 0.3);
+    const mmAt0_2 = convertToMm(normDist, imageW, imageH, 0.2);
+    const mmAt0_1 = convertToMm(normDist, imageW, imageH, 0.1);
 
     // mmAt0_3 = 0.5 × 1000 × 0.3 = 150
     // mmAt0_2 = 0.5 × 1000 × 0.2 = 100
@@ -1517,8 +1522,8 @@ describe("Calibration changes update measurements", () => {
     const imageW = 1000;
     const imageH = 800;
 
-    const mmBefore = convertDistanceToMm(normDist, imageW, imageH, 0.3);
-    const mmAfter = convertDistanceToMm(normDist, imageW, imageH, 0.25);
+    const mmBefore = convertToMm(normDist, imageW, imageH, 0.3);
+    const mmAfter = convertToMm(normDist, imageW, imageH, 0.25);
 
     // Ramus: R=mmBefore, L=mmBefore×0.95 (slightly shorter left)
     const ramusR_before = mmBefore;
@@ -1656,7 +1661,6 @@ describe("Russian Localization (i18n)", () => {
           relativeDifferencePercent: 3.3,
           asymmetryIndexPercent: 1.7,
           largerSide: "right",
-          classification: null,
         },
         bodyLength: {
           right: 0.8,
@@ -1668,7 +1672,6 @@ describe("Russian Localization (i18n)", () => {
           relativeDifferencePercent: 0.0,
           asymmetryIndexPercent: 0.0,
           largerSide: "equal",
-          classification: null,
         },
         calibration: {
           pixelDistance: 100,

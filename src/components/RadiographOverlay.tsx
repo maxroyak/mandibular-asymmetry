@@ -241,7 +241,7 @@ export function RadiographOverlay({
 
       {/* ── 3. Calibration Point P1 Marker ── */}
       {calibrationPoints?.point1 && (
-        <g>
+        <g role="img" aria-label="Calibration Point 1 (P1)">
           {/* Active highlight ring (interactive mode only) */}
           {!readOnly && activeCalibrationPoint === 1 && (
             <circle
@@ -338,7 +338,7 @@ export function RadiographOverlay({
 
       {/* ── 4. Calibration Point P2 Marker ── */}
       {calibrationPoints?.point2 && (
-        <g>
+        <g role="img" aria-label="Calibration Point 2 (P2)">
           {/* Active highlight ring (interactive mode only) */}
           {!readOnly && activeCalibrationPoint === 2 && (
             <circle
@@ -443,7 +443,11 @@ export function RadiographOverlay({
         const py = lm.y * natH;
 
         return (
-          <g key={def.name}>
+          <g
+            key={def.name}
+            role="img"
+            aria-label={`${def.label} (${def.name}) landmark: ${(lm.x * 100).toFixed(1)}%, ${(lm.y * 100).toFixed(1)}%`}
+          >
             {/* Active placement ring (TRUE CIRCLE) */}
             {isActive && (
               <circle
@@ -543,12 +547,22 @@ export function RadiographOverlay({
             {/* Delete button (small red badge with ×, interactive mode only) */}
             {!readOnly && (
               <g
+                role="button"
+                tabIndex={0}
+                aria-label={`Delete landmark ${def.label} (${def.name})`}
                 className="delete-btn"
                 data-delete={def.name}
                 style={{ cursor: "pointer", pointerEvents: "all" }}
                 onClick={(e) => {
                   e.stopPropagation();
                   deleteLandmark(def.name as LandmarkName);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    deleteLandmark(def.name as LandmarkName);
+                  }
                 }}
                 onPointerDown={(e) => {
                   e.stopPropagation();
