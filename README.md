@@ -7,14 +7,17 @@ A browser-based tool for 2D analysis of mandibular skeletal asymmetry from panor
 ## Features
 
 - **5 anatomical landmarks**: Condylar right (CoR), Gonial right (GoR), Condylar left (CoL), Gonial left (GoL), and Menton (Me)
+- **Heuristic AI Landmark Detection**: Client-side automated candidate landmark proposals with strict clinician safeguards (unverified candidates require clinical review and explicit confirmation)
+- **DICOM Import & Auto-Calibration**: Client-side parsing of panoramic DICOM (.dcm) files with automatic pixel spacing extraction supporting anisotropic directional resolutions
 - **Ramus length proxy** (Co–Go): Bilateral vertical measurement with Habets asymmetry index
 - **Mandibular body length proxy** (Go–Me): Bilateral horizontal measurement with reliability caveat
 - **Two asymmetry metrics**: Habets Asymmetry Index and Relative Difference (see formulas below)
 - **Real-world measurements (mm)**: Interactive 7-stage calibration workflow — mark a known reference distance, enter its real-world value, and measurements convert from pixels to millimeters
 - **Drag-to-adjust landmarks**: Click to place, drag to reposition
 - **Visual overlay**: Canvas image layer with SVG landmark/line overlay
-- **Local persistence**: Studies saved in the browser via localStorage (metadata) + IndexedDB (radiograph images). No server needed
+- **Local persistence**: Studies saved in the browser via localStorage (metadata) + IndexedDB (radiograph images). No server needed, zero cloud transmission
 - **Automated test suite**: Domain logic, persistence, and integration tests with Vitest
+
 
 ## Tech Stack
 
@@ -201,7 +204,7 @@ A GitHub Actions workflow (`.github/workflows/ci.yml`) runs on every pull reques
 Private project. All rights reserved.
 
 ## Status
-
-MVP complete. Future phases:
-- Phase 2: AI-assisted landmark detection
-- DICOM auto-scale (automatic calibration from DICOM metadata)
+ 
+- MVP and Phase 2 completed.
+- Full client-side panoramic radiograph and DICOM analysis with heuristic AI landmark detection and clinician verification safeguards.
+- 100% in-browser processing with zero cloud transmission.

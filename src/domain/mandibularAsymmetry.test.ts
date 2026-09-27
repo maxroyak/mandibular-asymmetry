@@ -1,7 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
   calculateDistance,
+  distanceNormalizedPointsInPixels,
+  calculatePhysicalDistanceMm,
   calculateSideDifference,
+
   calculateRelativeDifference,
   calculateAsymmetryIndex,
   determineLargerSide,
@@ -935,27 +938,28 @@ describe("generateMandibularAsymmetryConclusion", () => {
     expect(conclusion).toContain("left mandibular body, which measures 72.0 mm");
   });
 
-  it("only ramus differs → predominantly ramus asymmetry", () => {
+  it("only ramus differs → reports ramus difference with body equal", () => {
     const conclusion = generateMandibularAsymmetryConclusion(52.0, 50.0, 72.0, 72.0);
-    expect(conclusion).toContain("predominantly ramus asymmetry");
+    expect(conclusion).toContain("bilateral difference in ramus height, while mandibular body lengths are approximately equal");
     expect(conclusion).toContain("right ramus measures 52.0 mm");
     expect(conclusion).toContain("is 2.0 mm longer");
-    expect(conclusion).toContain("Mandibular body lengths are approximately equal in the current projection");
+    expect(conclusion).toContain("mandibular body lengths are approximately equal");
   });
 
-  it("only body differs → predominantly mandibular body asymmetry", () => {
+  it("only body differs → reports body difference with ramus equal", () => {
     const conclusion = generateMandibularAsymmetryConclusion(50.0, 50.0, 75.0, 72.0);
-    expect(conclusion).toContain("predominantly mandibular body asymmetry");
+    expect(conclusion).toContain("bilateral difference in mandibular body length, while ramus lengths are approximately equal");
     expect(conclusion).toContain("right mandibular body measures 75.0 mm");
     expect(conclusion).toContain("is 3.0 mm longer");
-    expect(conclusion).toContain("Ramus lengths are approximately equal in the current projection");
+    expect(conclusion).toContain("ramus lengths are approximately equal");
   });
 
-  it("neither differs → no significant asymmetry", () => {
+  it("neither differs → reports approximately equal bilateral lengths", () => {
     const conclusion = generateMandibularAsymmetryConclusion(50.0, 50.0, 72.0, 72.0);
-    expect(conclusion).toContain("do not demonstrate significant mandibular skeletal asymmetry");
-    expect(conclusion).toContain("Ramus and mandibular body lengths are approximately equal");
+    expect(conclusion).toContain("describe approximately equal bilateral lengths for both the ramus and mandibular body");
+    expect(conclusion).toContain("ramus lengths are approximately equal");
   });
+
 
   it("CRITICAL: evaluates sides independently — right ramus longer, left body longer", () => {
     // Right ramus is longer, but LEFT body is longer — must not assume same side
@@ -1003,22 +1007,23 @@ describe("generateMandibularAsymmetryConclusion", () => {
 
   it("conclusion format matches the required spec example", () => {
     // Spec example: "The right ramus measures 60.0 mm and is 2.0 mm longer
-    // than the left ramus, which measures 58.0 mm."
+    // than the left ramus, which measures 58.0 mm (Habets index: 1.7%)."
     const conclusion = generateMandibularAsymmetryConclusion(60.0, 58.0, 78.0, 81.0);
-    expect(conclusion).toContain("The right ramus measures 60.0 mm and is 2.0 mm longer than the left ramus, which measures 58.0 mm.");
-    expect(conclusion).toContain("The left mandibular body measures 81.0 mm and is 3.0 mm longer than the right mandibular body, which measures 78.0 mm.");
+    expect(conclusion).toContain("The right ramus measures 60.0 mm and is 2.0 mm longer than the left ramus, which measures 58.0 mm");
+    expect(conclusion).toContain("The left mandibular body measures 81.0 mm and is 3.0 mm longer than the right mandibular body, which measures 78.0 mm");
   });
 
   it("threshold boundary: exactly 0.5mm difference is NOT 'differs'", () => {
     // 0.5mm exactly → not differs (threshold is >0.5)
     const conclusion = generateMandibularAsymmetryConclusion(50.5, 50.0, 72.0, 72.0);
-    expect(conclusion).toContain("do not demonstrate significant");
+    expect(conclusion).toContain("describe approximately equal bilateral lengths");
   });
 
   it("threshold boundary: 0.6mm difference IS 'differs'", () => {
     const conclusion = generateMandibularAsymmetryConclusion(50.6, 50.0, 72.0, 72.0);
-    expect(conclusion).toContain("predominantly ramus asymmetry");
+    expect(conclusion).toContain("bilateral difference in ramus height");
   });
+
 });
 
 // ── Required Spec Test Cases (mm measurement & conclusion) ──
@@ -1624,29 +1629,30 @@ describe("Russian Localization (i18n)", () => {
   describe("generateMandibularAsymmetryConclusion (RU)", () => {
     it("generates correct conclusion when both ramus and body differ", () => {
       const text = generateMandibularAsymmetryConclusion(62.0, 58.0, 84.0, 80.0, "ru");
-      expect(text).toContain("Текущие 2D измерения демонстрируют скелетную асимметрию нижней челюсти с вовлечением как ветви, так и тела челюсти.");
-      expect(text).toContain("Ветвь справа составляет 62.0 мм и на 4.0 мм длиннее ветви слева (58.0 мм).");
-      expect(text).toContain("Тело челюсти справа составляет 84.0 мм и на 4.0 мм длиннее тела челюсти слева (80.0 мм).");
+      expect(text).toContain("Текущие 2D измерения описывают билатеральные различия длины как ветви, так и тела нижней челюсти.");
+      expect(text).toContain("Ветвь справа составляет 62.0 мм и на 4.0 мм длиннее ветви слева (58.0 мм");
+      expect(text).toContain("Тело челюсти справа составляет 84.0 мм и на 4.0 мм длиннее тела челюсти слева (80.0 мм");
     });
 
     it("generates correct conclusion when predominantly ramus differs", () => {
       const text = generateMandibularAsymmetryConclusion(62.0, 58.0, 80.0, 80.0, "ru");
-      expect(text).toContain("Текущие 2D измерения демонстрируют преимущественно асимметрию ветви нижней челюсти.");
-      expect(text).toContain("Длина тела челюсти приблизительно симметрична в текущей проекции.");
+      expect(text).toContain("Текущие 2D измерения описывают билатеральное различие высоты ветви, тогда как длина тела нижней челюсти приблизительно симметрична.");
+      expect(text).toContain("длина тела челюсти приблизительно симметрична");
     });
 
     it("generates correct conclusion when predominantly body differs", () => {
       const text = generateMandibularAsymmetryConclusion(60.0, 60.0, 85.0, 80.0, "ru");
-      expect(text).toContain("Текущие 2D измерения демонстрируют преимущественно асимметрию тела нижней челюсти.");
-      expect(text).toContain("Длина ветвей приблизительно симметрична в текущей проекции.");
+      expect(text).toContain("Текущие 2D измерения описывают билатеральное различие длины тела, тогда как высота ветвей нижней челюсти приблизительно симметрична.");
+      expect(text).toContain("длина ветвей приблизительно симметрична");
     });
 
     it("generates correct conclusion when no significant asymmetry", () => {
       const text = generateMandibularAsymmetryConclusion(60.0, 60.0, 80.0, 80.0, "ru");
-      expect(text).toContain("Текущие 2D измерения не демонстрируют выраженной скелетной асимметрии нижней челюсти.");
-      expect(text).toContain("Длина ветвей и тела челюсти приблизительно симметрична в текущей проекции.");
+      expect(text).toContain("Текущие 2D измерения описывают приблизительно симметричные билатеральные размеры ветвей и тела нижней челюсти");
+      expect(text).toContain("длина ветвей приблизительно симметрична");
     });
   });
+
 
   describe("generateClinicalSummary (RU)", () => {
     it("includes Russian limitation header and footer", () => {
@@ -1688,6 +1694,152 @@ describe("Russian Localization (i18n)", () => {
       expect(summary).toContain("ОГРАНИЧЕНИЯ МЕТОДА");
       expect(summary).toContain("Индекс асимметрии Хабетса:");
       expect(summary).toContain("Абсолютные измерения (калиброванные):");
+    });
+  });
+
+  // ── Invariant 1: Aspect Ratio Parity on Non-Square Images ──
+  describe("Invariant 1: Aspect Ratio Parity in distanceNormalizedPointsInPixels", () => {
+    it("calculates exact pixel distances on non-square image (2000x1000)", () => {
+      const width = 2000;
+      const height = 1000;
+
+      // Purely horizontal segment: dx = 0.1 (200px), dy = 0
+      const p1: Point = { x: 0.2, y: 0.5 };
+      const p2: Point = { x: 0.3, y: 0.5 };
+      const distH = distanceNormalizedPointsInPixels(p1, p2, width, height);
+      expect(distH).toBeCloseTo(200.0, 5);
+
+      // Purely vertical segment: dx = 0, dy = 0.1 (100px)
+      const p3: Point = { x: 0.5, y: 0.2 };
+      const p4: Point = { x: 0.5, y: 0.3 };
+      const distV = distanceNormalizedPointsInPixels(p3, p4, width, height);
+      expect(distV).toBeCloseTo(100.0, 5);
+
+      // Diagonal segment: dx = 0.1 (200px), dy = 0.1 (100px)
+      // Euclidean distance in pixel space = Math.sqrt(200^2 + 100^2) = Math.sqrt(50000) ~= 223.6067977
+      const p5: Point = { x: 0.1, y: 0.1 };
+      const p6: Point = { x: 0.2, y: 0.2 };
+      const distDiag = distanceNormalizedPointsInPixels(p5, p6, width, height);
+      const expectedDistDiag = Math.sqrt(200 * 200 + 100 * 100);
+      expect(distDiag).toBeCloseTo(expectedDistDiag, 5);
+      expect(distDiag).toBeCloseTo(223.606798, 4);
+
+      // Verify that naive normalized Euclidean calculation would have been distorted:
+      // Naive: Math.sqrt(0.1^2 + 0.1^2) * 2000 = 0.141421356 * 2000 = 282.84px
+      // Our function does NOT distort!
+      expect(distDiag).not.toBeCloseTo(282.84, 0);
+    });
+
+    it("calculates distance on square 1000x1000 image", () => {
+      const p1: Point = { x: 0.0, y: 0.0 };
+      const p2: Point = { x: 0.3, y: 0.4 }; // 300px, 400px -> 500px
+      const dist = distanceNormalizedPointsInPixels(p1, p2, 1000, 1000);
+      expect(dist).toBeCloseTo(500.0, 5);
+    });
+  });
+
+  // ── Invariant 3: Anisotropic Spacing in calculatePhysicalDistanceMm ──
+  describe("Invariant 3: Anisotropic Spacing in calculatePhysicalDistanceMm", () => {
+    it("applies directional row and column spacing for physical millimeters", () => {
+      const width = 1000;
+      const height = 1000;
+      // Anisotropic calibration: vertical (row) = 0.2 mm/px, horizontal (col) = 0.1 mm/px
+      const calibration: Calibration = {
+        pixelDistance: 100,
+        realDistanceMm: 15,
+        mmPerPixel: 0.15,
+        pixelSpacing: {
+          row: 0.2,
+          col: 0.1,
+        },
+      };
+
+      // Purely horizontal distance: 100 px * 0.1 mm/colPx = 10.0 mm
+      const p1: Point = { x: 0.1, y: 0.5 };
+      const p2: Point = { x: 0.2, y: 0.5 };
+      const distH = calculatePhysicalDistanceMm(p1, p2, width, height, calibration);
+      expect(distH).toBeCloseTo(10.0, 5);
+
+      // Purely vertical distance: 100 px * 0.2 mm/rowPx = 20.0 mm
+      const p3: Point = { x: 0.5, y: 0.1 };
+      const p4: Point = { x: 0.5, y: 0.2 };
+      const distV = calculatePhysicalDistanceMm(p3, p4, width, height, calibration);
+      expect(distV).toBeCloseTo(20.0, 5);
+
+      // Diagonal distance: dxPx = 100, dyPx = 100
+      // sqrt((100 * 0.1)^2 + (100 * 0.2)^2) = sqrt(100 + 400) = sqrt(500) ~= 22.36067977 mm
+      const p5: Point = { x: 0.1, y: 0.1 };
+      const p6: Point = { x: 0.2, y: 0.2 };
+      const distDiag = calculatePhysicalDistanceMm(p5, p6, width, height, calibration);
+      expect(distDiag).toBeCloseTo(Math.sqrt(500), 5);
+      expect(distDiag).toBeCloseTo(22.36068, 4);
+    });
+
+    it("falls back to isotropic mmPerPixel when pixelSpacing is not defined", () => {
+      const width = 1000;
+      const height = 1000;
+      const calibration: Calibration = {
+        pixelDistance: 100,
+        realDistanceMm: 10,
+        mmPerPixel: 0.1,
+      };
+
+      const p1: Point = { x: 0.1, y: 0.1 };
+      const p2: Point = { x: 0.4, y: 0.5 }; // dxPx = 300, dyPx = 400 -> distPx = 500
+      const dist = calculatePhysicalDistanceMm(p1, p2, width, height, calibration);
+      expect(dist).toBeCloseTo(50.0, 5); // 500 * 0.1 mm
+    });
+  });
+
+  // ── Invariant 4: Descriptive Reporting (No Diagnostic Claims) ──
+  describe("Invariant 4: Descriptive Clinical Reporting (No Categorical Diagnostic Assertions)", () => {
+    it("never includes unvalidated diagnostic assertions in Russian or English", () => {
+      const assertionsToAvoid = [
+        "демонстрирует скелетную асимметрию",
+        "demonstrates skeletal asymmetry",
+        "патологическая асимметрия",
+        "диагностирована асимметрия",
+        "норма",
+        "патология",
+      ];
+
+      // Test with various combinations of ramus and body values
+      const testCases = [
+        { rR: 60.0, rL: 55.0, bR: 80.0, bL: 80.0 }, // ramus difference
+        { rR: 60.0, rL: 60.0, bR: 85.0, bL: 80.0 }, // body difference
+        { rR: 65.0, rL: 55.0, bR: 90.0, bL: 80.0 }, // both differ
+        { rR: 60.0, rL: 60.0, bR: 80.0, bL: 80.0 }, // symmetric
+      ];
+
+      for (const tc of testCases) {
+        const textRu = generateMandibularAsymmetryConclusion(tc.rR, tc.rL, tc.bR, tc.bL, "ru");
+        const textEn = generateMandibularAsymmetryConclusion(tc.rR, tc.rL, tc.bR, tc.bL, "en");
+
+        for (const forbidden of assertionsToAvoid) {
+          expect(textRu.toLowerCase()).not.toContain(forbidden.toLowerCase());
+          expect(textEn.toLowerCase()).not.toContain(forbidden.toLowerCase());
+        }
+
+        // Verify descriptive elements are present
+        expect(textRu).toContain("ветв");
+        expect(textRu).toContain("тел");
+        expect(textEn).toContain("ramus");
+        expect(textEn).toContain("body");
+      }
+    });
+
+    it("reports exact millimeter measurements and side comparisons descriptively", () => {
+      const textEn = generateMandibularAsymmetryConclusion(62.5, 58.0, 81.0, 79.5, "en");
+      expect(textEn).toContain("The right ramus measures 62.5 mm and is 4.5 mm longer than the left ramus");
+      expect(textEn).toContain("measures 58.0 mm (Habets index: 3.7%)");
+      expect(textEn).toContain("The right mandibular body measures 81.0 mm and is 1.5 mm longer than the left mandibular body");
+      expect(textEn).toContain("measures 79.5 mm (Habets index: 0.9%)");
+
+      const textRu = generateMandibularAsymmetryConclusion(62.5, 58.0, 81.0, 79.5, "ru");
+      expect(textRu).toContain("Ветвь справа составляет 62.5 мм и на 4.5 мм длиннее ветви слева");
+      expect(textRu).toContain("58.0 мм; индекс Хабетса: 3.7%");
+      expect(textRu).toContain("Тело челюсти справа составляет 81.0 мм и на 1.5 мм длиннее тела челюсти слева");
+      expect(textRu).toContain("79.5 мм; индекс Хабетса: 0.9%");
     });
   });
 });

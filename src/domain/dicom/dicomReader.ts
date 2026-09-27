@@ -36,9 +36,73 @@ export function formatDicomDate(raw: string | undefined): string | undefined {
 }
 
 /**
+ * Supported uncompressed DICOM Transfer Syntaxes.
+ */
+export const SUPPORTED_TRANSFER_SYNTAXES: Record<string, string> = {
+  "1.2.840.10008.1.2": "Implicit VR Little Endian",
+  "1.2.840.10008.1.2.1": "Explicit VR Little Endian",
+};
+
+/**
+ * Known unsupported/encapsulated DICOM Transfer Syntaxes.
+ */
+export const KNOWN_UNSUPPORTED_TRANSFER_SYNTAXES: Record<string, string> = {
+  "1.2.840.10008.1.2.2": "Explicit VR Big Endian",
+  "1.2.840.10008.1.2.1.99": "Deflated Explicit VR Little Endian",
+  "1.2.840.10008.1.2.4.50": "JPEG Baseline (Process 1)",
+  "1.2.840.10008.1.2.4.51": "JPEG Extended (Process 2 & 4)",
+  "1.2.840.10008.1.2.4.57": "JPEG Lossless, Non-Hierarchical",
+  "1.2.840.10008.1.2.4.70": "JPEG Lossless, First-Order Prediction",
+  "1.2.840.10008.1.2.4.80": "JPEG-LS Lossless",
+  "1.2.840.10008.1.2.4.81": "JPEG-LS Lossy",
+  "1.2.840.10008.1.2.4.90": "JPEG 2000 Lossless",
+  "1.2.840.10008.1.2.4.91": "JPEG 2000",
+  "1.2.840.10008.1.2.5": "RLE Lossless",
+};
+
+/**
+ * Validate DICOM Transfer Syntax UID.
+ * Rejects encapsulated/compressed (JPEG, JPEG 2000, RLE) and Big Endian formats.
+ */
+export function validateTransferSyntax(rawUid: string | undefined): void {
+  if (!rawUid) return;
+  const uid = rawUid.replace(/\0/g, "").trim();
+  if (uid in SUPPORTED_TRANSFER_SYNTAXES) {
+    return;
+  }
+  const name = KNOWN_UNSUPPORTED_TRANSFER_SYNTAXES[uid];
+  const label = name ? `${name} (${uid})` : uid;
+  throw new Error(
+    `Unsupported DICOM Transfer Syntax: ${label}. Encapsulated/compressed pixel data (JPEG, JPEG 2000, RLE) is not supported. Please export uncompressed DICOM (Implicit or Explicit VR Little Endian).`
+  );
+}
+
+/**
+ * Validate DICOM Pixel Representation tag (0028,0103).
+ * Must be 0 (unsigned integer) or 1 (2's complement signed integer).
+ */
+export function validatePixelRepresentation(rep: number | undefined): void {
+  if (rep === undefined) return;
+  if (rep !== 0 && rep !== 1) {
+    throw new Error(
+      `Unsupported DICOM Pixel Representation: ${rep}. Only unsigned (0) and 2's complement signed (1) integers are supported.`
+    );
+  }
+}
+
+/**
  * Extract metadata from a parsed DICOM dataset
  */
+
 export function extractDicomMetadata(dataSet: dicomParser.DataSet): DicomMetadata {
+  const rawSyntax = dataSet.string("x00020010");
+  const transferSyntaxUid = rawSyntax ? rawSyntax.replace(/\0/g, "").trim() : undefined;
+  validateTransferSyntax(transferSyntaxUid);
+
+  const rawPixelRep = dataSet.uint16("x00280103");
+  const pixelRepresentation = rawPixelRep !== undefined ? rawPixelRep : 0;
+  validatePixelRepresentation(pixelRepresentation);
+
   const patientId = (dataSet.string("x00100020") || "").trim();
   const patientName = (dataSet.string("x00100010") || "").trim();
   const studyDate = formatDicomDate(dataSet.string("x00080020"));
@@ -79,6 +143,8 @@ export function extractDicomMetadata(dataSet: dicomParser.DataSet): DicomMetadat
     mmPerPixel,
     windowCenter: !isNaN(windowCenter!) ? windowCenter : undefined,
     windowWidth: !isNaN(windowWidth!) ? windowWidth : undefined,
+    transferSyntaxUid,
+    pixelRepresentation,
   };
 }
 
@@ -89,6 +155,9 @@ export function renderDicomToCanvas(
   dataSet: dicomParser.DataSet,
   metadata: DicomMetadata
 ): { dataUrl: string; width: number; height: number } {
+  validateTransferSyntax(metadata.transferSyntaxUid);
+  validatePixelRepresentation(metadata.pixelRepresentation);
+
   const { rows, columns, bitsAllocated, photometricInterpretation } = metadata;
   if (!rows || !columns) {
     throw new Error("Invalid DICOM dimensions (rows or columns missing).");
@@ -106,6 +175,7 @@ export function renderDicomToCanvas(
   const totalPixels = rows * columns;
   const is16Bit = bitsAllocated > 8;
   const isMonochrome1 = photometricInterpretation === "MONOCHROME1";
+  const pixelRep = metadata.pixelRepresentation ?? 0;
 
   // Rescale intercept & slope
   const rescaleSlopeStr = dataSet.string("x00281053");
@@ -126,22 +196,32 @@ export function renderDicomToCanvas(
     );
     for (let i = 0; i < totalPixels; i++) {
       if (i * 2 + 1 >= dataView.byteLength) break;
-      const raw = dataView.getUint16(i * 2, true); // Little endian
+      const raw = pixelRep === 1
+        ? dataView.getInt16(i * 2, true)
+        : dataView.getUint16(i * 2, true);
       const val = raw * slope + intercept;
       pixelValues[i] = val;
       if (val < minVal) minVal = val;
       if (val > maxVal) maxVal = val;
     }
   } else {
+    const dataView = new DataView(
+      byteArray.buffer,
+      byteArray.byteOffset + offset,
+      Math.min(length, totalPixels)
+    );
     for (let i = 0; i < totalPixels; i++) {
       if (offset + i >= byteArray.length) break;
-      const raw = byteArray[offset + i];
+      const raw = pixelRep === 1
+        ? dataView.getInt8(i)
+        : byteArray[offset + i];
       const val = raw * slope + intercept;
       pixelValues[i] = val;
       if (val < minVal) minVal = val;
       if (val > maxVal) maxVal = val;
     }
   }
+
 
   // Calculate Window Center & Window Width
   let wc = metadata.windowCenter;
@@ -245,13 +325,23 @@ export function parseDicomFile(buffer: ArrayBuffer): DicomParseResult {
     const scaleFactor = origWidth > 0 ? width / origWidth : 1;
     const effectiveMmPerPixel = metadata.mmPerPixel / scaleFactor;
 
+    const activeSpacing = metadata.pixelSpacing || metadata.imagerPixelSpacing;
+    const effectivePixelSpacing = activeSpacing
+      ? {
+          row: activeSpacing.row / scaleFactor,
+          col: activeSpacing.col / scaleFactor,
+        }
+      : undefined;
+
     autoCalibration = {
       pixelDistance: 100,
       realDistanceMm: effectiveMmPerPixel * 100,
       mmPerPixel: effectiveMmPerPixel,
       source: "dicom",
+      pixelSpacing: effectivePixelSpacing,
     };
   }
+
 
   return {
     metadata,

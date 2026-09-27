@@ -8,6 +8,7 @@ import type {
   SideDifference,
   LargerSide,
   FullResults,
+  Calibration,
 } from "./types";
 
 // ── Helper ──────────────────────────────────────────────────
@@ -32,6 +33,58 @@ export function calculateDistance(a: Point, b: Point): number {
   const dy = a.y - b.y;
   return Math.sqrt(dx * dx + dy * dy);
 }
+
+/**
+ * Euclidean distance between two normalized points in native image pixel space.
+ * Prevents aspect-ratio distortion on non-square images.
+ *
+ * @param p1 - First point in normalized [0, 1] coordinates
+ * @param p2 - Second point in normalized [0, 1] coordinates
+ * @param imageWidth - Intrinsic image width in pixels
+ * @param imageHeight - Intrinsic image height in pixels
+ * @returns Euclidean distance in native image pixels
+ */
+export function distanceNormalizedPointsInPixels(
+  p1: Point,
+  p2: Point,
+  imageWidth: number,
+  imageHeight: number
+): number {
+  const dxPx = (p2.x - p1.x) * imageWidth;
+  const dyPx = (p2.y - p1.y) * imageHeight;
+  return Math.sqrt(dxPx * dxPx + dyPx * dyPx);
+}
+
+/**
+ * Physical distance in millimeters between two normalized points.
+ * Supports isotropic calibration (mmPerPixel) and anisotropic DICOM spacing (rowSpacing != colSpacing).
+ *
+ * When directional pixelSpacing is present:
+ * distanceMm = Math.sqrt((dxPx * colSpacing)^2 + (dyPx * rowSpacing)^2)
+ *
+ * When isotropic:
+ * distanceMm = distancePx * mmPerPixel
+ */
+export function calculatePhysicalDistanceMm(
+  p1: Point,
+  p2: Point,
+  imageWidth: number,
+  imageHeight: number,
+  calibration: Calibration
+): number {
+  const dxPx = (p2.x - p1.x) * imageWidth;
+  const dyPx = (p2.y - p1.y) * imageHeight;
+
+  if (calibration.pixelSpacing) {
+    const dxMm = dxPx * calibration.pixelSpacing.col;
+    const dyMm = dyPx * calibration.pixelSpacing.row;
+    return Math.sqrt(dxMm * dxMm + dyMm * dyMm);
+  }
+
+  const distancePx = Math.sqrt(dxPx * dxPx + dyPx * dyPx);
+  return distancePx * calibration.mmPerPixel;
+}
+
 
 /**
  * Signed and absolute difference between right and left measurements.
@@ -225,9 +278,8 @@ export function generateBodyComparison(
 
 /**
  * Generate a structured clinical conclusion evaluating ramus and body independently.
- * Threshold for "differs": >0.5 mm.
- * CRITICAL: Evaluates each measurement independently — does NOT assume the same
- * side is larger in both. Never reverses right and left in the text.
+ * Purely descriptive reporting of measured lengths, differences, Habets asymmetry index,
+ * and side comparisons, without categorical diagnostic assertions of skeletal pathology.
  */
 export function generateMandibularAsymmetryConclusion(
   ramusRightMm: number,
@@ -239,25 +291,28 @@ export function generateMandibularAsymmetryConclusion(
   const ramusDiffers = Math.abs(ramusRightMm - ramusLeftMm) > 0.5;
   const bodyDiffers = Math.abs(bodyRightMm - bodyLeftMm) > 0.5;
 
+  const ramusHabets = calculateAsymmetryIndex(ramusRightMm, ramusLeftMm);
+  const bodyHabets = calculateAsymmetryIndex(bodyRightMm, bodyLeftMm);
+
   if (locale === "ru") {
     const buildRamusSentenceRu = (): string => {
       const longer = determineLongerSide(ramusRightMm, ramusLeftMm);
       if (longer === "equal") {
         return (
           `Ветвь справа составляет ${ramusRightMm.toFixed(1)} мм, ветвь слева — ` +
-          `${ramusLeftMm.toFixed(1)} мм; длина ветвей приблизительно симметрична.`
+          `${ramusLeftMm.toFixed(1)} мм; длина ветвей приблизительно симметрична (индекс Хабетса: ${ramusHabets.toFixed(1)}%).`
         );
       }
       const absDiff = Math.abs(ramusRightMm - ramusLeftMm).toFixed(1);
       if (longer === "right") {
         return (
           `Ветвь справа составляет ${ramusRightMm.toFixed(1)} мм и на ${absDiff} мм ` +
-          `длиннее ветви слева (${ramusLeftMm.toFixed(1)} мм).`
+          `длиннее ветви слева (${ramusLeftMm.toFixed(1)} мм; индекс Хабетса: ${ramusHabets.toFixed(1)}%).`
         );
       }
       return (
         `Ветвь слева составляет ${ramusLeftMm.toFixed(1)} мм и на ${absDiff} мм ` +
-        `длиннее ветви справа (${ramusRightMm.toFixed(1)} мм).`
+        `длиннее ветви справа (${ramusRightMm.toFixed(1)} мм; индекс Хабетса: ${ramusHabets.toFixed(1)}%).`
       );
     };
 
@@ -266,19 +321,19 @@ export function generateMandibularAsymmetryConclusion(
       if (longer === "equal") {
         return (
           `Тело челюсти слева составляет ${bodyLeftMm.toFixed(1)} мм, тело челюсти справа — ` +
-          `${bodyRightMm.toFixed(1)} мм; длина тела челюсти приблизительно симметрична.`
+          `${bodyRightMm.toFixed(1)} мм; длина тела челюсти приблизительно симметрична (индекс Хабетса: ${bodyHabets.toFixed(1)}%).`
         );
       }
       const absDiff = Math.abs(bodyRightMm - bodyLeftMm).toFixed(1);
       if (longer === "right") {
         return (
           `Тело челюсти справа составляет ${bodyRightMm.toFixed(1)} мм и на ${absDiff} мм ` +
-          `длиннее тела челюсти слева (${bodyLeftMm.toFixed(1)} мм).`
+          `длиннее тела челюсти слева (${bodyLeftMm.toFixed(1)} мм; индекс Хабетса: ${bodyHabets.toFixed(1)}%).`
         );
       }
       return (
         `Тело челюсти слева составляет ${bodyLeftMm.toFixed(1)} мм и на ${absDiff} мм ` +
-        `длиннее тела челюсти справа (${bodyRightMm.toFixed(1)} мм).`
+        `длиннее тела челюсти справа (${bodyRightMm.toFixed(1)} мм; индекс Хабетса: ${bodyHabets.toFixed(1)}%).`
       );
     };
 
@@ -287,8 +342,7 @@ export function generateMandibularAsymmetryConclusion(
 
     if (ramusDiffers && bodyDiffers) {
       return (
-        "Текущие 2D измерения демонстрируют скелетную асимметрию нижней челюсти " +
-        "с вовлечением как ветви, так и тела челюсти. " +
+        "Текущие 2D измерения описывают билатеральные различия длины как ветви, так и тела нижней челюсти. " +
         ramusSentence +
         " " +
         bodySentence
@@ -297,52 +351,49 @@ export function generateMandibularAsymmetryConclusion(
 
     if (ramusDiffers && !bodyDiffers) {
       return (
-        "Текущие 2D измерения демонстрируют преимущественно асимметрию ветви нижней челюсти. " +
+        "Текущие 2D измерения описывают билатеральное различие высоты ветви, тогда как длина тела нижней челюсти приблизительно симметрична. " +
         ramusSentence +
         " " +
-        bodySentence.replace(/; длина тела челюсти\s+приблизительно симметрична\.$/, ".") +
-        " Длина тела челюсти приблизительно симметрична в текущей проекции."
+        bodySentence
       );
     }
 
     if (!ramusDiffers && bodyDiffers) {
       return (
-        "Текущие 2D измерения демонстрируют преимущественно асимметрию тела нижней челюсти. " +
-        bodySentence +
+        "Текущие 2D измерения описывают билатеральное различие длины тела, тогда как высота ветвей нижней челюсти приблизительно симметрична. " +
+        ramusSentence +
         " " +
-        ramusSentence.replace(/; длина ветвей\s+приблизительно симметрична\.$/, ".") +
-        " Длина ветвей приблизительно симметрична в текущей проекции."
+        bodySentence
       );
     }
 
     return (
-      "Текущие 2D измерения не демонстрируют выраженной скелетной асимметрии нижней челюсти. " +
-      ramusSentence.replace(/; длина ветвей приблизительно симметрична\.$/, ".") +
+      "Текущие 2D измерения описывают приблизительно симметричные билатеральные размеры ветвей и тела нижней челюсти (разница ≤ 0.5 мм). " +
+      ramusSentence +
       " " +
-      bodySentence.replace(/; длина тела челюсти приблизительно симметрична\.$/, ".") +
-      " Длина ветвей и тела челюсти приблизительно симметрична в текущей проекции."
+      bodySentence
     );
   }
 
-  // Build comparison sentences that include actual measured mm values (English).
+  // Build comparison sentences that include actual measured mm values and Habets index (English).
   function buildRamusSentence(): string {
     const longer = determineLongerSide(ramusRightMm, ramusLeftMm);
     if (longer === "equal") {
       return (
         `The right ramus measures ${ramusRightMm.toFixed(1)} mm and the left ramus ` +
-        `measures ${ramusLeftMm.toFixed(1)} mm; ramus lengths are approximately equal.`
+        `measures ${ramusLeftMm.toFixed(1)} mm; ramus lengths are approximately equal (Habets index: ${ramusHabets.toFixed(1)}%).`
       );
     }
     const absDiff = Math.abs(ramusRightMm - ramusLeftMm).toFixed(1);
     if (longer === "right") {
       return (
         `The right ramus measures ${ramusRightMm.toFixed(1)} mm and is ${absDiff} mm ` +
-        `longer than the left ramus, which measures ${ramusLeftMm.toFixed(1)} mm.`
+        `longer than the left ramus, which measures ${ramusLeftMm.toFixed(1)} mm (Habets index: ${ramusHabets.toFixed(1)}%).`
       );
     }
     return (
       `The left ramus measures ${ramusLeftMm.toFixed(1)} mm and is ${absDiff} mm ` +
-      `longer than the right ramus, which measures ${ramusRightMm.toFixed(1)} mm.`
+      `longer than the right ramus, which measures ${ramusRightMm.toFixed(1)} mm (Habets index: ${ramusHabets.toFixed(1)}%).`
     );
   }
 
@@ -352,19 +403,19 @@ export function generateMandibularAsymmetryConclusion(
       return (
         `The left mandibular body measures ${bodyLeftMm.toFixed(1)} mm and the right ` +
         `mandibular body measures ${bodyRightMm.toFixed(1)} mm; mandibular body lengths ` +
-        `are approximately equal.`
+        `are approximately equal (Habets index: ${bodyHabets.toFixed(1)}%).`
       );
     }
     const absDiff = Math.abs(bodyRightMm - bodyLeftMm).toFixed(1);
     if (longer === "right") {
       return (
         `The right mandibular body measures ${bodyRightMm.toFixed(1)} mm and is ${absDiff} mm ` +
-        `longer than the left mandibular body, which measures ${bodyLeftMm.toFixed(1)} mm.`
+        `longer than the left mandibular body, which measures ${bodyLeftMm.toFixed(1)} mm (Habets index: ${bodyHabets.toFixed(1)}%).`
       );
     }
     return (
       `The left mandibular body measures ${bodyLeftMm.toFixed(1)} mm and is ${absDiff} mm ` +
-      `longer than the right mandibular body, which measures ${bodyRightMm.toFixed(1)} mm.`
+      `longer than the right mandibular body, which measures ${bodyRightMm.toFixed(1)} mm (Habets index: ${bodyHabets.toFixed(1)}%).`
     );
   }
 
@@ -373,43 +424,40 @@ export function generateMandibularAsymmetryConclusion(
 
   if (ramusDiffers && bodyDiffers) {
     return (
-      "The current 2D measurements demonstrate mandibular skeletal asymmetry " +
-      "involving both the ramus and mandibular body. " +
+      "The current 2D measurements describe bilateral length differences involving both the ramus and mandibular body. " +
       ramusSentence +
       " " +
       bodySentence
     );
   }
 
+
   if (ramusDiffers && !bodyDiffers) {
     return (
-      "The current 2D measurements demonstrate predominantly ramus asymmetry. " +
+      "The current 2D measurements describe a bilateral difference in ramus height, while mandibular body lengths are approximately equal. " +
       ramusSentence +
       " " +
-      bodySentence.replace(/; mandibular body lengths\s+are approximately equal\.$/, ".") +
-      " Mandibular body lengths are approximately equal in the current projection."
+      bodySentence
     );
   }
 
   if (!ramusDiffers && bodyDiffers) {
     return (
-      "The current 2D measurements demonstrate predominantly mandibular body asymmetry. " +
-      bodySentence +
+      "The current 2D measurements describe a bilateral difference in mandibular body length, while ramus lengths are approximately equal. " +
+      ramusSentence +
       " " +
-      ramusSentence.replace(/; ramus lengths are approximately equal\.$/, ".") +
-      " Ramus lengths are approximately equal in the current projection."
+      bodySentence
     );
   }
 
   return (
-    "The current 2D measurements do not demonstrate significant mandibular " +
-    "skeletal asymmetry. " +
-    ramusSentence.replace(/; ramus lengths are approximately equal\.$/, ".") +
+    "The current 2D measurements describe approximately equal bilateral lengths for both the ramus and mandibular body (difference ≤ 0.5 mm). " +
+    ramusSentence +
     " " +
-    bodySentence.replace(/; mandibular body lengths are approximately equal\.$/, ".") +
-    " Ramus and mandibular body lengths are approximately equal in the current projection."
+    bodySentence
   );
 }
+
 
 // ── Mandatory Limitation Statements ─────────────────────────
 

@@ -5,7 +5,8 @@
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
 import {
-  calculateDistance,
+  distanceNormalizedPointsInPixels,
+  calculatePhysicalDistanceMm,
   calculateSideDifference,
   calculateRelativeDifference,
   calculateAsymmetryIndex,
@@ -16,6 +17,7 @@ import {
   determineShorterSide,
   generateMandibularAsymmetryConclusion,
 } from "../domain/mandibularAsymmetry";
+
 import type {
   Point,
   LandmarkName,
@@ -204,22 +206,33 @@ function computeSingleMeasurement(
 ): MeasurementResult | null {
   if (!rightA || !rightB || !leftA || !leftB) return null;
 
-  const rightNorm = calculateDistance(rightA, rightB);
-  const leftNorm = calculateDistance(leftA, leftB);
+  const w = imageWidth > 0 ? imageWidth : 1;
+  const h = imageHeight > 0 ? imageHeight : 1;
 
-  const habets = calculateAsymmetryIndex(rightNorm, leftNorm);
-  const relDiff = calculateRelativeDifference(rightNorm, leftNorm);
-  const larger = determineLargerSide(rightNorm, leftNorm);
-  const diff = calculateSideDifference(rightNorm, leftNorm);
+  // Convert normalized points to native pixel spans before Euclidean distance
+  // to avoid aspect ratio distortion on non-square images
+  const rightPx = distanceNormalizedPointsInPixels(rightA, rightB, w, h);
+  const leftPx = distanceNormalizedPointsInPixels(leftA, leftB, w, h);
 
-  // Calibrated: convert to mm via domain function
+  const maxDim = Math.max(w, h);
+  const rightNorm = rightPx / maxDim;
+  const leftNorm = leftPx / maxDim;
+
   let rightMm: number | null = null;
   let leftMm: number | null = null;
   if (calibration) {
-    const maxDim = Math.max(imageWidth, imageHeight);
-    rightMm = rightNorm * maxDim * calibration.mmPerPixel;
-    leftMm = leftNorm * maxDim * calibration.mmPerPixel;
+    rightMm = calculatePhysicalDistanceMm(rightA, rightB, w, h, calibration);
+    leftMm = calculatePhysicalDistanceMm(leftA, leftB, w, h, calibration);
   }
+
+  // When calibrated, compare physical mm lengths; uncalibrated compares native pixel lengths.
+  const rightMetric = rightMm !== null ? rightMm : rightPx;
+  const leftMetric = leftMm !== null ? leftMm : leftPx;
+
+  const habets = calculateAsymmetryIndex(rightMetric, leftMetric);
+  const relDiff = calculateRelativeDifference(rightMetric, leftMetric);
+  const larger = determineLargerSide(rightMetric, leftMetric);
+  const diff = calculateSideDifference(rightNorm, leftNorm);
 
   return {
     right: rightNorm,
@@ -233,6 +246,7 @@ function computeSingleMeasurement(
     leftMm,
   };
 }
+
 
 function computeMeasurements(
   landmarks: LandmarkSet,
@@ -880,13 +894,16 @@ export const useStudyStore = create<Store>()(
           stage === "calibrated" &&
           updatedPoints.point1 &&
           updatedPoints.point2 &&
-          state.calibrationRealDistanceMm > 0 &&
-          state.imageNaturalWidth > 0 &&
-          state.imageNaturalHeight > 0
+          state.calibrationRealDistanceMm > 0
         ) {
-          const dxPx = (updatedPoints.point2.x - updatedPoints.point1.x) * state.imageNaturalWidth;
-          const dyPx = (updatedPoints.point2.y - updatedPoints.point1.y) * state.imageNaturalHeight;
-          const pixelDistance = Math.sqrt(dxPx * dxPx + dyPx * dyPx);
+          const w = state.imageNaturalWidth > 0 ? state.imageNaturalWidth : 1;
+          const h = state.imageNaturalHeight > 0 ? state.imageNaturalHeight : 1;
+          const pixelDistance = distanceNormalizedPointsInPixels(
+            updatedPoints.point1,
+            updatedPoints.point2,
+            w,
+            h
+          );
           if (pixelDistance >= 5) {
             const mmPerPixel = state.calibrationRealDistanceMm / pixelDistance;
             calibration = {
@@ -897,6 +914,7 @@ export const useStudyStore = create<Store>()(
             };
           }
         }
+
 
         return {
           calibrationPoints: updatedPoints,
@@ -969,9 +987,9 @@ export const useStudyStore = create<Store>()(
       const p1 = state.calibrationPoints.point2;
       if (!p0 || !p1) return;
       if (knownDistanceMm <= 0) return;
-      const normDist = calculateDistance(p0, p1);
-      const pixelDist =
-        normDist * Math.max(state.imageNaturalWidth, state.imageNaturalHeight);
+      const w = state.imageNaturalWidth > 0 ? state.imageNaturalWidth : 1;
+      const h = state.imageNaturalHeight > 0 ? state.imageNaturalHeight : 1;
+      const pixelDist = distanceNormalizedPointsInPixels(p0, p1, w, h);
       if (pixelDist === 0) return;
       const mmPerPixel = knownDistanceMm / pixelDist;
       set({
@@ -989,6 +1007,7 @@ export const useStudyStore = create<Store>()(
       get().recalculate();
       debouncedSave();
     },
+
 
     clearCalibration: () => {
       set({

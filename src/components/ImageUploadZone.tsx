@@ -53,8 +53,13 @@ export function ImageUploadZone() {
             );
           } catch (err) {
             console.error("DICOM parse error:", err);
-            setError(t.upload.dicomParseError);
+            setError(
+              err instanceof Error && err.message
+                ? err.message
+                : t.upload.dicomParseError
+            );
           } finally {
+
             setIsLoading(false);
           }
         };
