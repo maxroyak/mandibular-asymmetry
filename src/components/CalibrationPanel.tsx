@@ -3,8 +3,9 @@
 
 import { useState, useMemo } from "react";
 import { useStudyStore } from "../store/studyStore";
-import { calculateDistance } from "../domain/mandibularAsymmetry";
+import { distanceNormalizedPointsInPixels } from "../domain/mandibularAsymmetry";
 import { getTranslations } from "../locales";
+
 
 // ── Step indicator component ────────────────────────────────
 function StepIndicator({ currentStep }: { currentStep: number }) {
@@ -69,18 +70,21 @@ export function CalibrationPanel() {
   const pixelDistancePreview = useMemo(() => {
     if (calibrationStage !== "entering-distance") return null;
     if (!calibrationPoints?.point1 || !calibrationPoints?.point2) return null;
-    const normDist = calculateDistance(
+    const w = imageNaturalWidth > 0 ? imageNaturalWidth : 1;
+    const h = imageNaturalHeight > 0 ? imageNaturalHeight : 1;
+    return distanceNormalizedPointsInPixels(
       calibrationPoints.point1,
-      calibrationPoints.point2
+      calibrationPoints.point2,
+      w,
+      h
     );
-    const px = normDist * Math.max(imageNaturalWidth, imageNaturalHeight);
-    return px;
   }, [
     calibrationStage,
     calibrationPoints,
     imageNaturalWidth,
     imageNaturalHeight,
   ]);
+
 
   // ── Scale preview ──
   const scalePreview = useMemo(() => {

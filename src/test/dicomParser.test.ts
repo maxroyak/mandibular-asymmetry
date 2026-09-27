@@ -39,6 +39,8 @@ function createSyntheticDicomBuffer(options: {
   cols?: number;
   photometric?: string;
   bitsAllocated?: number;
+  transferSyntaxUid?: string;
+  pixelRepresentation?: number;
 }): ArrayBuffer {
   const rows = options.rows ?? 10;
   const cols = options.cols ?? 10;
@@ -66,8 +68,8 @@ function createSyntheticDicomBuffer(options: {
     elements.push({ tagGroup: group, tagElement: element, vr: "US", value: bytes });
   };
 
-  // Transfer Syntax UID (0002,0010) - Explicit VR Little Endian
-  addStringElement(0x0002, 0x0010, "UI", "1.2.840.10008.1.2.1");
+  // Transfer Syntax UID (0002,0010)
+  addStringElement(0x0002, 0x0010, "UI", options.transferSyntaxUid ?? "1.2.840.10008.1.2.1");
 
   // Study Date (0008,0020)
   if (options.studyDate) {
@@ -100,10 +102,22 @@ function createSyntheticDicomBuffer(options: {
   addUint16Element(0x0028, 0x0100, bits);
   addUint16Element(0x0028, 0x0101, bits);
 
+  // Pixel Representation (0028,0103) - 0 = unsigned, 1 = signed
+  if (options.pixelRepresentation !== undefined) {
+    addUint16Element(0x0028, 0x0103, options.pixelRepresentation);
+  }
+
   // Pixel Data (7FE0,0010)
   const pixelBytes = new Uint8Array(pixelDataSize);
-  for (let i = 0; i < pixelBytes.length; i++) {
-    pixelBytes[i] = (i * 17) % 255;
+  if (options.pixelRepresentation === 1 && bits === 16) {
+    const int16 = new Int16Array(pixelBytes.buffer);
+    for (let i = 0; i < int16.length; i++) {
+      int16[i] = ((i % 100) - 50) * 10; // includes negative values e.g. -500 to 490
+    }
+  } else {
+    for (let i = 0; i < pixelBytes.length; i++) {
+      pixelBytes[i] = (i * 17) % 255;
+    }
   }
   elements.push({ tagGroup: 0x7fe0, tagElement: 0x0010, vr: "OW", value: pixelBytes });
 
@@ -283,5 +297,126 @@ describe("StudyStore DICOM Auto-Calibration Integration", () => {
     expect(updated.mandibularResult).not.toBeNull();
     expect(updated.mandibularResult?.ramus.rightMm).toBeGreaterThan(0);
     expect(updated.mandibularResult?.conclusion).toContain("The right ramus measures");
+  });
+
+  it("Invariant 3: preserves anisotropic pixel spacing from DICOM into study measurements", () => {
+    // DICOM with vertical rowSpacing = 0.2 mm/px, horizontal colSpacing = 0.1 mm/px
+    const buffer = createSyntheticDicomBuffer({
+      patientId: "ANISOTROPIC-01",
+      pixelSpacing: "0.200\\0.100",
+      rows: 1000,
+      cols: 1000,
+    });
+
+    const parsed = parseDicomFile(buffer);
+    expect(parsed.autoCalibration).not.toBeNull();
+    expect(parsed.autoCalibration?.pixelSpacing).toEqual({ row: 0.2, col: 0.1 });
+    expect(parsed.autoCalibration?.mmPerPixel).toBeCloseTo(0.15, 4);
+
+    // Load into study store
+    useStudyStore
+      .getState()
+      .createStudy("ANISOTROPIC-01", "data:image/png;base64,mock", 1000, 1000, parsed.autoCalibration!);
+
+    // Place purely vertical ramus: (0.3, 0.2) to (0.3, 0.7) -> dyPx = 500px, dxPx = 0
+    useStudyStore.getState().setLandmark("CoR", { x: 0.3, y: 0.2 });
+    useStudyStore.getState().setLandmark("GoR", { x: 0.3, y: 0.7 });
+    // Place purely horizontal body: (0.3, 0.7) to (0.8, 0.7) -> dxPx = 500px, dyPx = 0
+    useStudyStore.getState().setLandmark("Me", { x: 0.8, y: 0.7 });
+    useStudyStore.getState().setLandmark("CoL", { x: 0.7, y: 0.2 });
+    useStudyStore.getState().setLandmark("GoL", { x: 0.7, y: 0.7 });
+
+    const result = useStudyStore.getState().mandibularResult;
+    expect(result).not.toBeNull();
+    // Vertical ramus: 500 px * 0.2 mm/rowPx = 100.0 mm
+    expect(result?.ramus.rightMm).toBeCloseTo(100.0, 4);
+    // Horizontal body: 500 px * 0.1 mm/colPx = 50.0 mm
+    expect(result?.body.rightMm).toBeCloseTo(50.0, 4);
+    // Note: If isotropic average (0.15) was used, both would have been 75.0 mm!
+  });
+});
+
+describe("Invariant 5: DICOM Transfer Syntax and Pixel Representation Hardening", () => {
+  describe("Transfer Syntax UID Validation", () => {
+    it("accepts supported uncompressed transfer syntaxes (Explicit Little Endian)", () => {
+      const buffer = createSyntheticDicomBuffer({
+        transferSyntaxUid: "1.2.840.10008.1.2.1",
+      });
+      const parsed = parseDicomFile(buffer);
+      expect(parsed.metadata.transferSyntaxUid).toBe("1.2.840.10008.1.2.1");
+    });
+
+    it("accepts supported uncompressed transfer syntaxes (Implicit Little Endian)", () => {
+      const buffer = createSyntheticDicomBuffer({
+        transferSyntaxUid: "1.2.840.10008.1.2",
+      });
+      const parsed = parseDicomFile(buffer);
+      expect(parsed.metadata.transferSyntaxUid).toBe("1.2.840.10008.1.2");
+    });
+
+    it("rejects JPEG Baseline compressed transfer syntax with clear error", () => {
+      const buffer = createSyntheticDicomBuffer({
+        transferSyntaxUid: "1.2.840.10008.1.2.4.50",
+      });
+      expect(() => parseDicomFile(buffer)).toThrowError(
+        /Unsupported DICOM Transfer Syntax: JPEG Baseline \(Process 1\) \(1\.2\.840\.10008\.1\.2\.4\.50\)/
+      );
+    });
+
+    it("rejects JPEG 2000 compressed transfer syntax with clear error", () => {
+      const buffer = createSyntheticDicomBuffer({
+        transferSyntaxUid: "1.2.840.10008.1.2.4.90",
+      });
+      expect(() => parseDicomFile(buffer)).toThrowError(
+        /Unsupported DICOM Transfer Syntax: JPEG 2000 Lossless \(1\.2\.840\.10008\.1\.2\.4\.90\)/
+      );
+    });
+
+    it("rejects RLE Lossless compressed transfer syntax with clear error", () => {
+      const buffer = createSyntheticDicomBuffer({
+        transferSyntaxUid: "1.2.840.10008.1.2.5",
+      });
+      expect(() => parseDicomFile(buffer)).toThrowError(
+        /Unsupported DICOM Transfer Syntax: RLE Lossless \(1\.2\.840\.10008\.1\.2\.5\)/
+      );
+    });
+
+    it("rejects unknown transfer syntaxes safely", () => {
+      const buffer = createSyntheticDicomBuffer({
+        transferSyntaxUid: "1.2.840.99999.1.2",
+      });
+      expect(() => parseDicomFile(buffer)).toThrowError(
+        /Unsupported DICOM Transfer Syntax: 1\.2\.840\.99999\.1\.2\./
+      );
+    });
+  });
+
+  describe("Pixel Representation Validation & Signed Rendering", () => {
+    it("handles unsigned pixel representation (0)", () => {
+      const buffer = createSyntheticDicomBuffer({
+        pixelRepresentation: 0,
+        bitsAllocated: 16,
+      });
+      const parsed = parseDicomFile(buffer);
+      expect(parsed.metadata.pixelRepresentation).toBe(0);
+    });
+
+    it("handles signed pixel representation (1) with Int16 decoding", () => {
+      const buffer = createSyntheticDicomBuffer({
+        pixelRepresentation: 1,
+        bitsAllocated: 16,
+      });
+      const parsed = parseDicomFile(buffer);
+      expect(parsed.metadata.pixelRepresentation).toBe(1);
+    });
+
+    it("rejects invalid pixel representation values", () => {
+      const buffer = createSyntheticDicomBuffer({
+        pixelRepresentation: 2,
+      });
+      expect(() => parseDicomFile(buffer)).toThrowError(
+        /Unsupported DICOM Pixel Representation: 2\. Only unsigned \(0\) and 2's complement signed \(1\) integers are supported\./
+      );
+    });
   });
 });

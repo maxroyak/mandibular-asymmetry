@@ -6,8 +6,10 @@
 ## Project
 
 Mandibular Asymmetry Analysis — 2D analysis of mandibular skeletal asymmetry
-from panoramic radiographs (OPG). React 19 + TypeScript + Vite + Canvas/SVG
-overlay. localStorage persistence for MVP. No backend, no cloud, no AI in MVP.
+from panoramic radiographs (OPG) and 2D DICOM. React 19 + TypeScript + Vite + Canvas/SVG
+overlay. Local persistence in localStorage + IndexedDB. Client-side heuristic AI
+landmark detection (Phase 2) with mandatory clinician verification safeguards.
+Zero backend, zero cloud.
 
 ## Primary Rule — All Requests Enter Through PMBot
 
@@ -37,9 +39,10 @@ No specialist directly invokes another specialist. All results return to PMBot.
 | ResearchBot | Scientific evidence agent |
 | DevBot | Frontend/backend developer |
 | UXBot | Clinical interface designer |
-| VisionBot | Computer vision (Phase 2+, NOT MVP) |
+| VisionBot | Computer vision (Phase 2 heuristic AI landmark detection & ROI analysis) |
 | TestBot | Test suite creator |
 | QABot | Mandatory final QA gate |
+
 
 ## Execution Order
 

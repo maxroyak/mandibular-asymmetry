@@ -17,7 +17,10 @@ export interface DicomMetadata {
   mmPerPixel: number | null;
   windowCenter?: number;
   windowWidth?: number;
+  transferSyntaxUid?: string;
+  pixelRepresentation?: number;
 }
+
 
 export interface DicomParseResult {
   metadata: DicomMetadata;

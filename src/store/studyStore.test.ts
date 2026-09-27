@@ -808,4 +808,47 @@ describe("moveCalibrationPoint — Drag-to-adjust calibration points", () => {
     // 20mm for 400px = 0.05 mm/px
     expect(useStudyStore.getState().calibration?.mmPerPixel).toBeCloseTo(0.05, 4);
   });
+
+  it("Invariant 2: preserves exact scale factor parity between confirmCalibration and moveCalibrationPoint on non-square images", () => {
+    // Non-square image: 2400 x 1200
+    useStudyStore.getState().createStudy("TEST-PARITY", "data:image/png;base64,mock", 2400, 1200);
+
+    useStudyStore.getState().startCalibration();
+    const p1 = { x: 0.1, y: 0.2 }; // px: 240, 240
+    const p2 = { x: 0.4, y: 0.6 }; // px: 960, 720
+    // dxPx = 720, dyPx = 480
+    // distPx = sqrt(720^2 + 480^2) = sqrt(518400 + 230400) = sqrt(748800) ~= 865.3323061
+
+    useStudyStore.getState().placeCalibrationPoint(p1);
+    useStudyStore.getState().confirmPoint1();
+    useStudyStore.getState().placeCalibrationPoint(p2);
+    useStudyStore.getState().confirmPoint2();
+
+    const realDistanceMm = 45.0;
+    useStudyStore.getState().confirmCalibration(realDistanceMm);
+
+    const initialCal = useStudyStore.getState().calibration;
+    expect(initialCal).not.toBeNull();
+    const initialMmPerPixel = initialCal!.mmPerPixel;
+    const expectedDistPx = Math.sqrt(Math.pow(0.3 * 2400, 2) + Math.pow(0.4 * 1200, 2));
+    expect(initialCal!.pixelDistance).toBeCloseTo(expectedDistPx, 5);
+    expect(initialMmPerPixel).toBeCloseTo(realDistanceMm / expectedDistPx, 6);
+
+    // Simulate drag of point 2 to the exact same position (no scale factor jump)
+    useStudyStore.getState().moveCalibrationPoint(2, { x: 0.4, y: 0.6 });
+    const afterDrag2 = useStudyStore.getState().calibration;
+    expect(afterDrag2!.pixelDistance).toBeCloseTo(initialCal!.pixelDistance, 6);
+    expect(afterDrag2!.mmPerPixel).toBeCloseTo(initialMmPerPixel, 6);
+
+    useStudyStore.getState().moveCalibrationPoint(1, { x: 0.1, y: 0.2 });
+    const afterDrag1 = useStudyStore.getState().calibration;
+    expect(afterDrag1!.pixelDistance).toBeCloseTo(initialCal!.pixelDistance, 6);
+    expect(afterDrag1!.mmPerPixel).toBeCloseTo(initialMmPerPixel, 6);
+
+    // Drag point 2 to a new vertical position: dxPx = 0, dyPx = 480
+    useStudyStore.getState().moveCalibrationPoint(2, { x: 0.1, y: 0.6 });
+    const movedCal = useStudyStore.getState().calibration;
+    expect(movedCal!.pixelDistance).toBeCloseTo(480, 5);
+    expect(movedCal!.mmPerPixel).toBeCloseTo(realDistanceMm / 480, 6);
+  });
 });

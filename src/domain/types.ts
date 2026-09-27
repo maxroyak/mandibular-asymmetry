@@ -17,7 +17,9 @@ export interface Calibration {
   realDistanceMm: number; // known real-world distance
   mmPerPixel: number; // computed: realDistanceMm / pixelDistance
   source?: "manual" | "dicom";
+  pixelSpacing?: { row: number; col: number }; // Directional spacing (row = y mm/px, col = x mm/px)
 }
+
 
 /**
  * Calibration draft state during the interactive calibration workflow.
